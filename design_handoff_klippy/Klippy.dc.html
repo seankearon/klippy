@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;500;600;700&family=Chivo+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#0c0d10 radial-gradient(circle, #1d1f25 1px, transparent 1px); background-size:28px 28px; font-family:'Chivo',sans-serif; }
+  a { color:#f5a524; text-decoration:none; } a:hover { color:#ffc35c; }
+  ::placeholder { color:#5a5f6b; }
+</style>
+</helmet>
+<div style="display:flex; align-items:flex-start; gap:72px; padding:64px; width:max-content">
+
+  <!-- Desktop -->
+  <div style="display:flex; flex-direction:column; gap:14px">
+    <div style="font-family:'Chivo Mono',monospace; font-size:12px; letter-spacing:0.12em; color:#6a7080; text-transform:uppercase">Desktop · Windows / macOS</div>
+    <x-import component-from-global-scope="MacWindow" from="./macos-window.jsx" width="{{ winW }}" height="{{ winH }}" title="Klippy" plain="{{ true }}" background="#16181d" titlebar-color="#9aa0ad" hint-size="680px,560px">
+      <div style="display:flex; flex-direction:column; height:100%; background:#16181d; color:#e8eaef; font-family:'Chivo',sans-serif">
+
+        <!-- Filter -->
+        <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #23262e">
+          <div style="display:flex; align-items:center; gap:8px; flex:1; background:#1d2027; border:1px solid #2b2f39; border-radius:6px; padding:7px 10px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a5f6b" stroke-width="2.4"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+            <span style="font-family:'Chivo Mono',monospace; font-size:12px; color:#e8eaef">mee</span>
+            <span style="width:1px; height:14px; background:#f5a524"></span>
+            <span style="flex:1"></span>
+            <span style="font-family:'Chivo Mono',monospace; font-size:10px; color:#5a5f6b; border:1px solid #2b2f39; border-radius:4px; padding:1px 5px">⌘F</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; background:#f5a524; color:#16181d; border-radius:6px; padding:7px 12px; font-size:12px; font-weight:600; cursor:pointer" style-hover="background:#ffc35c">
+            <span style="font-size:14px; line-height:1">+</span> New
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div style="display:flex; gap:6px; padding:10px 14px; border-bottom:1px solid #23262e">
+          <span style="font-family:'Chivo Mono',monospace; font-size:11px; padding:3px 9px; border-radius:99px; background:#f5a524; color:#16181d; font-weight:500">All</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:11px; padding:3px 9px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">work</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:11px; padding:3px 9px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">dev</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:11px; padding:3px 9px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">personal</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:11px; padding:3px 9px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">banking</span>
+        </div>
+
+        <!-- List -->
+        <div style="flex:1; overflow:hidden; display:flex; flex-direction:column">
+          <sc-for list="{{ rowsTop }}" as="r" hint-placeholder-count="2">
+            <div style="display:flex; align-items:center; gap:12px; padding:9px 14px; border-bottom:1px solid #1d2027">
+              <div style="flex:1; min-width:0">
+                <div style="font-size:12px; font-weight:600; color:#e8eaef">{{ r.label }}</div>
+                <div style="font-family:'Chivo Mono',monospace; font-size:11px; color:#7a8090; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.preview }}</div>
+              </div>
+              <span style="font-family:'Chivo Mono',monospace; font-size:10px; color:#6a7080">{{ r.tag }}</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a5f6b" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+            </div>
+          </sc-for>
+
+          <!-- Selected row (keyboard focus) -->
+          <div style="display:flex; align-items:center; gap:12px; padding:9px 14px; background:#22242c; border-left:2px solid #f5a524; border-bottom:1px solid #1d2027">
+            <div style="flex:1; min-width:0">
+              <div style="font-size:12px; font-weight:600; color:#f5a524">Meeting link — standup</div>
+              <div style="font-family:'Chivo Mono',monospace; font-size:11px; color:#b8bdc9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">https://meet.example.com/j/882-441-veo</div>
+            </div>
+            <span style="font-family:'Chivo Mono',monospace; font-size:10px; color:#6a7080">work</span>
+            <span style="font-family:'Chivo Mono',monospace; font-size:10px; color:#f5a524; border:1px solid #f5a524; border-radius:4px; padding:1px 6px">↵ copy</span>
+          </div>
+
+          <!-- Hovered row: edit/delete revealed -->
+          <div style="display:flex; align-items:center; gap:12px; padding:9px 14px; background:#1a1c22; border-bottom:1px solid #1d2027">
+            <div style="flex:1; min-width:0">
+              <div style="font-size:12px; font-weight:600; color:#e8eaef">Meeting notes reply</div>
+              <div style="font-family:'Chivo Mono',monospace; font-size:11px; color:#7a8090; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Thanks for the notes — I've added my comments…</div>
+            </div>
+            <div style="display:flex; gap:4px">
+              <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; background:#262a33">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa0ad" stroke-width="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>
+              </span>
+              <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; background:#262a33">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e0665c" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path></svg>
+              </span>
+              <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:5px; background:#f5a524">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16181d" stroke-width="2.2"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+              </span>
+            </div>
+          </div>
+
+          <!-- Expanded multi-line snippet -->
+          <div style="padding:9px 14px; border-bottom:1px solid #1d2027">
+            <div style="display:flex; align-items:center; gap:12px">
+              <div style="flex:1; font-size:12px; font-weight:600; color:#e8eaef">Canned reply — out of office</div>
+              <span style="font-family:'Chivo Mono',monospace; font-size:10px; color:#6a7080">work</span>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9aa0ad" stroke-width="2.4"><polyline points="6 15 12 9 18 15"></polyline></svg>
+            </div>
+            <div style="margin-top:7px; font-family:'Chivo Mono',monospace; font-size:11px; line-height:1.6; color:#9aa0ad; background:#12141a; border:1px solid #23262e; border-radius:6px; padding:9px 11px; white-space:pre-line">{{ oooText }}</div>
+          </div>
+
+          <sc-for list="{{ rowsBottom }}" as="r" hint-placeholder-count="2">
+            <div style="display:flex; align-items:center; gap:12px; padding:9px 14px; border-bottom:1px solid #1d2027">
+              <div style="flex:1; min-width:0">
+                <div style="font-size:12px; font-weight:600; color:#e8eaef">{{ r.label }}</div>
+                <div style="font-family:'Chivo Mono',monospace; font-size:11px; color:#7a8090; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.preview }}</div>
+              </div>
+              <span style="font-family:'Chivo Mono',monospace; font-size:10px; color:#6a7080">{{ r.tag }}</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a5f6b" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- Toast -->
+        <div style="display:flex; justify-content:center; padding:0 0 10px">
+          <div style="display:flex; align-items:center; gap:7px; background:#22242c; border:1px solid #f5a524; border-radius:6px; padding:6px 12px; font-size:11px; color:#e8eaef">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f5a524" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Copied to clipboard
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 14px; border-top:1px solid #23262e; font-family:'Chivo Mono',monospace; font-size:10px; color:#5a5f6b">
+          <span>↑↓ navigate&nbsp;&nbsp;↵ copy&nbsp;&nbsp;⌘N new&nbsp;&nbsp;⌘F filter</span>
+          <span>9 snippets</span>
+        </div>
+      </div>
+    </x-import>
+  </div>
+
+  <!-- Mobile -->
+  <div style="display:flex; flex-direction:column; gap:14px">
+    <div style="font-family:'Chivo Mono',monospace; font-size:12px; letter-spacing:0.12em; color:#6a7080; text-transform:uppercase">Mobile · iOS / Android</div>
+    <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="390px,780px">
+      <div style="display:flex; flex-direction:column; height:100%; background:#16181d; color:#e8eaef; font-family:'Chivo',sans-serif">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:62px 16px 10px">
+          <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em">Klippy</div>
+          <div style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#f5a524">
+            <span style="color:#16181d; font-size:20px; font-weight:600; line-height:1; margin-top:-2px">+</span>
+          </div>
+        </div>
+        <div style="padding:0 16px 10px">
+          <div style="display:flex; align-items:center; gap:8px; background:#1d2027; border:1px solid #2b2f39; border-radius:8px; padding:10px 12px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5a5f6b" stroke-width="2.4"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+            <span style="font-size:13px; color:#5a5f6b">Filter snippets</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px; padding:0 16px 12px; overflow:hidden">
+          <span style="font-family:'Chivo Mono',monospace; font-size:12px; padding:5px 12px; border-radius:99px; background:#f5a524; color:#16181d; font-weight:500">All</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:12px; padding:5px 12px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">work</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:12px; padding:5px 12px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">dev</span>
+          <span style="font-family:'Chivo Mono',monospace; font-size:12px; padding:5px 12px; border-radius:99px; border:1px solid #2b2f39; color:#9aa0ad">personal</span>
+        </div>
+        <div style="flex:1; overflow:hidden; border-top:1px solid #23262e">
+          <sc-for list="{{ mobileRows }}" as="r" hint-placeholder-count="4">
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #1d2027; min-height:44px; box-sizing:border-box">
+              <div style="flex:1; min-width:0">
+                <div style="font-size:14px; font-weight:600; color:#e8eaef">{{ r.label }}</div>
+                <div style="font-family:'Chivo Mono',monospace; font-size:12px; color:#7a8090; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.preview }}</div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:8px; background:#22242c">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f5a524" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+              </div>
+            </div>
+          </sc-for>
+          <!-- Swiped row: edit/delete actions -->
+          <div style="display:flex; align-items:stretch; border-bottom:1px solid #1d2027; overflow:hidden">
+            <div style="flex:1; min-width:0; padding:12px 16px; background:#1a1c22; transform:translateX(-4px)">
+              <div style="font-size:14px; font-weight:600; color:#e8eaef">IBAN — checking</div>
+              <div style="font-family:'Chivo Mono',monospace; font-size:12px; color:#7a8090; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">DE44 5001 0517 5407 3249 31</div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:center; width:64px; background:#2b2f39; color:#e8eaef; font-size:12px; font-weight:600">Edit</div>
+            <div style="display:flex; align-items:center; justify-content:center; width:64px; background:#e0665c; color:#fff; font-size:12px; font-weight:600">Delete</div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:center; padding:10px 0 14px">
+          <div style="display:flex; align-items:center; gap:7px; background:#22242c; border:1px solid #f5a524; border-radius:6px; padding:7px 14px; font-size:12px; color:#e8eaef">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f5a524" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Copied to clipboard
+          </div>
+        </div>
+      </div>
+    </x-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      winW: 680, winH: 560,
+      oooText: "Hi,\nI'm out of office until Monday, Aug 31 with limited email access.\nFor urgent matters contact ops@klippy.app.",
+      rowsTop: [
+        { label: "Work email", preview: "sam.rivera@northwind.io", tag: "work" },
+        { label: "Home address", preview: "Lindenstraße 24, 10969 Berlin", tag: "personal" },
+      ],
+      rowsBottom: [
+        { label: "SSH public key", preview: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF3k…", tag: "dev" },
+        { label: "Docker prune", preview: "docker system prune -af --volumes", tag: "dev" },
+        { label: "IBAN — checking", preview: "DE44 5001 0517 5407 3249 31", tag: "banking" },
+        { label: "Support signature", preview: "Best regards, Sam Rivera · Klippy Support", tag: "work" },
+      ],
+      mobileRows: [
+        { label: "Work email", preview: "sam.rivera@northwind.io" },
+        { label: "Meeting link — standup", preview: "https://meet.example.com/j/882-441-veo" },
+        { label: "Home address", preview: "Lindenstraße 24, 10969 Berlin" },
+        { label: "SSH public key", preview: "ssh-ed25519 AAAAC3NzaC1lZDI1…" },
+        { label: "Docker prune", preview: "docker system prune -af --volumes" },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
