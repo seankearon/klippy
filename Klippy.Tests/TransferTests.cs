@@ -101,6 +101,75 @@ public class TransferTests : IDisposable
         Assert.Equal("", snippet.Tag);
     }
 
+    // ---- external identity (Source + ExternalId) ----
+
+    [Fact]
+    public void Merge_MatchesOnSourceAndExternalId_WhenIdDiffers()
+    {
+        var store = NewStore();
+        store.Add(new Snippet { Label = "Old title", Content = "old", Source = "BoldDesk Aug 2026", ExternalId = "13" });
+
+        // a re-export from the external system: same external record, brand new Guid
+        var reimported = new Snippet { Label = "New title", Content = "new", Source = "BoldDesk Aug 2026", ExternalId = "13" };
+        var (added, updated) = store.Merge(new[] { reimported });
+
+        Assert.Equal(0, added);
+        Assert.Equal(1, updated);
+        var only = Assert.Single(store.Entries).Snippet;
+        Assert.Equal("New title", only.Label);
+    }
+
+    [Fact]
+    public void Merge_OnExternalMatch_KeepsKlippysOwnIdStable()
+    {
+        var store = NewStore();
+        var original = new Snippet { Label = "a", Content = "x", Source = "BoldDesk Aug 2026", ExternalId = "7" };
+        store.Add(original);
+
+        store.Merge(new[] { new Snippet { Label = "b", Content = "y", Source = "BoldDesk Aug 2026", ExternalId = "7" } });
+
+        Assert.Equal(original.Id, Assert.Single(store.Entries).Snippet.Id);
+    }
+
+    [Fact]
+    public void Merge_SameExternalId_DifferentSource_AreDistinctSnippets()
+    {
+        var store = NewStore();
+        store.Add(new Snippet { Label = "from A", Content = "x", Source = "System A", ExternalId = "1" });
+        var (added, _) = store.Merge(new[] { new Snippet { Label = "from B", Content = "y", Source = "System B", ExternalId = "1" } });
+
+        Assert.Equal(1, added);
+        Assert.Equal(2, store.Count);
+    }
+
+    [Fact]
+    public void Merge_WithoutExternalIdentity_StillFallsBackToIdMatching()
+    {
+        var store = NewStore();
+        store.Add(new Snippet { Label = "plain", Content = "x" }); // no Source/ExternalId
+        var (added, _) = store.Merge(new[] { new Snippet { Label = "another", Content = "y" } });
+
+        Assert.Equal(1, added); // must NOT collapse together on two empty external ids
+        Assert.Equal(2, store.Count);
+    }
+
+    [Fact]
+    public void SourceAndExternalId_SurviveExportAndReimport()
+    {
+        var store = NewStore();
+        store.Add(new Snippet { Label = "a", Content = "x", Source = "BoldDesk Aug 2026", ExternalId = "42" });
+
+        using var file = new MemoryStream();
+        store.Export(file);
+        file.Position = 0;
+
+        var target = NewStore("target.json");
+        target.Merge(SnippetStore.TryParseSnippets(file)!);
+        var loaded = Assert.Single(target.Entries).Snippet;
+        Assert.Equal("BoldDesk Aug 2026", loaded.Source);
+        Assert.Equal("42", loaded.ExternalId);
+    }
+
     // ---- view model flow ----
 
     [Fact]

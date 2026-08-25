@@ -76,6 +76,59 @@ transfer button in the mobile header.
   contains), then merges everything or just one tag. Merging never wipes data:
   a snippet with a known id replaces the existing copy, everything else is added.
 
+## Global hotkey (desktop)
+
+Klippy runs as a resident launcher: it stays alive behind a tray / menu-bar icon, and a
+system-wide hotkey summons it. Press it again — or `Esc`, once the filter and any overlay
+are cleared — to dismiss it and return to what you were doing. Closing the window hides
+it rather than quitting; use the tray menu's **Quit** to exit for real. Only one instance
+runs at a time, so launching Klippy again just tells you it is already resident.
+
+Default is `Ctrl+Alt+K` on Windows and `⌥⌘K` on macOS, stored in `settings.json` next to
+your snippets:
+
+```json
+{ "Hotkey": "Ctrl+Alt+K", "HotkeyEnabled": true }
+```
+
+Modifiers may be written as Ctrl/Control, Alt/Option, Shift and Cmd/Command/Win/Meta, in
+any order and any case; at least one modifier is required, since a bare key would swallow
+that keystroke system-wide. If another application already owns the combination, Klippy
+says so on stderr and starts without a hotkey rather than failing.
+
+Keeping the app resident has a second benefit on Windows: the HTML clipboard flavour is
+served through OLE for as long as Klippy runs, so the "paste before closing Klippy" caveat
+above effectively disappears.
+
+Implementation is per-platform, since Avalonia has no global-hotkey API:
+[`WindowsHotkey`](Klippy.Desktop/WindowsHotkey.cs) uses `RegisterHotKey` with a
+message-only window on its own thread, and [`MacHotkey`](Klippy.Desktop/MacHotkey.cs) uses
+Carbon's `RegisterEventHotKey` — chosen over an event tap because it needs no Accessibility
+permission. **The macOS path compiles but has not been run**, since it cannot be tested
+from Windows.
+
+## Provenance and bulk import
+
+Every snippet carries an optional `Source` and `ExternalId` (e.g. `BoldDesk Aug 2026`
+and `13`). Together they give a snippet an identity in the system it came from, so a
+later re-import of the same external export **updates snippets in place instead of
+duplicating them** — the external system knows nothing about Klippy's own `Guid`.
+Klippy's id is preserved on such a match, so it stays stable across re-imports.
+Snippets created in Klippy leave both fields empty and continue to match on id alone.
+
+`tools/` holds the BoldDesk pipeline:
+
+```sh
+# 1. markdown files + spreadsheet of titles -> a Klippy import file
+python tools/bolddesk_to_klippy.py "<export folder>" out.json --source "BoldDesk Aug 2026"
+
+# 2. merge it into the local store (same Merge path the in-app importer uses)
+dotnet run --project tools/Importer -- out.json
+```
+
+Re-running both steps is safe: the second pass reports every snippet as *updated*
+rather than adding duplicates.
+
 ## Where data lives, and backup
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`

@@ -146,6 +146,13 @@ public sealed class SnippetStore
                 continue;
 
             int i = _snippets.FindIndex(s => s.Id == snippet.Id);
+            if (i < 0 && (i = FindByExternalIdentity(snippet)) >= 0)
+            {
+                // Matched on external identity, so keep Klippy's own id stable rather
+                // than letting it churn on every re-import of the same external record.
+                snippet.Id = _snippets[i].Id;
+            }
+
             if (i >= 0)
             {
                 _snippets[i] = snippet;
@@ -166,6 +173,21 @@ public sealed class SnippetStore
         return (added, updated);
     }
 
+    /// <summary>
+    /// Locates an existing snippet carrying the same (Source, ExternalId) pair, so a
+    /// second import of the same external export updates rather than duplicates.
+    /// Returns -1 when the incoming snippet has no external identity.
+    /// </summary>
+    private int FindByExternalIdentity(Snippet incoming)
+    {
+        if (incoming.Source.Length == 0 || incoming.ExternalId.Length == 0) return -1;
+
+        return _snippets.FindIndex(s =>
+            s.ExternalId.Length > 0 &&
+            string.Equals(s.ExternalId, incoming.ExternalId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(s.Source, incoming.Source, StringComparison.OrdinalIgnoreCase));
+    }
+
     // Hand-edited or foreign JSON may carry nulls or a missing id.
     private static void Normalize(Snippet s)
     {
@@ -173,6 +195,8 @@ public sealed class SnippetStore
         s.Content = s.Content ?? "";
         s.Tag = s.Tag?.Trim().ToLowerInvariant() ?? "";
         s.QuickCode = s.QuickCode?.Trim().ToLowerInvariant() ?? "";
+        s.Source = s.Source?.Trim() ?? "";
+        s.ExternalId = s.ExternalId?.Trim() ?? "";
         if (s.Id == Guid.Empty) s.Id = Guid.NewGuid();
     }
 

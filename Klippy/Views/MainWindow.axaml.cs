@@ -14,6 +14,9 @@ public partial class MainWindow : Window
 {
     private MainViewModel? Vm => DataContext as MainViewModel;
 
+    /// <summary>Set by the desktop head when running as a resident launcher.</summary>
+    public Action? HideRequested { get; set; }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -94,8 +97,15 @@ public partial class MainWindow : Window
                 }
                 break;
             case Key.Escape:
+                // Esc unwinds overlays/filter first; once there is nothing left to clear it
+                // dismisses the launcher, which is the only keyboard way back to your work.
                 if (vm.HandleEscape())
                     e.Handled = true;
+                else if (HideRequested is { } hide)
+                {
+                    hide();
+                    e.Handled = true;
+                }
                 break;
         }
     }

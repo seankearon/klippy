@@ -37,6 +37,12 @@ public static class StorageLocations
 
     public static string BackedUpPath => Path.Combine(Directory, FileName);
 
+    /// <summary>
+    /// Preferences always live in the normal directory, never the backup-exempt one:
+    /// the "wipe on uninstall" choice is about snippet data, not settings.
+    /// </summary>
+    public static string SettingsPath => Path.Combine(Directory, "settings.json");
+
     public static string? BackupExemptPath =>
         BackupExemptDirectory is { } dir ? Path.Combine(dir, FileName) : null;
 

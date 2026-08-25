@@ -27,6 +27,21 @@ public sealed class Snippet
     /// </summary>
     public bool IsMarkdown { get; set; }
 
+    /// <summary>
+    /// Where the snippet came from, e.g. "BoldDesk Aug 2026". Empty for snippets
+    /// created in Klippy itself.
+    /// </summary>
+    public string Source { get; set; } = "";
+
+    /// <summary>
+    /// The originating system's identifier for this snippet. Together with
+    /// <see cref="Source"/> it lets a re-import update the existing snippet instead of
+    /// creating a duplicate, even though the external system knows nothing about
+    /// Klippy's <see cref="Id"/>. Kept as a string because external ids are not always
+    /// numeric.
+    /// </summary>
+    public string ExternalId { get; set; } = "";
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>Last time the snippet was copied; used to rank recent items first.</summary>
