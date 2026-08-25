@@ -75,6 +75,21 @@
                 </StackPanel>
               </StackPanel>
 
+              <Border Height="1" Background="{StaticResource HairlineBrush}"
+                      IsVisible="{Binding SupportsBackupChoice}" />
+
+              <StackPanel Spacing="8" IsVisible="{Binding SupportsBackupChoice}">
+                <TextBlock Classes="mono" Text="DEVICE BACKUP" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <ToggleButton Classes="chip" Content="Include in backup"
+                                IsChecked="{Binding IncludeInBackup}" />
+                  <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="Off: uninstalling wipes your snippets" />
+                </StackPanel>
+              </StackPanel>
+
               <DockPanel Margin="0,4,0,0">
                 <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"
                         Command="{Binding CloseCommand}" />

@@ -37,11 +37,22 @@ public partial class TransferViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasImportPreview;
 
+    /// <summary>Hidden on platforms with no OS-level backup to opt out of (desktop).</summary>
+    public bool SupportsBackupChoice => StorageLocations.SupportsBackupOptOut;
+
+    /// <summary>
+    /// On: snippets are in the backed-up location and survive an uninstall/reinstall.
+    /// Off: they live in the backup-exempt directory, so uninstalling wipes them.
+    /// </summary>
+    [ObservableProperty]
+    private bool _includeInBackup = true;
+
     public TransferViewModel(SnippetStore store, string activeTag, Action dataChanged, Action close)
     {
         _store = store;
         _dataChanged = dataChanged;
         _close = close;
+        _includeInBackup = store.IsIncludedInBackup;
 
         // Default the export scope to the tag currently filtering the main list.
         ExportScope.Add(new TagChipViewModel(MainViewModel.AllTag, isSelected: true));
@@ -55,6 +66,15 @@ public partial class TransferViewModel : ViewModelBase
                 ExportScope[0].IsSelected = false;
             }
         }
+    }
+
+    partial void OnIncludeInBackupChanged(bool value)
+    {
+        if (!StorageLocations.SupportsBackupOptOut) return;
+        _store.SetBackupParticipation(value);
+        StatusText = value
+            ? "Snippets are included in device backup"
+            : "Snippets excluded from backup — uninstalling wipes them";
     }
 
     public string SuggestedFileName =>

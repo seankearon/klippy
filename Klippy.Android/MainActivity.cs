@@ -2,6 +2,8 @@
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
+using Klippy.Services;
+using System.IO;
 
 namespace Klippy.Android;
 
@@ -15,6 +17,12 @@ public class MainActivity : AvaloniaMainActivity<App>
 {
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
     {
+        // Runs before the app (and its store) is created. NoBackupFilesDir is the
+        // directory Android deliberately keeps out of Auto Backup and device transfer,
+        // which is what makes "wipe on uninstall" actually stick.
+        if (NoBackupFilesDir?.AbsolutePath is { } noBackup)
+            StorageLocations.BackupExemptDirectory = Path.Combine(noBackup, "Klippy");
+
         return base.CustomizeAppBuilder(builder);
     }
 }

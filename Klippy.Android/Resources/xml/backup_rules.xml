@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup rules for Android 11 (API 30) and below.
+     Only the snippet store is backed up. This is an include-list on purpose: debug
+     fast-deploy puts ~85 MB of Avalonia assemblies under files/.__override__, which
+     would blow the 25 MB Auto Backup quota if the default "back up everything in
+     files/" behaviour applied. Anything outside .config/Klippy — notably the
+     no_backup directory used by the "wipe on uninstall" option — is excluded. -->
+<full-backup-content>
+    <include domain="file" path=".config/Klippy/" />
+</full-backup-content>

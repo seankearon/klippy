@@ -15,16 +15,50 @@ namespace Klippy.Services;
 /// </summary>
 public sealed class SnippetStore
 {
-    private readonly string _filePath;
+    private string _filePath;
     private readonly List<Snippet> _snippets = new();
     private readonly List<SnippetSearch.Entry> _entries = new();
 
     public IReadOnlyList<SnippetSearch.Entry> Entries => _entries;
     public int Count => _snippets.Count;
 
-    public static string DefaultFilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create),
-        "Klippy", "snippets.json");
+    public static string DefaultFilePath => StorageLocations.ActivePath;
+
+    /// <summary>Where this store is currently reading and writing.</summary>
+    public string FilePath => _filePath;
+
+    /// <summary>
+    /// False when the store sits in the platform's backup-exempt directory, i.e. the
+    /// snippets are wiped by an uninstall rather than restored from a backup.
+    /// </summary>
+    public bool IsIncludedInBackup =>
+        StorageLocations.BackupExemptPath is not { } exempt ||
+        !string.Equals(_filePath, exempt, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Moves the store between the backed-up and backup-exempt directories. Writes the
+    /// new copy before deleting the old one, so an interruption cannot lose data.
+    /// No-op where the platform has no backup-exempt location.
+    /// </summary>
+    public void SetBackupParticipation(bool include)
+    {
+        var target = include ? StorageLocations.BackedUpPath : StorageLocations.BackupExemptPath;
+        if (target is null || string.Equals(target, _filePath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var previous = _filePath;
+        _filePath = target;
+        Save();
+
+        try
+        {
+            if (File.Exists(previous)) File.Delete(previous);
+        }
+        catch (IOException)
+        {
+            // The new copy is already written, so data is safe either way.
+        }
+    }
 
     public SnippetStore(string? filePath = null, bool seedIfEmpty = true)
     {
