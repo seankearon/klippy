@@ -23,8 +23,14 @@ scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
-search, `Ctrl/⌘+E` export/import, `Esc` clears/cancels, `Ctrl/⌘+Enter` saves in the
-editor. Clicking a row also copies it.
+search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import, `Esc`
+clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row also copies it.
+
+A **preview pane** at the bottom shows the full content of the selected snippet —
+useful for long or multi-line entries that the one-line row preview truncates. It is
+closed by default and toggles with `Ctrl/⌘+P`, the `preview` footer link, or a click on
+its own header. Row-level expansion (the chevron on multi-line rows) still works
+independently.
 
 Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on desktop,
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
@@ -120,14 +126,15 @@ Snippets created in Klippy leave both fields empty and continue to match on id a
 
 ```sh
 # 1. markdown files + spreadsheet of titles -> a Klippy import file
-python tools/bolddesk_to_klippy.py "<export folder>" out.json --source "BoldDesk Aug 2026"
+python tools/bolddesk_to_klippy.py "<export folder>" out.json --source "BoldDesk Aug 2026" --tag support
 
 # 2. merge it into the local store (same Merge path the in-app importer uses)
 dotnet run --project tools/Importer -- out.json
 ```
 
 Re-running both steps is safe: the second pass reports every snippet as *updated*
-rather than adding duplicates.
+rather than adding duplicates. Pass the same `--tag` each time — a merge replaces the
+whole snippet, so omitting it would blank the tag on snippets that already carry one.
 
 ## Where data lives, and backup
 
@@ -184,19 +191,46 @@ dotnet build Klippy.Android -c Debug           # Android (requires android workl
 
 ### Release / publish
 
-The desktop head publishes with **Native AOT** by default — fast cold start, small
-self-contained binary, no JIT:
+On Windows use [`build.ps1`](build.ps1), which publishes the desktop head in Release with
+**NativeAOT** — no JIT, fast cold start, smallest output:
 
-```sh
-dotnet publish Klippy.Desktop -c Release -r win-x64      # Windows (needs VS "Desktop development with C++")
-dotnet publish Klippy.Desktop -c Release -r osx-arm64    # macOS (run on a Mac)
+```powershell
+.\build.ps1                                  # NativeAOT, win-x64
+.\build.ps1 -Runtime win-arm64 -Clean -Test  # arm64, clean first, run tests
+.\build.ps1 -NoAot -Output C:\dist\klippy    # fallback, custom output folder
 ```
 
-If the native linker isn't available, fall back to trimmed + ReadyToRun
-(~53 MB self-contained, still quick to start):
+> **Enabling NativeAOT.** It needs the MSVC toolset — the Windows SDK alone is not
+> enough. If Visual Studio is already installed, add the single component rather than
+> installing a second, standalone Build Tools copy (run elevated, then restart the shell):
+>
+> ```powershell
+> & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe' modify `
+>     --installPath 'C:\Program Files\Microsoft Visual Studio\18\Community' `
+>     --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --quiet --norestart
+> ```
+>
+> Add `Microsoft.VisualStudio.Component.VC.Tools.ARM64` as well to publish `win-arm64`.
+> The equivalent in the GUI is Visual Studio Installer → Modify → Individual components →
+> search "MSVC". `build.ps1` prints the command tailored to your machine.
+
+> **Execution policy.** Windows PowerShell 5.1 refuses unsigned scripts by default. Use
+> PowerShell 7 (`pwsh`), or run it as
+> `powershell -ExecutionPolicy Bypass -File .\build.ps1`.
+
+NativeAOT links with MSVC, so the script checks for the Visual Studio
+"Desktop development with C++" workload **before** building. Without that check the
+failure only surfaces minutes in, as a bare "Platform linker not found". When the
+component is missing it names it, prints the winget command to install it, and points at
+`-NoAot`.
+
+`-NoAot` publishes trimmed + ReadyToRun instead: no C++ toolchain needed and still quick
+to start, but self-contained and ~54 MB rather than a single small native binary.
+
+Other platforms publish directly:
 
 ```sh
-dotnet publish Klippy.Desktop -c Release -r win-x64 -p:PublishAot=false -p:PublishTrimmed=true -p:PublishReadyToRun=true
+dotnet publish Klippy.Desktop -c Release -r osx-arm64    # macOS (run on a Mac)
 ```
 
 Android Release builds use profiled AOT + full trimming (`RunAOTCompilation`,

@@ -53,6 +53,10 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isToastVisible;
 
+    /// <summary>Whether the bottom preview pane is showing. Starts closed — the list is the primary surface.</summary>
+    [ObservableProperty]
+    private bool _isPreviewOpen;
+
     [ObservableProperty]
     private string _snippetCountText = "";
 
@@ -62,10 +66,12 @@ public partial class MainViewModel : ViewModelBase
     public Func<CopyPayload, Task>? ClipboardWriter { get; set; }
 
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
-        ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter"
-        : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter";
+        ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter  ⌘P preview"
+        : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter  Ctrl+P preview";
 
     public string SearchKeyHint { get; } = OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
+
+    public string PreviewKeyHint { get; } = OperatingSystem.IsMacOS() ? "⌘P" : "Ctrl P";
 
     public MainViewModel() : this(new SnippetStore()) { }
 
@@ -217,6 +223,9 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void ClearFilter() => FilterText = "";
+
+    [RelayCommand]
+    private void TogglePreview() => IsPreviewOpen = !IsPreviewOpen;
 
     [RelayCommand]
     private void OpenTransfer() => Transfer = new TransferViewModel(

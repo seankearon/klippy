@@ -76,6 +76,10 @@ public partial class MainWindow : Window
                     vm.DuplicateCommand.Execute(vm.SelectedSnippet);
                     e.Handled = true;
                     return;
+                case Key.P:
+                    vm.TogglePreviewCommand.Execute(null);
+                    e.Handled = true;
+                    return;
             }
         }
 

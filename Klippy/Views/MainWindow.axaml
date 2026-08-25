@@ -32,6 +32,9 @@
               BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
         <DockPanel>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12">
+            <Button Classes="footerLink" Classes.on="{Binding IsPreviewOpen}"
+                    Content="preview" Focusable="False"
+                    Command="{Binding TogglePreviewCommand}" />
             <Button Classes="footerLink" Content="export / import"
                     Command="{Binding OpenTransferCommand}" />
             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
@@ -41,6 +44,56 @@
           <TextBlock Classes="mono" FontSize="10"
                      Foreground="{StaticResource MutedBrush}"
                      Text="{Binding KeyHints}" />
+        </DockPanel>
+      </Border>
+
+      <!-- Preview pane: full content of the selected row. Collapsed by default;
+           toggled by its header, the footer link, or Ctrl/Cmd+P. -->
+      <Border x:Name="PreviewPane" DockPanel.Dock="Bottom" Height="180"
+              IsVisible="{Binding IsPreviewOpen}"
+              Background="{StaticResource CodeBgBrush}">
+        <DockPanel>
+
+          <!-- header doubles as the close affordance -->
+          <Button DockPanel.Dock="Top" Classes="previewHeader" Focusable="False"
+                  Command="{Binding TogglePreviewCommand}">
+            <DockPanel>
+              <Viewbox DockPanel.Dock="Right" Width="11" Height="11" VerticalAlignment="Center"
+                       Margin="10,0,0,0">
+                <Grid Width="24" Height="24">
+                  <Path Data="{StaticResource IconChevronDown}" Stroke="{StaticResource Muted3Brush}"
+                        StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round" />
+                </Grid>
+              </Viewbox>
+              <TextBlock Classes="mono" DockPanel.Dock="Right" FontSize="10"
+                         VerticalAlignment="Center"
+                         Foreground="{StaticResource MutedBrush}"
+                         Text="{Binding PreviewKeyHint}" />
+              <TextBlock Classes="mono" DockPanel.Dock="Left" FontSize="10"
+                         VerticalAlignment="Center" Margin="0,0,10,0"
+                         Foreground="{StaticResource MutedBrush}" Text="preview" />
+              <TextBlock FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                         Margin="0,0,10,0"
+                         Foreground="{StaticResource AccentBrush}"
+                         Text="{Binding SelectedSnippet.Label}"
+                         TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+          </Button>
+
+          <!-- empty state: nothing matches the filter -->
+          <TextBlock Classes="mono" DockPanel.Dock="Top" FontSize="11" Margin="14,12"
+                     Foreground="{StaticResource MutedBrush}"
+                     Text="No snippet selected"
+                     IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNull}}" />
+
+          <ScrollViewer Padding="14,10"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
+                       Foreground="{StaticResource Muted3Brush}"
+                       Text="{Binding SelectedSnippet.Content}" TextWrapping="Wrap" />
+          </ScrollViewer>
         </DockPanel>
       </Border>
 

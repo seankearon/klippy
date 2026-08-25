@@ -8,7 +8,7 @@ Titles come from the spreadsheet (the .md files hold body text only). The numeri
 filename becomes ExternalId and, together with Source, lets a later re-import update
 snippets in place instead of duplicating them.
 
-    python tools/bolddesk_to_klippy.py "<folder>" out.json --source "BoldDesk Aug 2026"
+    python tools/bolddesk_to_klippy.py "<folder>" out.json --source "BoldDesk Aug 2026" --tag support
 
 Then merge it in with:  dotnet run --project tools/Importer -- out.json
 """
@@ -17,7 +17,7 @@ import argparse, collections, datetime, json, os, re
 import openpyxl  # pip install openpyxl
 
 
-def build(folder: str, source: str) -> list[dict]:
+def build(folder: str, source: str, tag: str = "") -> list[dict]:
     book = os.path.join(folder, "Canned Responses.xlsx")
     rows = list(openpyxl.load_workbook(book, data_only=True).worksheets[0].iter_rows(values_only=True))[1:]
     meta = {int(r[0]): {"title": str(r[1]).strip(), "usage": int(r[4] or 0)}
@@ -50,7 +50,7 @@ def build(folder: str, source: str) -> list[dict]:
         stamp = (base - datetime.timedelta(seconds=rank[ext])).isoformat()
         out.append({
             "Label": meta[ext]["title"], "Content": content,
-            "Tag": "", "QuickCode": "", "IsMarkdown": True,
+            "Tag": tag, "QuickCode": "", "IsMarkdown": True,
             "Source": source, "ExternalId": str(ext),
             "CreatedAt": stamp, "LastUsedAt": stamp,
         })
@@ -62,9 +62,12 @@ if __name__ == "__main__":
     ap.add_argument("folder")
     ap.add_argument("output")
     ap.add_argument("--source", required=True, help='e.g. "BoldDesk Aug 2026"')
+    # Merge replaces whole snippets, so a re-import without this would blank the tag
+    # on snippets that already carry one.
+    ap.add_argument("--tag", default="", help='tag to apply, e.g. "support"')
     a = ap.parse_args()
 
-    snippets = build(a.folder, a.source)
+    snippets = build(a.folder, a.source, a.tag)
     json.dump(snippets, open(a.output, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     dupes = [k for k, n in collections.Counter(s["ExternalId"] for s in snippets).items() if n > 1]
     assert not dupes, f"duplicate external ids: {dupes}"

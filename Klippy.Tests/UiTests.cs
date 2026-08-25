@@ -103,6 +103,51 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public void PreviewPane_StartsClosed_AndTogglesWithShortcut()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var pane = window.GetControl<Border>("PreviewPane");
+        Assert.False(vm.IsPreviewOpen);
+        Assert.False(pane.IsVisible);
+
+        var cmdMod = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+
+        window.KeyPress(Key.P, cmdMod, PhysicalKey.P, "p");
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.IsPreviewOpen);
+        Assert.True(pane.IsVisible);
+
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-preview.png"));
+
+        window.KeyPress(Key.P, cmdMod, PhysicalKey.P, "p");
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(vm.IsPreviewOpen);
+        Assert.False(pane.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public void PreviewPane_ShortcutIsIgnored_WhileAnOverlayIsOpen()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var cmdMod = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        window.KeyPress(Key.P, cmdMod, PhysicalKey.P, "p");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.IsPreviewOpen); // Ctrl+P must not fire behind the editor
+    }
+
+    [AvaloniaFact]
     public void TransferOverlay_Renders_AndCapturesScreenshot()
     {
         var vm = NewVm();
