@@ -1,0 +1,45 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Klippy.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://Klippy/Styles/Icons.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- Design tokens (see design_handoff_klippy/README.md) -->
+      <SolidColorBrush x:Key="AppBgBrush">#16181D</SolidColorBrush>
+      <SolidColorBrush x:Key="SurfaceBrush">#1D2027</SolidColorBrush>
+      <SolidColorBrush x:Key="HoverRowBrush">#1A1C22</SolidColorBrush>
+      <SolidColorBrush x:Key="SelectedRowBrush">#22242C</SolidColorBrush>
+      <SolidColorBrush x:Key="IconHoverBrush">#262A33</SolidColorBrush>
+      <SolidColorBrush x:Key="BorderStrongBrush">#2B2F39</SolidColorBrush>
+      <SolidColorBrush x:Key="HairlineBrush">#23262E</SolidColorBrush>
+      <SolidColorBrush x:Key="RowDividerBrush">#1D2027</SolidColorBrush>
+      <SolidColorBrush x:Key="CodeBgBrush">#12141A</SolidColorBrush>
+      <SolidColorBrush x:Key="TextPrimaryBrush">#E8EAEF</SolidColorBrush>
+      <SolidColorBrush x:Key="TextSecondaryBrush">#7A8090</SolidColorBrush>
+      <SolidColorBrush x:Key="TextSelPreviewBrush">#B8BDC9</SolidColorBrush>
+      <SolidColorBrush x:Key="MutedBrush">#5A5F6B</SolidColorBrush>
+      <SolidColorBrush x:Key="Muted2Brush">#6A7080</SolidColorBrush>
+      <SolidColorBrush x:Key="Muted3Brush">#9AA0AD</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentBrush">#F5A524</SolidColorBrush>
+      <SolidColorBrush x:Key="AccentHoverBrush">#FFC35C</SolidColorBrush>
+      <SolidColorBrush x:Key="OnAccentBrush">#16181D</SolidColorBrush>
+      <SolidColorBrush x:Key="DangerBrush">#E0665C</SolidColorBrush>
+      <SolidColorBrush x:Key="DangerHoverBrush">#E97B72</SolidColorBrush>
+      <SolidColorBrush x:Key="SelectionBrush">#55F5A524</SolidColorBrush>
+      <SolidColorBrush x:Key="ScrimBrush">#B312141A</SolidColorBrush>
+
+      <FontFamily x:Key="FontUi">avares://Klippy/Assets/Fonts#Chivo</FontFamily>
+      <FontFamily x:Key="FontMono">avares://Klippy/Assets/Fonts#Chivo Mono</FontFamily>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://Klippy/Styles/KlippyStyles.axaml" />
+  </Application.Styles>
+</Application>

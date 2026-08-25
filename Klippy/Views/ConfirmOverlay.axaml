@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.ConfirmOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <Panel IsVisible="{Binding DeleteTarget, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border MaxWidth="380" Margin="20" VerticalAlignment="Center"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="16">
+      <StackPanel Spacing="10">
+        <TextBlock Text="Delete snippet" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimaryBrush}" />
+        <TextBlock FontSize="12" Foreground="{StaticResource Muted3Brush}" TextWrapping="Wrap">
+          <Run Text="Delete " /><Run FontWeight="SemiBold"
+              Foreground="{StaticResource TextPrimaryBrush}"
+              Text="{Binding DeleteTarget.Label}" /><Run Text="? This cannot be undone." />
+        </TextBlock>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+          <Button Classes="subtle" Content="Cancel" Command="{Binding CancelDeleteCommand}" />
+          <Button Classes="danger" Content="Delete" Command="{Binding ConfirmDeleteCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

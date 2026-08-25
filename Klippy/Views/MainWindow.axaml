@@ -1,0 +1,256 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Klippy.ViewModels"
+        xmlns:views="using:Klippy.Views"
+        mc:Ignorable="d" d:DesignWidth="680" d:DesignHeight="560"
+        x:Class="Klippy.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/klippy.ico"
+        Title="Klippy"
+        Width="680" Height="560"
+        MinWidth="460" MinHeight="360"
+        Background="{StaticResource AppBgBrush}"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="34"
+        FontFamily="{StaticResource FontUi}"
+        Foreground="{StaticResource TextPrimaryBrush}">
+
+  <Panel>
+    <DockPanel>
+
+      <!-- Titlebar strip (client area extends into it; centered title like the mock) -->
+      <Border DockPanel.Dock="Top" Height="34" IsHitTestVisible="False">
+        <TextBlock Text="Klippy" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource Muted3Brush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+
+      <!-- Footer: key hints + export/import + count -->
+      <Border DockPanel.Dock="Bottom" Padding="14,8"
+              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12">
+            <Button Classes="footerLink" Content="export / import"
+                    Command="{Binding OpenTransferCommand}" />
+            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                       Foreground="{StaticResource MutedBrush}"
+                       Text="{Binding SnippetCountText}" />
+          </StackPanel>
+          <TextBlock Classes="mono" FontSize="10"
+                     Foreground="{StaticResource MutedBrush}"
+                     Text="{Binding KeyHints}" />
+        </DockPanel>
+      </Border>
+
+      <!-- Filter bar -->
+      <Border DockPanel.Dock="Top" Padding="14,12"
+              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Classes="primary" Margin="10,0,0,0"
+                  Command="{Binding NewCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="+" FontSize="14" VerticalAlignment="Center" Margin="0,-1,0,0" />
+              <TextBlock Text="New" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Border Background="{StaticResource SurfaceBrush}"
+                  BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                  CornerRadius="6" Padding="10,7">
+            <DockPanel>
+              <Viewbox DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0"
+                       VerticalAlignment="Center">
+                <Grid Width="24" Height="24">
+                  <Path Data="{StaticResource IconSearch}" Stroke="{StaticResource MutedBrush}"
+                        StrokeThickness="2.4" StrokeLineCap="Round" />
+                </Grid>
+              </Viewbox>
+              <Border DockPanel.Dock="Right" BorderBrush="{StaticResource BorderStrongBrush}"
+                      BorderThickness="1" CornerRadius="4" Padding="5,1"
+                      VerticalAlignment="Center" Margin="8,0,0,0">
+                <TextBlock Classes="mono" FontSize="10"
+                           Foreground="{StaticResource MutedBrush}"
+                           Text="{Binding SearchKeyHint}" />
+              </Border>
+              <TextBox x:Name="SearchBox" Classes="bare" FontSize="12"
+                       VerticalAlignment="Center"
+                       Watermark="Filter snippets or type a quick-code"
+                       Text="{Binding FilterText}" />
+            </DockPanel>
+          </Border>
+        </DockPanel>
+      </Border>
+
+      <!-- Tag chips -->
+      <Border DockPanel.Dock="Top" Padding="14,10"
+              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+        <ItemsControl ItemsSource="{Binding Tags}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="6" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TagChipViewModel">
+              <Button Classes="chip" Classes.selected="{Binding IsSelected}"
+                      Content="{Binding Name}"
+                      Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectTagCommand}"
+                      CommandParameter="{Binding}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <!-- Snippet list -->
+      <ListBox x:Name="SnippetList" Classes="snips desktop"
+               ItemsSource="{Binding Filtered}"
+               SelectedItem="{Binding SelectedSnippet}"
+               AutoScrollToSelectedItem="True"
+               SelectionMode="Single">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SnippetViewModel">
+            <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
+                    Background="Transparent" Tapped="RowTapped">
+              <DockPanel>
+                <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
+                <Border Classes="rowSurface" Padding="12,9,14,9">
+                  <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+
+                    <!-- label + one-line preview -->
+                    <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Classes="rowLabel" FontSize="12" FontWeight="SemiBold"
+                                 Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="rowPreview mono" FontSize="11"
+                                 Text="{Binding Preview}" TextTrimming="CharacterEllipsis"
+                                 IsVisible="{Binding !IsExpanded}" />
+                    </StackPanel>
+
+                    <!-- trailing: quick-code, tag, chevron, copy glyph / enter badge -->
+                    <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
+                                Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
+                                VerticalAlignment="Center">
+                      <Border BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                              CornerRadius="4" Padding="5,1" VerticalAlignment="Center"
+                              IsVisible="{Binding HasQuickCode}">
+                        <TextBlock Classes="mono" FontSize="10"
+                                   Foreground="{StaticResource Muted2Brush}"
+                                   Text="{Binding QuickCode}" />
+                      </Border>
+                      <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                 Foreground="{StaticResource Muted2Brush}" Text="{Binding Tag}" />
+                      <Button Classes="icon ghost" IsVisible="{Binding IsMultiline}"
+                              Command="{Binding ToggleExpandCommand}">
+                        <Viewbox Width="11" Height="11">
+                          <Grid Width="24" Height="24">
+                            <Path Data="{StaticResource IconChevronDown}"
+                                  Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
+                                  StrokeLineCap="Round" StrokeJoin="Round"
+                                  IsVisible="{Binding !IsExpanded}" />
+                            <Path Data="{StaticResource IconChevronUp}"
+                                  Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
+                                  StrokeLineCap="Round" StrokeJoin="Round"
+                                  IsVisible="{Binding IsExpanded}" />
+                          </Grid>
+                        </Viewbox>
+                      </Button>
+                      <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                        <Grid Width="24" Height="24">
+                          <Path Classes="copyGlyph" Data="{StaticResource IconCopy}"
+                                Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
+                                StrokeLineCap="Round" StrokeJoin="Round" />
+                        </Grid>
+                      </Viewbox>
+                      <Border Classes="enterBadge"
+                              BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                              CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                        <TextBlock Classes="mono" FontSize="10"
+                                   Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
+                      </Border>
+                    </StackPanel>
+
+                    <!-- hover: edit / delete / copy buttons -->
+                    <StackPanel Classes="hoverActions" Grid.Row="0" Grid.Column="1"
+                                Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
+                                VerticalAlignment="Center">
+                      <Button Classes="icon"
+                              Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).EditCommand}"
+                              CommandParameter="{Binding}">
+                        <Viewbox Width="12" Height="12">
+                          <Grid Width="24" Height="24">
+                            <Path Data="{StaticResource IconPencil}" Stroke="{StaticResource Muted3Brush}"
+                                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                          </Grid>
+                        </Viewbox>
+                      </Button>
+                      <Button Classes="icon"
+                              Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).DuplicateCommand}"
+                              CommandParameter="{Binding}">
+                        <Viewbox Width="12" Height="12">
+                          <Grid Width="24" Height="24">
+                            <Path Data="{StaticResource IconDuplicate}" Stroke="{StaticResource Muted3Brush}"
+                                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                          </Grid>
+                        </Viewbox>
+                      </Button>
+                      <Button Classes="icon"
+                              Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).RequestDeleteCommand}"
+                              CommandParameter="{Binding}">
+                        <Viewbox Width="12" Height="12">
+                          <Grid Width="24" Height="24">
+                            <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
+                                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                          </Grid>
+                        </Viewbox>
+                      </Button>
+                      <Button Classes="icon amber"
+                              Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
+                              CommandParameter="{Binding}">
+                        <Viewbox Width="12" Height="12">
+                          <Grid Width="24" Height="24">
+                            <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
+                                  StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
+                          </Grid>
+                        </Viewbox>
+                      </Button>
+                    </StackPanel>
+
+                    <!-- expanded multi-line content -->
+                    <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                            IsVisible="{Binding IsExpanded}" Margin="0,7,0,0"
+                            Background="{StaticResource CodeBgBrush}"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                            CornerRadius="6" Padding="11,9">
+                      <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
+                                 Foreground="{StaticResource Muted3Brush}"
+                                 Text="{Binding Content}" TextWrapping="Wrap" />
+                    </Border>
+                  </Grid>
+                </Border>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <!-- Toast -->
+    <Border Classes="toast" Classes.visible="{Binding IsToastVisible}"
+            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,42">
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+          <Grid Width="24" Height="24">
+            <Path Data="{StaticResource IconCheck}" Stroke="{StaticResource AccentBrush}"
+                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round" />
+          </Grid>
+        </Viewbox>
+        <TextBlock Text="Copied to clipboard" FontSize="11"
+                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <views:EditorOverlay />
+    <views:ConfirmOverlay />
+    <views:TransferOverlay />
+  </Panel>
+</Window>

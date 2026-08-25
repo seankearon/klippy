@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.TransferOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <Panel IsVisible="{Binding Transfer, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border MaxWidth="460" Margin="20" VerticalAlignment="Center"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="16">
+      <ContentControl Content="{Binding Transfer}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="vm:TransferViewModel">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Export / Import" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextPrimaryBrush}" />
+
+              <!-- Export: whole set or one tag -->
+              <StackPanel Spacing="8">
+                <TextBlock Classes="mono" Text="EXPORT" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+                <ItemsControl ItemsSource="{Binding ExportScope}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TagChipViewModel">
+                      <Button Classes="chip" Classes.selected="{Binding IsSelected}"
+                              Content="{Binding Name}"
+                              Command="{Binding $parent[ItemsControl].((vm:TransferViewModel)DataContext).SelectExportTagCommand}"
+                              CommandParameter="{Binding}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Classes="primary" Content="Export…" HorizontalAlignment="Left"
+                        Click="ExportClick" />
+              </StackPanel>
+
+              <Border Height="1" Background="{StaticResource HairlineBrush}" />
+
+              <!-- Import: pick a file, preview its contents, then merge all or one tag -->
+              <StackPanel Spacing="8">
+                <TextBlock Classes="mono" Text="IMPORT" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+                <Button Classes="subtle" Content="Choose file…" HorizontalAlignment="Left"
+                        IsVisible="{Binding !HasImportPreview}" Click="PickImportClick" />
+                <StackPanel Spacing="8" IsVisible="{Binding HasImportPreview}">
+                  <TextBlock Classes="mono" FontSize="11"
+                             Foreground="{StaticResource Muted3Brush}"
+                             Text="{Binding ImportSummary}" TextTrimming="CharacterEllipsis" />
+                  <ItemsControl ItemsSource="{Binding ImportScope}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:TagChipViewModel">
+                        <Button Classes="chip" Classes.selected="{Binding IsSelected}"
+                                Content="{Binding Name}"
+                                Command="{Binding $parent[ItemsControl].((vm:TransferViewModel)DataContext).SelectImportTagCommand}"
+                                CommandParameter="{Binding}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="subtle" Content="Cancel" Command="{Binding CancelImportCommand}" />
+                    <Button Classes="primary" Content="Import" Command="{Binding ImportCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </StackPanel>
+
+              <DockPanel Margin="0,4,0,0">
+                <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"
+                        Command="{Binding CloseCommand}" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted3Brush}"
+                           VerticalAlignment="Center" TextWrapping="Wrap"
+                           Text="{Binding StatusText}" />
+              </DockPanel>
+            </StackPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+  </Panel>
+</UserControl>

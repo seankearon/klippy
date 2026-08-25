@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.EditorOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <Panel IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border MaxWidth="520" Margin="20" VerticalAlignment="Center"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="16">
+      <ContentControl Content="{Binding Editor}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="vm:EditorViewModel">
+            <StackPanel Spacing="10">
+              <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
+
+              <StackPanel Spacing="4">
+                <TextBlock Classes="mono" Text="LABEL" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+                <TextBox Classes="field" Loaded="FirstFieldLoaded"
+                         Watermark="e.g. Send log files"
+                         Text="{Binding Label}" />
+              </StackPanel>
+
+              <StackPanel Spacing="4">
+                <TextBlock Classes="mono" Text="CONTENT" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+                <TextBox Classes="field mono" FontSize="11"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         Height="140"
+                         Watermark="Text to copy to the clipboard"
+                         Text="{Binding Content}" />
+              </StackPanel>
+
+              <Grid ColumnDefinitions="*,12,*">
+                <StackPanel Grid.Column="0" Spacing="4">
+                  <TextBlock Classes="mono" Text="TAG" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+                  <TextBox Classes="field mono" Watermark="e.g. work"
+                           Text="{Binding Tag}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Classes="mono" Text="QUICK-CODE" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+                  <TextBox Classes="field mono" Watermark="e.g. slf"
+                           Text="{Binding QuickCode}" />
+                </StackPanel>
+              </Grid>
+
+              <DockPanel Margin="0,4,0,0">
+                <Button DockPanel.Dock="Left" Classes="subtle" Content="Duplicate"
+                        IsVisible="{Binding HasDuplicate}"
+                        Command="{Binding DuplicateCommand}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                  <Button Classes="subtle" Content="Cancel" Command="{Binding CancelCommand}" />
+                  <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" />
+                </StackPanel>
+              </DockPanel>
+            </StackPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+  </Panel>
+</UserControl>

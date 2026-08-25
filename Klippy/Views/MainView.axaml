@@ -1,0 +1,183 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Klippy.ViewModels"
+             xmlns:views="using:Klippy.Views"
+             mc:Ignorable="d" d:DesignWidth="390" d:DesignHeight="780"
+             x:Class="Klippy.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="{StaticResource AppBgBrush}"
+             FontFamily="{StaticResource FontUi}"
+             Foreground="{StaticResource TextPrimaryBrush}">
+
+  <Panel>
+    <DockPanel x:Name="Root">
+
+      <!-- Header: title + New button -->
+      <Border DockPanel.Dock="Top" Padding="16,14,16,10">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Classes="icon amber" Width="32" Height="32"
+                  CornerRadius="8" Command="{Binding NewCommand}">
+            <Viewbox Width="18" Height="18">
+              <Grid Width="24" Height="24">
+                <Path Data="{StaticResource IconPlus}" Stroke="{StaticResource OnAccentBrush}"
+                      StrokeThickness="2.4" StrokeLineCap="Round" />
+              </Grid>
+            </Viewbox>
+          </Button>
+          <Button DockPanel.Dock="Right" Classes="icon" Width="32" Height="32"
+                  CornerRadius="8" Margin="0,0,8,0"
+                  Background="{StaticResource SelectedRowBrush}"
+                  Command="{Binding OpenTransferCommand}">
+            <Viewbox Width="15" Height="15">
+              <Grid Width="24" Height="24">
+                <Path Data="{StaticResource IconTransfer}" Stroke="{StaticResource Muted3Brush}"
+                      StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
+              </Grid>
+            </Viewbox>
+          </Button>
+          <TextBlock Text="Klippy" FontSize="20" FontWeight="Bold" LetterSpacing="-0.4"
+                     VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+
+      <!-- Search -->
+      <Border DockPanel.Dock="Top" Padding="16,0,16,10">
+        <Border Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                CornerRadius="8" Padding="12,10">
+          <DockPanel>
+            <Viewbox DockPanel.Dock="Left" Width="14" Height="14" Margin="0,0,8,0"
+                     VerticalAlignment="Center">
+              <Grid Width="24" Height="24">
+                <Path Data="{StaticResource IconSearch}" Stroke="{StaticResource MutedBrush}"
+                      StrokeThickness="2.4" StrokeLineCap="Round" />
+              </Grid>
+            </Viewbox>
+            <TextBox x:Name="SearchBox" Classes="bare" FontSize="13"
+                     FontFamily="{StaticResource FontUi}"
+                     VerticalAlignment="Center"
+                     Watermark="Filter snippets"
+                     Text="{Binding FilterText}" />
+          </DockPanel>
+        </Border>
+      </Border>
+
+      <!-- Tag chips (horizontally scrollable) -->
+      <Border DockPanel.Dock="Top" Padding="16,0,16,12">
+      <ScrollViewer HorizontalScrollBarVisibility="Hidden"
+                    VerticalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding Tags}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="6" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TagChipViewModel">
+              <Button Classes="chip mobileChip" Classes.selected="{Binding IsSelected}"
+                      Content="{Binding Name}"
+                      Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectTagCommand}"
+                      CommandParameter="{Binding}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      </Border>
+
+      <!-- Snippet list -->
+      <ListBox Classes="snips mobile" BorderThickness="0,1,0,0"
+               BorderBrush="{StaticResource HairlineBrush}"
+               ItemsSource="{Binding Filtered}"
+               SelectionMode="Single">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SnippetViewModel">
+            <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
+                    ClipToBounds="True">
+              <Panel>
+                <!-- swipe actions revealed behind the content -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                  <Button Width="64" CornerRadius="0" BorderThickness="0"
+                          VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                          HorizontalContentAlignment="Center"
+                          Background="{StaticResource BorderStrongBrush}"
+                          Foreground="{StaticResource TextPrimaryBrush}"
+                          FontSize="12" FontWeight="SemiBold" Content="Edit"
+                          Click="SwipeEditClick" />
+                  <Button Width="64" CornerRadius="0" BorderThickness="0"
+                          VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                          HorizontalContentAlignment="Center"
+                          Background="{StaticResource DangerBrush}"
+                          Foreground="White"
+                          FontSize="12" FontWeight="SemiBold" Content="Delete"
+                          Click="SwipeDeleteClick" />
+                </StackPanel>
+
+                <!-- row content; slides left to reveal actions -->
+                <Border Background="{StaticResource AppBgBrush}" Padding="16,12"
+                        MinHeight="44"
+                        PointerPressed="RowPointerPressed"
+                        PointerMoved="RowPointerMoved"
+                        PointerReleased="RowPointerReleased"
+                        PointerCaptureLost="RowPointerCaptureLost">
+                  <Border.RenderTransform>
+                    <TranslateTransform X="0">
+                      <TranslateTransform.Transitions>
+                        <Transitions>
+                          <DoubleTransition Property="X" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                        </Transitions>
+                      </TranslateTransform.Transitions>
+                    </TranslateTransform>
+                  </Border.RenderTransform>
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Classes="icon" Width="38" Height="38"
+                            CornerRadius="8" Margin="12,0,0,0" VerticalAlignment="Center"
+                            Background="{StaticResource SelectedRowBrush}"
+                            Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
+                            CommandParameter="{Binding}">
+                      <Viewbox Width="15" Height="15">
+                        <Grid Width="24" Height="24">
+                          <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource AccentBrush}"
+                                StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                        </Grid>
+                      </Viewbox>
+                    </Button>
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                      <TextBlock FontSize="14" FontWeight="SemiBold"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="mono" FontSize="12"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Text="{Binding Preview}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DockPanel>
+                </Border>
+              </Panel>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <!-- Toast -->
+    <Border Classes="toast" Classes.visible="{Binding IsToastVisible}"
+            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,24"
+            Padding="14,7">
+      <StackPanel Orientation="Horizontal" Spacing="7">
+        <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+          <Grid Width="24" Height="24">
+            <Path Data="{StaticResource IconCheck}" Stroke="{StaticResource AccentBrush}"
+                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round" />
+          </Grid>
+        </Viewbox>
+        <TextBlock Text="Copied to clipboard" FontSize="12"
+                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <views:EditorOverlay />
+    <views:ConfirmOverlay />
+    <views:TransferOverlay />
+  </Panel>
+</UserControl>
