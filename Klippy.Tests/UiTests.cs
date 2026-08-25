@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -129,6 +130,65 @@ public class UiTests
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.IsPreviewOpen);
         Assert.False(pane.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public void PreviewSplitter_DragResizesPaneAgainstList()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.IsPreviewOpen = true;
+        Dispatcher.UIThread.RunJobs();
+
+        var grid = window.GetControl<Grid>("ListPreviewGrid");
+        var splitter = window.GetControl<GridSplitter>("PreviewSplitter");
+        double listBefore = grid.RowDefinitions[0].ActualHeight;
+        double paneBefore = grid.RowDefinitions[2].ActualHeight;
+        Assert.True(paneBefore > 0);
+
+        // drag the splitter upwards: the preview grows, the list gives up the space
+        var grip = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(grip, MouseButton.Left);
+        window.MouseMove(grip + new Vector(0, -60));
+        window.MouseUp(grip + new Vector(0, -60), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        double listAfter = grid.RowDefinitions[0].ActualHeight;
+        double paneAfter = grid.RowDefinitions[2].ActualHeight;
+        Assert.True(paneAfter > paneBefore, $"preview should grow: {paneBefore} -> {paneAfter}");
+        Assert.True(listAfter < listBefore, $"list should shrink: {listBefore} -> {listAfter}");
+    }
+
+    [AvaloniaFact]
+    public void PreviewPane_RemembersDraggedHeight_AcrossCloseAndReopen()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.IsPreviewOpen = true;
+        Dispatcher.UIThread.RunJobs();
+
+        var grid = window.GetControl<Grid>("ListPreviewGrid");
+        var splitter = window.GetControl<GridSplitter>("PreviewSplitter");
+
+        var grip = splitter.TranslatePoint(
+            new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(grip, MouseButton.Left);
+        window.MouseMove(grip + new Vector(0, -50));
+        window.MouseUp(grip + new Vector(0, -50), MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        double dragged = grid.RowDefinitions[2].ActualHeight;
+
+        vm.IsPreviewOpen = false;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, grid.RowDefinitions[2].ActualHeight); // fully collapsed
+
+        vm.IsPreviewOpen = true;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(dragged, grid.RowDefinitions[2].ActualHeight, precision: 0);
     }
 
     [AvaloniaFact]

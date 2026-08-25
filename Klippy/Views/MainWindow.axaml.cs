@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -12,6 +13,19 @@ namespace Klippy.Views;
 
 public partial class MainWindow : Window
 {
+    private const double DefaultPreviewHeight = 180;
+    private const double MinPreviewHeight = 90;
+    private const double MinListHeight = 72; // keep in sync with the list row's MinHeight
+    private const int PreviewRowIndex = 2;   // list, splitter, preview
+
+    /// <summary>Height to restore the preview to; updated to wherever the splitter was left.</summary>
+    private double _previewHeight = DefaultPreviewHeight;
+
+    // x:Name on a RowDefinition generates no field, so reach it through the Grid.
+    private RowDefinition PreviewRow => ListPreviewGrid.RowDefinitions[PreviewRowIndex];
+
+    private MainViewModel? _watched;
+
     private MainViewModel? Vm => DataContext as MainViewModel;
 
     /// <summary>Set by the desktop head when running as a resident launcher.</summary>
@@ -30,6 +44,60 @@ public partial class MainWindow : Window
         if (Vm is { } vm)
             vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
         SearchBox.Focus();
+    }
+
+    // ---- preview pane sizing ----
+    //
+    // The splitter owns the row height while the pane is open, so opening and closing
+    // is a matter of swapping that height in and out rather than binding it.
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        if (_watched is { } previous)
+            previous.PropertyChanged -= VmPropertyChanged;
+        _watched = Vm;
+        if (_watched is { } current)
+            current.PropertyChanged += VmPropertyChanged;
+
+        ApplyPreviewHeight();
+    }
+
+    private void VmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.IsPreviewOpen))
+            ApplyPreviewHeight();
+    }
+
+    private void ApplyPreviewHeight()
+    {
+        bool open = Vm?.IsPreviewOpen == true;
+
+        if (!open)
+        {
+            // Remember where the user left the splitter. ActualHeight rather than
+            // Height, because the splitter may leave the row in star units.
+            if (PreviewRow.ActualHeight > 0)
+                _previewHeight = PreviewRow.ActualHeight;
+
+            PreviewRow.MinHeight = 0;
+            PreviewRow.Height = new GridLength(0);
+            return;
+        }
+
+        PreviewRow.MinHeight = MinPreviewHeight;
+        PreviewRow.Height = new GridLength(ClampPreviewHeight(_previewHeight), GridUnitType.Pixel);
+    }
+
+    /// <summary>Stops a remembered height from crowding out the list in a shorter window.</summary>
+    private double ClampPreviewHeight(double height)
+    {
+        double total = ListPreviewGrid.Bounds.Height;
+        if (total <= 0) return height; // not laid out yet; the Grid will sort it out
+
+        double max = total - MinListHeight - PreviewSplitter.Bounds.Height;
+        return max <= MinPreviewHeight ? MinPreviewHeight : Math.Clamp(height, MinPreviewHeight, max);
     }
 
     private void PreviewKeyDown(object? sender, KeyEventArgs e)

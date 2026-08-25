@@ -216,10 +216,37 @@
   </Style>
 
   <!-- ============ Preview pane ============ -->
+  <!-- Splitter doubles as the separator above the pane, so the header only draws
+       its lower hairline. -->
+  <Style Selector="GridSplitter.previewSplitter">
+    <Setter Property="Height" Value="7" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Background" Value="{StaticResource AppBgBrush}" />
+    <Setter Property="Cursor" Value="SizeNorthSouth" />
+    <!-- templated so the bar can carry a centre grip: a bare 7px band reads as one
+         more hairline and gives no hint that it is draggable -->
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1">
+          <Rectangle Classes="grip" Width="28" Height="2" RadiusX="1" RadiusY="1"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Fill="{StaticResource BorderStrongBrush}" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="GridSplitter.previewSplitter:pointerover /template/ Rectangle.grip">
+    <Setter Property="Fill" Value="{StaticResource Muted3Brush}" />
+  </Style>
+  <Style Selector="GridSplitter.previewSplitter:pressed /template/ Rectangle.grip">
+    <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+  </Style>
+
   <Style Selector="Button.previewHeader">
     <Setter Property="Background" Value="{StaticResource AppBgBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
-    <Setter Property="BorderThickness" Value="0,1,0,1" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
     <Setter Property="CornerRadius" Value="0" />
     <Setter Property="Padding" Value="14,7" />
     <Setter Property="MinHeight" Value="0" />

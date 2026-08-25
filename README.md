@@ -29,8 +29,9 @@ clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row also copies
 A **preview pane** at the bottom shows the full content of the selected snippet —
 useful for long or multi-line entries that the one-line row preview truncates. It is
 closed by default and toggles with `Ctrl/⌘+P`, the `preview` footer link, or a click on
-its own header. Row-level expansion (the chevron on multi-line rows) still works
-independently.
+its own header. Drag the splitter above it to trade height with the list; the pane
+reopens at whatever height you left it. Row-level expansion (the chevron on multi-line
+rows) still works independently.
 
 Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on desktop,
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
