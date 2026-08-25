@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using Klippy.Services;
 using Klippy.ViewModels;
 
 namespace Klippy.Views;
@@ -24,7 +25,7 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         if (Vm is { } vm)
-            vm.ClipboardWriter = text => Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
+            vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
         SearchBox.Focus();
     }
 

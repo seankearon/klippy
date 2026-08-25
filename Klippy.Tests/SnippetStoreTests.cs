@@ -74,6 +74,28 @@ public class SnippetStoreTests : IDisposable
     }
 
     [Fact]
+    public void IsMarkdownFlag_RoundTrips_AndDefaultsToPlain()
+    {
+        var store = new SnippetStore(_path, seedIfEmpty: false);
+        store.Add(new Snippet { Label = "md", Content = "**hi**", IsMarkdown = true });
+        store.Add(new Snippet { Label = "plain", Content = "hi" });
+
+        var reloaded = new SnippetStore(_path);
+        Assert.True(reloaded.Entries.Single(e => e.Snippet.Label == "md").Snippet.IsMarkdown);
+        Assert.False(reloaded.Entries.Single(e => e.Snippet.Label == "plain").Snippet.IsMarkdown);
+    }
+
+    [Fact]
+    public void LegacyFileWithoutFormatField_LoadsAsPlain()
+    {
+        // Files written before Markdown support must not suddenly render as rich text.
+        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        File.WriteAllText(_path, """[{"Id":"11111111-1111-1111-1111-111111111111","Label":"Old","Content":"a_b_c","Tag":"dev"}]""");
+        var store = new SnippetStore(_path);
+        Assert.False(Assert.Single(store.Entries).Snippet.IsMarkdown);
+    }
+
+    [Fact]
     public void Tags_AreDistinctSortedAndNonEmpty()
     {
         var store = new SnippetStore(_path, seedIfEmpty: false);

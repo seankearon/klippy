@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Klippy.Services;
 using Klippy.ViewModels;
 
 namespace Klippy.Views;
@@ -37,7 +38,7 @@ public partial class MainView : UserControl
         if (TopLevel.GetTopLevel(this) is not { } top) return;
 
         if (Vm is { } vm)
-            vm.ClipboardWriter = text => top.Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
+            vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(top.Clipboard, payload);
 
         // Keep content clear of notches/status bars and match the system bars to the theme.
         if (top.InsetsManager is { } insets)

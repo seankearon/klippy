@@ -28,6 +28,10 @@ public partial class EditorViewModel : ViewModelBase
     [ObservableProperty]
     private string _quickCode = "";
 
+    /// <summary>Marks the content as Markdown so copies carry rich formatting.</summary>
+    [ObservableProperty]
+    private bool _isMarkdown;
+
     public bool IsNew => _existing is null;
     public string Title => _title ?? (IsNew ? "New snippet" : "Edit snippet");
 
@@ -48,6 +52,7 @@ public partial class EditorViewModel : ViewModelBase
             _content = existing.Content;
             _tag = existing.Tag;
             _quickCode = existing.QuickCode;
+            _isMarkdown = existing.IsMarkdown;
         }
     }
 
@@ -61,6 +66,7 @@ public partial class EditorViewModel : ViewModelBase
         snippet.Content = Content;
         snippet.Tag = Tag.Trim().ToLowerInvariant();
         snippet.QuickCode = QuickCode.Trim().ToLowerInvariant();
+        snippet.IsMarkdown = IsMarkdown;
         _save(snippet, IsNew);
     }
 

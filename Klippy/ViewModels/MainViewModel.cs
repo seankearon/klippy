@@ -58,8 +58,8 @@ public partial class MainViewModel : ViewModelBase
 
     private string _activeTag = AllTag;
 
-    /// <summary>Set by the view; writes text to the platform clipboard.</summary>
-    public Func<string, Task>? ClipboardWriter { get; set; }
+    /// <summary>Set by the view; writes a copy payload to the platform clipboard.</summary>
+    public Func<CopyPayload, Task>? ClipboardWriter { get; set; }
 
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
         ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter"
@@ -133,7 +133,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (row is null) return;
         if (ClipboardWriter is { } write)
-            await write(row.Model.Content);
+            await write(RichTextClipboard.BuildPayload(row.Model));
         _store.MarkUsed(row.Model);
         ShowToast();
     }
@@ -161,22 +161,23 @@ public partial class MainViewModel : ViewModelBase
     private void Duplicate(SnippetViewModel? row)
     {
         if (row is null) return;
-        Editor = CreateDuplicateEditor(row.Label, row.Content, row.Tag);
+        Editor = CreateDuplicateEditor(row.Label, row.Content, row.Tag, row.IsMarkdown);
     }
 
     // Branch the open editor into a duplicate, carrying over any unsaved field edits.
     private void DuplicateFromEditor()
     {
         if (Editor is { } editor)
-            Editor = CreateDuplicateEditor(editor.Label, editor.Content, editor.Tag);
+            Editor = CreateDuplicateEditor(editor.Label, editor.Content, editor.Tag, editor.IsMarkdown);
     }
 
-    private EditorViewModel CreateDuplicateEditor(string label, string content, string tag) =>
+    private EditorViewModel CreateDuplicateEditor(string label, string content, string tag, bool isMarkdown) =>
         new(null, SaveSnippet, CloseEditor, title: "Duplicate snippet")
         {
             Label = label + " (copy)",
             Content = content,
             Tag = tag,
+            IsMarkdown = isMarkdown,
             // deliberately no quick-code: two snippets must not answer to the same code
         };
 

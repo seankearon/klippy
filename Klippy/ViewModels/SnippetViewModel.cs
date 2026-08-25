@@ -20,6 +20,7 @@ public partial class SnippetViewModel : ViewModelBase
     public string Tag => Model.Tag;
     public string QuickCode => Model.QuickCode;
     public bool HasQuickCode => Model.QuickCode.Length > 0;
+    public bool IsMarkdown => Model.IsMarkdown;
     public bool IsMultiline => Model.Content.Contains('\n');
     public bool CanExpand => IsMultiline && !IsExpanded;
 

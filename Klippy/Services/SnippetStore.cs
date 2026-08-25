@@ -189,18 +189,18 @@ public sealed class SnippetStore
     {
         // First-run examples so the app is immediately useful and demonstrable.
         var t = DateTimeOffset.UtcNow;
-        Snippet Make(string label, string content, string tag, string quickCode = "") =>
-            new() { Label = label, Content = content, Tag = tag, QuickCode = quickCode, CreatedAt = t, LastUsedAt = t = t.AddSeconds(-1) };
+        Snippet Make(string label, string content, string tag, string quickCode = "", bool isMarkdown = false) =>
+            new() { Label = label, Content = content, Tag = tag, QuickCode = quickCode, IsMarkdown = isMarkdown, CreatedAt = t, LastUsedAt = t = t.AddSeconds(-1) };
 
         yield return Make("Send log files",
             "Please send us the log files, as per the instructions here:\n\nhttps://www.shineforms.co.uk/docs/XXX",
-            "work", "slf");
+            "work", "slf", isMarkdown: true);
         yield return Make("Work email", "sam.rivera@northwind.io", "work", "we");
         yield return Make("Home address", "Lindenstraße 24, 10969 Berlin", "personal");
         yield return Make("Meeting link — standup", "https://meet.example.com/j/882-441-veo", "work", "ms");
         yield return Make("Canned reply — out of office",
             "Hi,\nI'm out of office until Monday, Aug 31 with limited email access.\nFor urgent matters contact ops@klippy.app.",
-            "work", "ooo");
+            "work", "ooo", isMarkdown: true);
         yield return Make("SSH public key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF3k9examplekeydata sam@work", "dev");
         yield return Make("Docker prune", "docker system prune -af --volumes", "dev", "dp");
         yield return Make("IBAN — checking", "DE44 5001 0517 5407 3249 31", "banking");

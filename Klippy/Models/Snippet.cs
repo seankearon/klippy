@@ -19,6 +19,14 @@ public sealed class Snippet
     /// <summary>Optional short code for instant recall, e.g. "slf".</summary>
     public string QuickCode { get; set; } = "";
 
+    /// <summary>
+    /// Whether <see cref="Content"/> is Markdown. Markdown snippets are copied with a
+    /// rich-text (HTML) clipboard flavour alongside the plain text, so pasting into a
+    /// WYSIWYG editor keeps the formatting. Absent in older files, which read as false
+    /// (plain) — exactly the safe default for keys, commands and account numbers.
+    /// </summary>
+    public bool IsMarkdown { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>Last time the snippet was copied; used to rank recent items first.</summary>

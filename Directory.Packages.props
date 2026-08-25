@@ -18,6 +18,8 @@
         <PackageVersion Include="Avalonia.Skia" Version="11.3.11" />
         <PackageVersion Include="Avalonia.Headless.XUnit" Version="11.3.11" />
 
+        <PackageVersion Include="Markdig" Version="0.43.0" />
+
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />

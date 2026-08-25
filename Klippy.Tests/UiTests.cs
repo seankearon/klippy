@@ -69,7 +69,7 @@ public class UiTests
         Dispatcher.UIThread.RunJobs();
 
         string? copied = null;
-        vm.ClipboardWriter = text => { copied = text; return Task.CompletedTask; };
+        vm.ClipboardWriter = payload => { copied = payload.Plain; return Task.CompletedTask; };
 
         vm.FilterText = "slf";
         Assert.NotNull(vm.SelectedSnippet);
@@ -114,6 +114,21 @@ public class UiTests
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
         frame!.Save(Path.Combine(ArtifactsDir, "screenshot-transfer.png"));
+    }
+
+    [AvaloniaFact]
+    public void EditorOverlay_Renders_AndCapturesScreenshot()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.EditCommand.Execute(vm.Filtered.First(r => r.Label == "Send log files"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.Editor!.IsMarkdown); // seeded prose snippet is Markdown
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor.png"));
     }
 
     [AvaloniaFact]
