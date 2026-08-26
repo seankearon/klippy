@@ -411,4 +411,38 @@ public class UiTests
         // tag chip list picked up the new tag, lowercased
         Assert.Contains(vm.Tags, t => t.Name == "testing");
     }
+
+    [AvaloniaFact]
+    public void Search_SpansEveryTag_AndDropsTheTagFilter()
+    {
+        var vm = NewVm();
+        var personal = vm.Tags.First(t => t.Name == "personal");
+        vm.SelectTagCommand.Execute(personal);
+        Assert.All(vm.Filtered, row => Assert.Equal("personal", row.Tag));
+
+        // a word search reaches a snippet the active tag was hiding
+        vm.FilterText = "docker";
+        Assert.Equal("Docker prune", vm.SelectedSnippet?.Label);
+
+        // ...and so does a quick-code
+        vm.FilterText = "slf";
+        Assert.Equal("Send log files", vm.SelectedSnippet?.Label);
+
+        // the chips say so: the tag filter is dropped, not silently ignored
+        Assert.True(vm.Tags.First(t => t.Name == MainViewModel.AllTag).IsSelected);
+        Assert.False(personal.IsSelected);
+    }
+
+    [AvaloniaFact]
+    public void SelectingATag_LeavesSearchMode()
+    {
+        var vm = NewVm();
+        vm.FilterText = "slf";
+        Assert.Single(vm.Filtered);
+
+        vm.SelectTagCommand.Execute(vm.Tags.First(t => t.Name == "dev"));
+
+        Assert.Equal("", vm.FilterText);
+        Assert.All(vm.Filtered, row => Assert.Equal("dev", row.Tag));
+    }
 }

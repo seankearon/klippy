@@ -84,7 +84,15 @@ public partial class MainViewModel : ViewModelBase
         Refresh();
     }
 
-    partial void OnFilterTextChanged(string value) => Refresh();
+    partial void OnFilterTextChanged(string value)
+    {
+        // A search (and a quick-code) looks at every snippet, so a live tag filter is
+        // dropped rather than silently ignored — the chips always show what the list
+        // is actually doing.
+        if (value.Length > 0 && _activeTag != AllTag)
+            ActivateTag(AllTag);
+        Refresh();
+    }
 
     /// <summary>Re-runs the search and updates the visible rows, keeping row VMs (and their expanded state) stable.</summary>
     private void Refresh()
@@ -128,10 +136,19 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void SelectTag(TagChipViewModel chip)
     {
-        _activeTag = chip.Name;
+        ActivateTag(chip.Name);
+        // Searching spans every tag, so picking one has to leave search mode; otherwise
+        // the chip would advertise a filter the results aren't obeying.
+        FilterText = "";
+        Refresh(); // FilterText may already have been empty, so nothing fired above
+    }
+
+    /// <summary>Makes <paramref name="tag"/> the active filter and moves the chip highlight to it.</summary>
+    private void ActivateTag(string tag)
+    {
+        _activeTag = tag;
         foreach (var t in Tags)
-            t.IsSelected = ReferenceEquals(t, chip);
-        Refresh();
+            t.IsSelected = string.Equals(t.Name, tag, StringComparison.Ordinal);
     }
 
     [RelayCommand]
