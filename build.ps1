@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds Klippy for Windows in Release with NativeAOT.
+    Builds Klippy for Windows in Release with NativeAOT, or for Android with -Android.
 
 .DESCRIPTION
     Publishes the desktop head as a self-contained NativeAOT binary: no JIT, fast cold
@@ -13,10 +13,19 @@
     Pass -NoAot to fall back to trimmed + ReadyToRun, which needs no C++ toolchain and
     still starts quickly, at the cost of a much larger self-contained output.
 
+    -Android builds the Android head instead. That is a wholly separate pipeline: it
+    needs a JDK and the Android SDK rather than MSVC, and its "AOT" is Mono profiled
+    AOT (native code for hot paths, with the Mono runtime still shipped in the APK)
+    rather than NativeAOT. None of the MSVC preflight below applies to it.
+
 .EXAMPLE
     .\build.ps1
     .\build.ps1 -Runtime win-arm64 -Clean -Test
     .\build.ps1 -NoAot          # no C++ toolchain available
+
+    .\build.ps1 -Android                            # Release, profiled AOT, arm64
+    .\build.ps1 -Android -Configuration Debug -Install   # quick build, push to device
+    .\build.ps1 -Android -NoAot                     # skip AOT for faster iteration
 #>
 [CmdletBinding()]
 param(
@@ -32,8 +41,23 @@ param(
     # Run the test suite before publishing.
     [switch] $Test,
 
-    # Trimmed + ReadyToRun instead of NativeAOT (no C++ toolchain required).
-    [switch] $NoAot
+    # Desktop: trimmed + ReadyToRun instead of NativeAOT (no C++ toolchain required).
+    # Android: skips Mono AOT compilation, which is much faster to iterate on.
+    [switch] $NoAot,
+
+    # Build the Android head instead of the Windows desktop head.
+    [switch] $Android,
+
+    # Android ABI to publish. Real devices are arm64; the rest are for emulators.
+    [ValidateSet('android-arm64', 'android-arm', 'android-x64', 'android-x86')]
+    [string] $Abi = 'android-arm64',
+
+    # Android configuration. Release turns on profiled AOT and full trimming.
+    [ValidateSet('Release', 'Debug')]
+    [string] $Configuration = 'Release',
+
+    # Android: install the resulting APK onto the connected device with adb.
+    [switch] $Install
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,6 +86,127 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw 'The .NET SDK is not on PATH. Install .NET 10 from https://dotnet.microsoft.com/download'
 }
 Write-Ok "dotnet SDK $(& dotnet --version)"
+
+# --- Android ---------------------------------------------------------------
+
+# Self-contained: the Android head shares nothing with the desktop path below except
+# the .NET SDK check above, so it runs to completion and exits here.
+if ($Android) {
+    $androidProject = Join-Path $root 'Klippy.Android\Klippy.Android.csproj'
+    if (-not (Test-Path $androidProject)) {
+        throw "Cannot find $androidProject - run this script from the repository."
+    }
+
+    if (((& dotnet workload list) -join "`n") -notmatch '(?m)^android\s') {
+        throw 'The android workload is missing. Install it with: dotnet workload install android'
+    }
+    Write-Ok 'android workload installed'
+
+    # The Android SDK build tooling is Java-based; without a JDK the failure arrives
+    # late and obscurely, so check it here alongside everything else.
+    if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
+        throw 'Building for Android needs a JDK (17+), but java is not on PATH.'
+    }
+    Write-Ok 'JDK on PATH'
+
+    $sdk =
+        if ($env:ANDROID_HOME) { $env:ANDROID_HOME }
+        elseif ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT }
+        else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
+
+    if (-not (Test-Path $sdk)) {
+        throw "Android SDK not found at '$sdk'. Set ANDROID_HOME, or install it via Android Studio."
+    }
+    Write-Ok "Android SDK $sdk"
+
+    if ($Clean) {
+        Write-Step 'Cleaning previous output'
+        foreach ($dir in @('bin', 'obj')) {
+            $path = Join-Path $root "Klippy.Android\$dir"
+            if (Test-Path $path) { Remove-Item $path -Recurse -Force; Write-Ok "removed Klippy.Android\$dir" }
+        }
+    }
+
+    if ($Test) {
+        Write-Step 'Running tests'
+        Invoke-Dotnet @('test', $tests, '-c', 'Release', '--nologo')
+        Write-Ok 'tests passed'
+    }
+
+    # Android packaging is incremental and gets it wrong: when an APK is already
+    # present MSBuild will re-sign the previous package and report success with zero
+    # errors, even though the assemblies have changed. A "successful" build then
+    # silently ships stale code - verified by editing a source file, publishing, and
+    # getting a byte-identical APK back. Deleting the packages first forces a real
+    # repackage. It is much cheaper than -Clean because the AOT output in obj/ that
+    # the deleted APKs were built from is still reused.
+    Write-Step 'Removing stale packages'
+    $stale = @(
+        Get-ChildItem (Join-Path $root 'Klippy.Android\bin') -Recurse -Filter '*.apk' -ErrorAction SilentlyContinue
+        Get-ChildItem (Join-Path $root 'Klippy.Android\obj') -Recurse -Filter '*.apk' -ErrorAction SilentlyContinue
+    )
+    foreach ($package in $stale) { Remove-Item $package.FullName -Force }
+    Write-Ok "removed $($stale.Count) previous package(s)"
+
+    $aotLabel = if ($NoAot) { 'no AOT' } elseif ($Configuration -eq 'Release') { 'profiled AOT + full trim' } else { 'no AOT (Debug)' }
+    Write-Step "Publishing $Abi $Configuration ($aotLabel)"
+
+    $publishArgs = @(
+        'publish', $androidProject,
+        '-c', $Configuration,
+        "-p:RuntimeIdentifier=$Abi",
+        '--nologo'
+    )
+    if ($NoAot) { $publishArgs += '-p:RunAOTCompilation=false' }
+    if ($Output) { $publishArgs += @('-o', $Output) }
+
+    $startedAt = Get-Date
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    Invoke-Dotnet $publishArgs
+    $stopwatch.Stop()
+
+    # --- report ------------------------------------------------------------
+
+    $searchRoot = if ($Output) { $Output } else { Join-Path $root "Klippy.Android\bin\$Configuration" }
+    $apk = Get-ChildItem $searchRoot -Recurse -Filter '*-Signed.apk' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+    Write-Step 'Result'
+    if (-not $apk) { throw "Publish reported success but no signed APK was found under $searchRoot." }
+
+    # Belt and braces against the staleness trap above: if the APK predates this run,
+    # the packaging step was skipped and the output cannot be trusted.
+    if ($apk.LastWriteTime -lt $startedAt) {
+        Write-Warn 'The APK is older than this build - packaging was skipped and it may contain stale code.'
+        Write-Warn 'Re-run with -Clean.'
+    }
+
+    Write-Ok "apk      : $($apk.FullName)"
+    Write-Ok "size     : $([math]::Round($apk.Length / 1MB, 1)) MB"
+    Write-Ok "duration : $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1))s"
+
+    # No keystore is configured anywhere in the repo, so the Android SDK falls back to
+    # its shared debug key. Fine for sideloading; not distributable, and a later
+    # release-signed build will refuse to install over it.
+    $signingConfigured = Select-String -Path (Join-Path $root 'Klippy.Android\Klippy.Android.csproj') `
+        -Pattern 'AndroidSigningKeyStore' -Quiet -ErrorAction SilentlyContinue
+    if (-not $signingConfigured) {
+        Write-Warn 'Signed with the Android debug key (no keystore configured) - sideload only.'
+    }
+
+    if ($Install) {
+        $adb = Join-Path $sdk 'platform-tools\adb.exe'
+        if (-not (Test-Path $adb)) { throw "adb not found at $adb - install platform-tools." }
+
+        Write-Step 'Installing'
+        # -r reinstalls in place and keeps existing data.
+        & $adb install -r $apk.FullName
+        if ($LASTEXITCODE -ne 0) { throw "adb install failed with exit code $LASTEXITCODE" }
+        Write-Ok 'installed'
+    }
+
+    exit 0
+}
 
 if (-not (Test-Path $project)) { throw "Cannot find $project - run this script from the repository." }
 

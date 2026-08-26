@@ -239,8 +239,42 @@ Other platforms publish directly:
 dotnet publish Klippy.Desktop -c Release -r osx-arm64    # macOS (run on a Mac)
 ```
 
-Android Release builds use profiled AOT + full trimming (`RunAOTCompilation`,
-`AndroidStripILAfterAOT`); iOS is AOT by nature and trims `SdkOnly` (build on a Mac).
+iOS is AOT by nature and trims `SdkOnly` (build on a Mac).
+
+### Android
+
+`build.ps1 -Android` publishes the Android head. It needs a JDK (17+) and the Android
+SDK — `ANDROID_HOME`, or the Android Studio default — and checks for both up front:
+
+```powershell
+.\build.ps1 -Android                                   # Release, profiled AOT, arm64
+.\build.ps1 -Android -Configuration Debug -Install      # quick build, push to device
+.\build.ps1 -Android -NoAot                            # skip AOT, much faster to iterate
+.\build.ps1 -Android -Abi android-x64                  # emulator
+```
+
+`-Install` runs `adb install -r` against the connected device.
+
+Android's AOT is **not** the desktop's NativeAOT. Release turns on Mono *profiled* AOT
+(`RunAOTCompilation`, `AndroidEnableProfiledAot`) plus full trimming and
+`AndroidStripILAfterAOT`: hot startup paths are precompiled to native code while the Mono
+runtime still ships inside the APK. So none of the MSVC toolchain above is involved, and
+the size trade runs the *other* way — Release is larger than Debug (~14 MB arm64-only vs
+~10 MB), because the precompiled native code outweighs what stripping the IL gives back.
+It buys startup time, not size. Use `-NoAot` while iterating.
+
+> **Stale APKs.** Android packaging is incremental and gets it wrong: when an APK is
+> already present, MSBuild re-signs the previous package and reports success with zero
+> errors even though the assemblies changed — so a "successful" build can silently ship
+> stale code. `build.ps1 -Android` deletes the previous packages first to force a real
+> repackage (much cheaper than `-Clean`, since the AOT output in `obj/` is reused), and
+> warns if the APK it produced predates the build. Running `dotnet publish` on the
+> project by hand does **not** protect you from this.
+
+> **Signing.** No keystore is configured, so APKs are signed with the shared Android
+> debug key. That is fine for sideloading, but they are not distributable, and a later
+> release-signed build will not install over one without uninstalling first.
+> `ApplicationId` is also still the template's `com.CompanyName.Klippy`.
 
 ## Design
 
