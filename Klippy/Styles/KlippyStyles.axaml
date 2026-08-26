@@ -215,6 +215,35 @@
     <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
   </Style>
 
+  <!-- ============ Editor dialog resize grip ============ -->
+  <!-- A Thumb for the drag plumbing (capture, :pressed), templated down to a corner
+       hatch so it reads as a grip rather than a button. -->
+  <Style Selector="Thumb.resizeGrip">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Cursor" Value="BottomRightCorner" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Background="{TemplateBinding Background}">
+          <Viewbox Width="12" Height="12">
+            <Grid Width="24" Height="24">
+              <Path Classes="grip" Data="{StaticResource IconResizeGrip}"
+                    Stroke="{StaticResource BorderStrongBrush}" StrokeThickness="2"
+                    StrokeLineCap="Round" />
+            </Grid>
+          </Viewbox>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Thumb.resizeGrip:pointerover /template/ Path.grip">
+    <Setter Property="Stroke" Value="{StaticResource Muted3Brush}" />
+  </Style>
+  <Style Selector="Thumb.resizeGrip:pressed /template/ Path.grip">
+    <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
+  </Style>
+
   <!-- ============ Preview pane ============ -->
   <!-- Splitter doubles as the separator above the pane, so the header only draws
        its lower hairline. -->

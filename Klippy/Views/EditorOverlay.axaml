@@ -2,80 +2,96 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Klippy.ViewModels"
              x:Class="Klippy.Views.EditorOverlay"
-             x:DataType="vm:MainViewModel">
+             x:DataType="vm:MainViewModel"
+             SizeChanged="OverlaySizeChanged">
 
   <Panel IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}">
-    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+    <!-- The scrim dims and swallows clicks but does not close: a stray click beside
+         the dialog must not throw away an edit. Cancel and Esc are the ways out. -->
+    <Border Background="{StaticResource ScrimBrush}" />
 
-    <Border MaxWidth="520" Margin="20" VerticalAlignment="Center"
+    <!-- Width is a starting size, not a cap: the grip writes Width/Height and the
+         code-behind keeps MaxWidth/MaxHeight at whatever the window allows. -->
+    <Border x:Name="Dialog" Width="520" MinWidth="320" Margin="20"
+            HorizontalAlignment="Center" VerticalAlignment="Center"
             Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
             CornerRadius="8" Padding="16">
-      <ContentControl Content="{Binding Editor}">
-        <ContentControl.ContentTemplate>
-          <DataTemplate x:DataType="vm:EditorViewModel">
-            <StackPanel Spacing="10">
-              <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
-                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
+      <Panel>
+        <ContentControl Content="{Binding Editor}">
+          <ContentControl.ContentTemplate>
+            <DataTemplate x:DataType="vm:EditorViewModel">
+              <!-- Grid, not StackPanel, so the content field is the one row that
+                   takes up the height the grip adds. -->
+              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+                <TextBlock Grid.Row="0" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
 
-              <StackPanel Spacing="4">
-                <TextBlock Classes="mono" Text="LABEL" FontSize="10" LetterSpacing="0.8"
-                           Foreground="{StaticResource MutedBrush}" />
-                <TextBox Classes="field" Loaded="FirstFieldLoaded"
-                         Watermark="e.g. Send log files"
-                         Text="{Binding Label}" />
-              </StackPanel>
-
-              <StackPanel Spacing="4">
-                <TextBlock Classes="mono" Text="CONTENT" FontSize="10" LetterSpacing="0.8"
-                           Foreground="{StaticResource MutedBrush}" />
-                <TextBox Classes="field mono" FontSize="11"
-                         AcceptsReturn="True" TextWrapping="Wrap"
-                         Height="140"
-                         Watermark="Text to copy to the clipboard"
-                         Text="{Binding Content}" />
-              </StackPanel>
-
-              <Grid ColumnDefinitions="*,12,*">
-                <StackPanel Grid.Column="0" Spacing="4">
-                  <TextBlock Classes="mono" Text="TAG" FontSize="10" LetterSpacing="0.8"
+                <StackPanel Grid.Row="1" Spacing="4">
+                  <TextBlock Classes="mono" Text="LABEL" FontSize="10" LetterSpacing="0.8"
                              Foreground="{StaticResource MutedBrush}" />
-                  <TextBox Classes="field mono" Watermark="e.g. work"
-                           Text="{Binding Tag}" />
+                  <TextBox Classes="field" Loaded="FirstFieldLoaded"
+                           Watermark="e.g. Send log files"
+                           Text="{Binding Label}" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Spacing="4">
-                  <TextBlock Classes="mono" Text="QUICK-CODE" FontSize="10" LetterSpacing="0.8"
+
+                <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="4">
+                  <TextBlock Grid.Row="0" Classes="mono" Text="CONTENT" FontSize="10" LetterSpacing="0.8"
                              Foreground="{StaticResource MutedBrush}" />
-                  <TextBox Classes="field mono" Watermark="e.g. slf"
-                           Text="{Binding QuickCode}" />
+                  <TextBox Grid.Row="1" Classes="field mono" FontSize="11"
+                           AcceptsReturn="True" TextWrapping="Wrap"
+                           MinHeight="140"
+                           Watermark="Text to copy to the clipboard"
+                           Text="{Binding Content}" />
+                </Grid>
+
+                <Grid Grid.Row="3" ColumnDefinitions="*,12,*">
+                  <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Classes="mono" Text="TAG" FontSize="10" LetterSpacing="0.8"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <TextBox Classes="field mono" Watermark="e.g. work"
+                             Text="{Binding Tag}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="4">
+                    <TextBlock Classes="mono" Text="QUICK-CODE" FontSize="10" LetterSpacing="0.8"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <TextBox Classes="field mono" Watermark="e.g. slf"
+                             Text="{Binding QuickCode}" />
+                  </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Row="4" Spacing="4">
+                  <TextBlock Classes="mono" Text="FORMAT" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ToggleButton Classes="chip" Content="Markdown"
+                                  IsChecked="{Binding IsMarkdown}" />
+                    <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Copy keeps formatting when pasted into a rich-text editor" />
+                  </StackPanel>
                 </StackPanel>
+
+                <DockPanel Grid.Row="5" Margin="0,4,0,0">
+                  <Button DockPanel.Dock="Left" Classes="subtle" Content="Duplicate"
+                          IsVisible="{Binding HasDuplicate}"
+                          Command="{Binding DuplicateCommand}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Classes="subtle" Content="Cancel" Command="{Binding CancelCommand}" />
+                    <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" />
+                  </StackPanel>
+                </DockPanel>
               </Grid>
+            </DataTemplate>
+          </ContentControl.ContentTemplate>
+        </ContentControl>
 
-              <StackPanel Spacing="4">
-                <TextBlock Classes="mono" Text="FORMAT" FontSize="10" LetterSpacing="0.8"
-                           Foreground="{StaticResource MutedBrush}" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <ToggleButton Classes="chip" Content="Markdown"
-                                IsChecked="{Binding IsMarkdown}" />
-                  <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="Copy keeps formatting when pasted into a rich-text editor" />
-                </StackPanel>
-              </StackPanel>
-
-              <DockPanel Margin="0,4,0,0">
-                <Button DockPanel.Dock="Left" Classes="subtle" Content="Duplicate"
-                        IsVisible="{Binding HasDuplicate}"
-                        Command="{Binding DuplicateCommand}" />
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                  <Button Classes="subtle" Content="Cancel" Command="{Binding CancelCommand}" />
-                  <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" />
-                </StackPanel>
-              </DockPanel>
-            </StackPanel>
-          </DataTemplate>
-        </ContentControl.ContentTemplate>
-      </ContentControl>
+        <!-- Resize grip. The negative margin lifts it out of the content box and into
+             the border padding, so it sits in the corner clear of the Save button. -->
+        <Thumb x:Name="ResizeGrip" Classes="resizeGrip"
+               HorizontalAlignment="Right" VerticalAlignment="Bottom"
+               Margin="0,0,-14,-14" DragDelta="ResizeDelta" />
+      </Panel>
     </Border>
   </Panel>
 </UserControl>

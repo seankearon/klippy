@@ -33,6 +33,11 @@ its own header. Drag the splitter above it to trade height with the list; the pa
 reopens at whatever height you left it. Row-level expansion (the chevron on multi-line
 rows) still works independently.
 
+The **edit dialog** is resizable: drag the grip in its bottom-right corner to give the
+CONTENT field more room, and it reopens at that size. Clicking the dimmed area beside
+it does nothing on purpose — leaving an edit takes `Esc` or Cancel, so a stray click
+cannot discard it.
+
 Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on desktop,
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
 Duplicate). A duplicate opens prefilled as a new snippet with " (copy)" appended to the

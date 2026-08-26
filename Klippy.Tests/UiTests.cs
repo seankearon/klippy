@@ -4,10 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Klippy.Services;
 using Klippy.ViewModels;
 using Klippy.Views;
@@ -219,6 +221,87 @@ public class UiTests
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
         frame!.Save(Path.Combine(ArtifactsDir, "screenshot-transfer.png"));
+    }
+
+    [AvaloniaFact]
+    public void EditorOverlay_SurvivesAClickOnTheScrim()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        // well left of the 520-wide centred dialog, so this lands on the scrim
+        var outside = new Point(8, 60);
+        window.MouseDown(outside, MouseButton.Left);
+        window.MouseUp(outside, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Editor); // clicking away must not discard the edit
+
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(vm.Editor); // ...but Esc still is a way out
+    }
+
+    [AvaloniaFact]
+    public void EditorDialog_GripDrag_ResizesAndTheSizeSticks()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var overlay = window.GetVisualDescendants().OfType<EditorOverlay>().Single();
+        var dialog = overlay.FindControl<Border>("Dialog")!;
+        var grip = overlay.FindControl<Thumb>("ResizeGrip")!;
+        double widthBefore = dialog.Bounds.Width;
+        double heightBefore = dialog.Bounds.Height;
+
+        var from = grip.TranslatePoint(
+            new Point(grip.Bounds.Width / 2, grip.Bounds.Height / 2), window)!.Value;
+        var to = from + new Vector(30, 20);
+        window.MouseDown(from, MouseButton.Left);
+        window.MouseMove(to);
+        window.MouseUp(to, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        // the dialog is centred, so both edges move: the corner tracks the pointer
+        Assert.Equal(widthBefore + 60, dialog.Bounds.Width, precision: 0);
+        Assert.Equal(heightBefore + 40, dialog.Bounds.Height, precision: 0);
+
+        vm.Editor!.CancelCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(widthBefore + 60, dialog.Bounds.Width, precision: 0); // reopens as left
+        Assert.Equal(heightBefore + 40, dialog.Bounds.Height, precision: 0);
+    }
+
+    [AvaloniaFact]
+    public void EditorDialog_FitsAPhoneWidthHost()
+    {
+        var vm = NewVm();
+        var window = new Window
+        {
+            Width = 390,
+            Height = 780,
+            SystemDecorations = SystemDecorations.None,
+            Content = new MainView { DataContext = vm },
+        };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var dialog = window.GetVisualDescendants().OfType<EditorOverlay>().Single()
+            .FindControl<Border>("Dialog")!;
+
+        // the 520 starting width is a starting width, not a promise: on a phone the
+        // dialog is held to the window less its margins
+        Assert.Equal(350, dialog.Bounds.Width, precision: 0);
     }
 
     [AvaloniaFact]
