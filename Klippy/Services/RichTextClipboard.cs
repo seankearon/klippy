@@ -39,11 +39,19 @@ public static class RichTextClipboard
             ? new CopyPayload(snippet.Content, ToHtml(snippet.Content))
             : new CopyPayload(snippet.Content, null);
 
-    /// <summary>The OS clipboard format name for HTML, or null where we don't know one.</summary>
+    /// <summary>
+    /// The OS clipboard format name for HTML, or null where Avalonia cannot carry one.
+    ///
+    /// Null on Android: its backend only understands text and string formats, so the
+    /// byte[] flavour is dropped — but the format name still reaches the ClipData mime
+    /// list, leaving a clip that advertises text/html while its item has no HtmlText.
+    /// Better to claim nothing and let <see cref="PlatformWriter"/> do the real work.
+    /// </summary>
     public static string? HtmlFormatName =>
-        OperatingSystem.IsWindows() ? "HTML Format"
+        OperatingSystem.IsAndroid() ? null
+        : OperatingSystem.IsWindows() ? "HTML Format"
         : OperatingSystem.IsMacOS() || OperatingSystem.IsIOS() ? "public.html"
-        : "text/html"; // X11/Wayland and Android
+        : "text/html"; // X11/Wayland
 
     /// <summary>
     /// Encodes HTML for the platform clipboard. Windows needs CF_HTML: a header whose
@@ -68,11 +76,25 @@ public static class RichTextClipboard
     }
 
     /// <summary>
+    /// Set by a platform head whose native clipboard API can do more than Avalonia's
+    /// backend exposes. Android sets this in MainActivity: only ClipData.NewHtmlText
+    /// puts text and HTML on the clipboard as one item, and Avalonia never calls it.
+    /// Null everywhere else, where <see cref="WriteAsync"/> handles it directly.
+    /// </summary>
+    public static Func<CopyPayload, Task>? PlatformWriter { get; set; }
+
+    /// <summary>
     /// Writes the payload to the clipboard. Falls back to plain text if the platform
     /// rejects the HTML flavour, so a copy never silently fails.
     /// </summary>
     public static async Task WriteAsync(IClipboard? clipboard, CopyPayload payload)
     {
+        if (PlatformWriter is { } platform)
+        {
+            await platform(payload);
+            return;
+        }
+
         if (clipboard is null) return;
 
         if (payload.Html is { Length: > 0 } html && HtmlFormatName is { } format)

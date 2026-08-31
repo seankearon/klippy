@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Threading.Tasks;
 using Klippy.Models;
 using Klippy.Services;
 using Xunit;
@@ -101,8 +102,61 @@ public class RichTextTests
     public void HtmlFormatName_MatchesPlatformConvention()
     {
         var name = RichTextClipboard.HtmlFormatName;
-        if (OperatingSystem.IsWindows()) Assert.Equal("HTML Format", name);
+        if (OperatingSystem.IsAndroid()) Assert.Null(name);
+        else if (OperatingSystem.IsWindows()) Assert.Equal("HTML Format", name);
         else if (OperatingSystem.IsMacOS()) Assert.Equal("public.html", name);
         else Assert.Equal("text/html", name);
+    }
+
+    // ---- platform writer hook ----
+    //
+    // Android's backend silently drops byte[] formats, so the head installs its own
+    // writer. These cover the seam; the ClipData call itself needs a device.
+
+    [Fact]
+    public async Task WriteAsync_PrefersPlatformWriter_OverAvaloniaClipboard()
+    {
+        CopyPayload? seen = null;
+        using var _ = PlatformWriter(payload => { seen = payload; return Task.CompletedTask; });
+
+        // A null IClipboard is what a head without clipboard support hands us. The
+        // platform writer must still run — that's the whole point of the hook.
+        await RichTextClipboard.WriteAsync(null, new CopyPayload("Send the **logs**", "<p>Send the <strong>logs</strong></p>"));
+
+        Assert.Equal("Send the **logs**", seen?.Plain);
+        Assert.Equal("<p>Send the <strong>logs</strong></p>", seen?.Html);
+    }
+
+    [Fact]
+    public async Task WriteAsync_PlatformWriter_StillSeesPlainSnippetsWithoutHtml()
+    {
+        // The Android writer branches on Html being empty, so it has to arrive null.
+        CopyPayload? seen = null;
+        using var _ = PlatformWriter(payload => { seen = payload; return Task.CompletedTask; });
+
+        await RichTextClipboard.WriteAsync(null, RichTextClipboard.BuildPayload(
+            new Snippet { Content = "ssh-ed25519 AAAA_key_data", IsMarkdown = false }));
+
+        Assert.Equal("ssh-ed25519 AAAA_key_data", seen?.Plain);
+        Assert.Null(seen?.Html);
+    }
+
+    [Fact]
+    public async Task WriteAsync_WithoutPlatformWriter_AndNoClipboard_DoesNothing()
+    {
+        Assert.Null(RichTextClipboard.PlatformWriter); // default on desktop heads
+        await RichTextClipboard.WriteAsync(null, new CopyPayload("hi", null));
+    }
+
+    /// <summary>Installs a platform writer and removes it when the test ends.</summary>
+    private static IDisposable PlatformWriter(Func<CopyPayload, Task> writer)
+    {
+        RichTextClipboard.PlatformWriter = writer;
+        return new Restore(() => RichTextClipboard.PlatformWriter = null);
+    }
+
+    private sealed class Restore(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 }
