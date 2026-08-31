@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Klippy.Models;
 using Markdig;
+using Markdig.Renderers;
 
 namespace Klippy.Services;
 
@@ -32,18 +35,59 @@ public static class RichTextClipboard
         .UsePipeTables()
         .Build();
 
-    public static string ToHtml(string markdown) => Markdown.ToHtml(markdown ?? "", Pipeline).Trim();
+    /// <summary>
+    /// A blank line between blocks, expressed as content rather than as a margin.
+    ///
+    /// Zendesk's composer strips presentational markup and renders &lt;p&gt; with no
+    /// margin, so paragraphs arrive welded together — the separation is there in the
+    /// markup but invisible. An empty paragraph is just text, so it survives sanitising
+    /// and still takes up a line. The cost is that Word and Outlook, which *do* honour
+    /// &lt;p&gt; margins, space these more widely than the Markdown source suggests.
+    /// </summary>
+    private const string Spacer = "<p>&nbsp;</p>";
+
+    public static string ToHtml(string markdown)
+    {
+        var document = Markdown.Parse(markdown ?? "", Pipeline);
+
+        // Rendered block by block rather than by splitting the finished HTML: the
+        // top-level blocks are exactly what the source separated with blank lines, so
+        // joining them with a spacer puts those blank lines back. Blocks that render to
+        // nothing (link reference definitions, say) must not leave a stray spacer.
+        var blocks = new List<string>();
+
+        foreach (var block in document)
+        {
+            using var writer = new StringWriter();
+            var renderer = new HtmlRenderer(writer);
+            Pipeline.Setup(renderer);
+            renderer.Render(block);
+
+            if (writer.ToString().Trim() is { Length: > 0 } html)
+                blocks.Add(html);
+        }
+
+        return string.Join("\n" + Spacer + "\n", blocks);
+    }
 
     public static CopyPayload BuildPayload(Snippet snippet) =>
         snippet.IsMarkdown
             ? new CopyPayload(snippet.Content, ToHtml(snippet.Content))
             : new CopyPayload(snippet.Content, null);
 
-    /// <summary>The OS clipboard format name for HTML, or null where we don't know one.</summary>
+    /// <summary>
+    /// The OS clipboard format name for HTML, or null where Avalonia cannot carry one.
+    ///
+    /// Null on Android: its backend only understands text and string formats, so the
+    /// byte[] flavour is dropped — but the format name still reaches the ClipData mime
+    /// list, leaving a clip that advertises text/html while its item has no HtmlText.
+    /// Better to claim nothing and let <see cref="PlatformWriter"/> do the real work.
+    /// </summary>
     public static string? HtmlFormatName =>
-        OperatingSystem.IsWindows() ? "HTML Format"
+        OperatingSystem.IsAndroid() ? null
+        : OperatingSystem.IsWindows() ? "HTML Format"
         : OperatingSystem.IsMacOS() || OperatingSystem.IsIOS() ? "public.html"
-        : "text/html"; // X11/Wayland and Android
+        : "text/html"; // X11/Wayland
 
     /// <summary>
     /// Encodes HTML for the platform clipboard. Windows needs CF_HTML: a header whose
@@ -68,11 +112,25 @@ public static class RichTextClipboard
     }
 
     /// <summary>
+    /// Set by a platform head whose native clipboard API can do more than Avalonia's
+    /// backend exposes. Android sets this in MainActivity: only ClipData.NewHtmlText
+    /// puts text and HTML on the clipboard as one item, and Avalonia never calls it.
+    /// Null everywhere else, where <see cref="WriteAsync"/> handles it directly.
+    /// </summary>
+    public static Func<CopyPayload, Task>? PlatformWriter { get; set; }
+
+    /// <summary>
     /// Writes the payload to the clipboard. Falls back to plain text if the platform
     /// rejects the HTML flavour, so a copy never silently fails.
     /// </summary>
     public static async Task WriteAsync(IClipboard? clipboard, CopyPayload payload)
     {
+        if (PlatformWriter is { } platform)
+        {
+            await platform(payload);
+            return;
+        }
+
         if (clipboard is null) return;
 
         if (payload.Html is { Length: > 0 } html && HtmlFormatName is { } format)

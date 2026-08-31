@@ -23,6 +23,10 @@ public class MainActivity : AvaloniaMainActivity<App>
         if (NoBackupFilesDir?.AbsolutePath is { } noBackup)
             StorageLocations.BackupExemptDirectory = Path.Combine(noBackup, "Klippy");
 
+        // Avalonia's Android clipboard can't carry an HTML flavour, so Markdown snippets
+        // would paste as literal asterisks. Hand copying to the platform API instead.
+        RichTextClipboard.PlatformWriter = new AndroidRichTextClipboard(this).WriteAsync;
+
         return base.CustomizeAppBuilder(builder);
     }
 }
