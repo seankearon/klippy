@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Klippy.Models;
 using Markdig;
+using Markdig.Renderers;
 
 namespace Klippy.Services;
 
@@ -32,7 +35,40 @@ public static class RichTextClipboard
         .UsePipeTables()
         .Build();
 
-    public static string ToHtml(string markdown) => Markdown.ToHtml(markdown ?? "", Pipeline).Trim();
+    /// <summary>
+    /// A blank line between blocks, expressed as content rather than as a margin.
+    ///
+    /// Zendesk's composer strips presentational markup and renders &lt;p&gt; with no
+    /// margin, so paragraphs arrive welded together — the separation is there in the
+    /// markup but invisible. An empty paragraph is just text, so it survives sanitising
+    /// and still takes up a line. The cost is that Word and Outlook, which *do* honour
+    /// &lt;p&gt; margins, space these more widely than the Markdown source suggests.
+    /// </summary>
+    private const string Spacer = "<p>&nbsp;</p>";
+
+    public static string ToHtml(string markdown)
+    {
+        var document = Markdown.Parse(markdown ?? "", Pipeline);
+
+        // Rendered block by block rather than by splitting the finished HTML: the
+        // top-level blocks are exactly what the source separated with blank lines, so
+        // joining them with a spacer puts those blank lines back. Blocks that render to
+        // nothing (link reference definitions, say) must not leave a stray spacer.
+        var blocks = new List<string>();
+
+        foreach (var block in document)
+        {
+            using var writer = new StringWriter();
+            var renderer = new HtmlRenderer(writer);
+            Pipeline.Setup(renderer);
+            renderer.Render(block);
+
+            if (writer.ToString().Trim() is { Length: > 0 } html)
+                blocks.Add(html);
+        }
+
+        return string.Join("\n" + Spacer + "\n", blocks);
+    }
 
     public static CopyPayload BuildPayload(Snippet snippet) =>
         snippet.IsMarkdown

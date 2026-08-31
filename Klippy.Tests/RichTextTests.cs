@@ -43,6 +43,68 @@ public class RichTextTests
         Assert.DoesNotContain("–", html);
     }
 
+    // ---- blank lines between blocks ----
+
+    [Fact]
+    public void ToHtml_SeparatesParagraphsWithASpacerParagraph()
+    {
+        // Zendesk's composer gives <p> no margin, so consecutive paragraphs would
+        // otherwise arrive welded together. An empty paragraph is content, not styling,
+        // so it survives sanitising.
+        var html = RichTextClipboard.ToHtml("Renew your licence here:\n\nwww.example.com/buy");
+
+        Assert.Equal(
+            "<p>Renew your licence here:</p>\n<p>&nbsp;</p>\n<p><a href=\"http://www.example.com/buy\">www.example.com/buy</a></p>",
+            html);
+    }
+
+    [Fact]
+    public void ToHtml_SingleParagraph_HasNoTrailingSpacer()
+    {
+        var html = RichTextClipboard.ToHtml("Just the one paragraph.");
+        Assert.Equal("<p>Just the one paragraph.</p>", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreaksInsideAParagraphGetNoSpacer()
+    {
+        // Single newlines are <br> within one block — only blank lines earn a spacer.
+        var html = RichTextClipboard.ToHtml("Hi,\nI'm out of office until Monday.");
+        Assert.DoesNotContain(Spacer, html);
+        Assert.Contains("<br", html);
+    }
+
+    [Fact]
+    public void ToHtml_SpacesBetweenBlocksOfDifferentKinds()
+    {
+        var html = RichTextClipboard.ToHtml("## Steps\n\nDo this:\n\n- first\n- second");
+
+        Assert.Contains("<h2>Steps</h2>\n" + Spacer, html);
+        Assert.Contains(Spacer + "\n<ul>", html);
+        Assert.Equal(2, CountOccurrences(html, Spacer)); // not one per list item
+    }
+
+    [Fact]
+    public void ToHtml_LinkReferenceDefinition_LeavesNoStraySpacer()
+    {
+        // The definition renders to nothing, so it must not contribute a spacer.
+        var html = RichTextClipboard.ToHtml("[docs]: https://example.com\n\nSee [docs].");
+
+        Assert.StartsWith("<p>", html);
+        Assert.DoesNotContain(Spacer, html);
+    }
+
+    private const string Spacer = "<p>&nbsp;</p>";
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int count = 0;
+        for (int i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
+            count++;
+        return count;
+    }
+
     // ---- payload selection ----
 
     [Fact]
