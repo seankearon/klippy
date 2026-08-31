@@ -43,6 +43,13 @@ public static class StorageLocations
     /// </summary>
     public static string SettingsPath => Path.Combine(Directory, "settings.json");
 
+    /// <summary>
+    /// Captured clipboard history. Always the normal directory: history is a desktop-only
+    /// feature (Android forbids background clipboard reads), and desktop has no
+    /// backup-exempt location to choose between.
+    /// </summary>
+    public static string HistoryPath => Path.Combine(Directory, "history.json");
+
     public static string? BackupExemptPath =>
         BackupExemptDirectory is { } dir ? Path.Combine(dir, FileName) : null;
 
