@@ -105,11 +105,11 @@ public partial class MainViewModel : ViewModelBase
         Filtered.Clear();
         foreach (var entry in results)
         {
-            if (_activeTag != AllTag && !string.Equals(entry.Snippet.Tag, _activeTag, StringComparison.OrdinalIgnoreCase))
+            if (_activeTag != AllTag && !string.Equals(entry.Item.Tag, _activeTag, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (!_rowCache.TryGetValue(entry.Snippet.Id, out var row))
-                _rowCache[entry.Snippet.Id] = row = new SnippetViewModel(entry.Snippet);
+            if (!_rowCache.TryGetValue(entry.Item.Id, out var row))
+                _rowCache[entry.Item.Id] = row = new SnippetViewModel(entry.Item);
             Filtered.Add(row);
         }
 

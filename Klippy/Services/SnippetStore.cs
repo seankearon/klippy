@@ -17,9 +17,9 @@ public sealed class SnippetStore
 {
     private string _filePath;
     private readonly List<Snippet> _snippets = new();
-    private readonly List<SnippetSearch.Entry> _entries = new();
+    private readonly List<SnippetSearch.Entry<Snippet>> _entries = new();
 
-    public IReadOnlyList<SnippetSearch.Entry> Entries => _entries;
+    public IReadOnlyList<SnippetSearch.Entry<Snippet>> Entries => _entries;
     public int Count => _snippets.Count;
 
     public static string DefaultFilePath => StorageLocations.ActivePath;
@@ -83,8 +83,8 @@ public sealed class SnippetStore
     public void Update(Snippet snippet)
     {
         Save();
-        int i = _entries.FindIndex(e => e.Snippet.Id == snippet.Id);
-        if (i >= 0) _entries[i] = new SnippetSearch.Entry(snippet);
+        int i = _entries.FindIndex(e => e.Item.Id == snippet.Id);
+        if (i >= 0) _entries[i] = new SnippetSearch.Entry<Snippet>(snippet);
     }
 
     public void Delete(Guid id)
@@ -101,7 +101,7 @@ public sealed class SnippetStore
         Save();
     }
 
-    public List<SnippetSearch.Entry> Search(string? query) => SnippetSearch.Search(_entries, query);
+    public List<SnippetSearch.Entry<Snippet>> Search(string? query) => SnippetSearch.Search(_entries, query);
 
     /// <summary>
     /// Writes snippets to <paramref name="destination"/> as JSON — the same shape as the
@@ -213,7 +213,7 @@ public sealed class SnippetStore
     {
         _entries.Clear();
         foreach (var s in _snippets)
-            _entries.Add(new SnippetSearch.Entry(s));
+            _entries.Add(new SnippetSearch.Entry<Snippet>(s));
     }
 
     private void Load()

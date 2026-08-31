@@ -72,8 +72,8 @@ public class TransferTests : IDisposable
 
         var reloaded = NewStore();
         Assert.Equal(2, reloaded.Count);
-        Assert.Contains(reloaded.Entries, e => e.Snippet.Label == "Edited");
-        Assert.DoesNotContain(reloaded.Entries, e => e.Snippet.Label == "Original");
+        Assert.Contains(reloaded.Entries, e => e.Item.Label == "Edited");
+        Assert.DoesNotContain(reloaded.Entries, e => e.Item.Label == "Original");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class TransferTests : IDisposable
         var (added, updated) = store.Merge(new[] { Make("A", "work"), Make("B", "dev") }, tag: "dev");
         Assert.Equal(1, added);
         Assert.Equal(0, updated);
-        Assert.Equal("B", Assert.Single(store.Entries).Snippet.Label);
+        Assert.Equal("B", Assert.Single(store.Entries).Item.Label);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class TransferTests : IDisposable
 
         var (added, _) = store.Merge(parsed);
         Assert.Equal(1, added);
-        var snippet = Assert.Single(store.Entries).Snippet;
+        var snippet = Assert.Single(store.Entries).Item;
         Assert.NotEqual(Guid.Empty, snippet.Id);
         Assert.Equal("", snippet.Tag);
     }
@@ -115,7 +115,7 @@ public class TransferTests : IDisposable
 
         Assert.Equal(0, added);
         Assert.Equal(1, updated);
-        var only = Assert.Single(store.Entries).Snippet;
+        var only = Assert.Single(store.Entries).Item;
         Assert.Equal("New title", only.Label);
     }
 
@@ -128,7 +128,7 @@ public class TransferTests : IDisposable
 
         store.Merge(new[] { new Snippet { Label = "b", Content = "y", Source = "BoldDesk Aug 2026", ExternalId = "7" } });
 
-        Assert.Equal(original.Id, Assert.Single(store.Entries).Snippet.Id);
+        Assert.Equal(original.Id, Assert.Single(store.Entries).Item.Id);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class TransferTests : IDisposable
 
         var target = NewStore("target.json");
         target.Merge(SnippetStore.TryParseSnippets(file)!);
-        var loaded = Assert.Single(target.Entries).Snippet;
+        var loaded = Assert.Single(target.Entries).Item;
         Assert.Equal("BoldDesk Aug 2026", loaded.Source);
         Assert.Equal("42", loaded.ExternalId);
     }
@@ -215,7 +215,7 @@ public class TransferTests : IDisposable
         Assert.False(vm.HasImportPreview);
         Assert.Equal("Imported 2 new · 0 updated", vm.StatusText);
         Assert.Equal(2, target.Count);
-        Assert.All(target.Entries, e => Assert.Equal("dev", e.Snippet.Tag));
+        Assert.All(target.Entries, e => Assert.Equal("dev", e.Item.Tag));
     }
 
     [Fact]

@@ -9,8 +9,8 @@ namespace Klippy.Tests;
 
 public class SnippetSearchTests
 {
-    private static List<SnippetSearch.Entry> Index(params Snippet[] snippets) =>
-        snippets.Select(s => new SnippetSearch.Entry(s)).ToList();
+    private static List<SnippetSearch.Entry<Snippet>> Index(params Snippet[] snippets) =>
+        snippets.Select(s => new SnippetSearch.Entry<Snippet>(s)).ToList();
 
     private static Snippet LogFiles => new()
     {
@@ -49,7 +49,7 @@ public class SnippetSearchTests
     {
         var results = SnippetSearch.Search(Index(LogFiles, DockerPrune, WorkEmail), "log fil");
         Assert.Single(results);
-        Assert.Equal("Send log files", results[0].Snippet.Label);
+        Assert.Equal("Send log files", results[0].Item.Label);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class SnippetSearchTests
     {
         // "slf" matches nothing by words but is the log-files snippet's quick-code.
         var results = SnippetSearch.Search(Index(DockerPrune, WorkEmail, LogFiles), "slf");
-        Assert.Equal("Send log files", results[0].Snippet.Label);
+        Assert.Equal("Send log files", results[0].Item.Label);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class SnippetSearchTests
         // the quick-code hit must rank it above any plain word match.
         var other = new Snippet { Label = "Design doc", Content = "d is for design", Tag = "dev" };
         var results = SnippetSearch.Search(Index(other, DockerPrune), "d");
-        Assert.Equal("Docker prune", results[0].Snippet.Label);
+        Assert.Equal("Docker prune", results[0].Item.Label);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class SnippetSearchTests
     {
         var contentOnly = new Snippet { Label = "Other", Content = "docker things", Tag = "dev" };
         var results = SnippetSearch.Search(Index(contentOnly, DockerPrune), "docker");
-        Assert.Equal("Docker prune", results[0].Snippet.Label);
+        Assert.Equal("Docker prune", results[0].Item.Label);
         Assert.Equal(2, results.Count);
     }
 
@@ -99,7 +99,7 @@ public class SnippetSearchTests
         var older = new Snippet { Label = "Older", LastUsedAt = DateTimeOffset.UtcNow.AddDays(-2) };
         var newer = new Snippet { Label = "Newer", LastUsedAt = DateTimeOffset.UtcNow };
         var results = SnippetSearch.Search(Index(older, newer), "");
-        Assert.Equal(new[] { "Newer", "Older" }, results.Select(r => r.Snippet.Label));
+        Assert.Equal(new[] { "Newer", "Older" }, results.Select(r => r.Item.Label));
     }
 
     [Fact]

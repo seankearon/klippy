@@ -5,38 +5,42 @@ using Klippy.Models;
 namespace Klippy.Services;
 
 /// <summary>
-/// Fast in-memory snippet search.
+/// Fast in-memory search over anything that implements <see cref="ISearchable"/> —
+/// saved snippets and captured clipboard entries alike.
 ///
 /// Matching rules:
 ///  - The query is split into whitespace-separated tokens; every token must
-///    prefix-match a word in the snippet's label, content or tag
+///    prefix-match a word in the item's label, content or tag
 ///    ("log fil" finds "…the log files, as per…").
-///  - A query with no spaces is additionally matched against each snippet's
+///  - A query with no spaces is additionally matched against each item's
 ///    quick-code; exact and prefix quick-code hits rank above everything else
 ///    ("slf" jumps straight to the snippet with that code).
 ///
-/// Words are precomputed and lowercased once per snippet (see <see cref="Entry"/>),
+/// Words are precomputed and lowercased once per item (see <see cref="Entry{T}"/>),
 /// so a search is a linear scan doing ordinal StartsWith checks — microseconds
-/// for thousands of snippets, no allocation beyond the result list.
+/// for thousands of items, no allocation beyond the result list.
+///
+/// <see cref="Entry{T}"/> is generic rather than holding an <see cref="ISearchable"/>
+/// directly so callers get their own type back from a search without casting.
 /// </summary>
 public static class SnippetSearch
 {
-    /// <summary>Precomputed, lowercased word index for one snippet.</summary>
-    public sealed class Entry
+    /// <summary>Precomputed, lowercased word index for one item.</summary>
+    public sealed class Entry<T> where T : ISearchable
     {
-        public Snippet Snippet { get; }
+        public T Item { get; }
         public string[] LabelWords { get; }
         public string[] ContentWords { get; }
         public string TagLower { get; }
         public string QuickCodeLower { get; }
 
-        public Entry(Snippet snippet)
+        public Entry(T item)
         {
-            Snippet = snippet;
-            LabelWords = Tokenize(snippet.Label);
-            ContentWords = Tokenize(snippet.Content);
-            TagLower = snippet.Tag.ToLowerInvariant();
-            QuickCodeLower = snippet.QuickCode.ToLowerInvariant();
+            Item = item;
+            LabelWords = Tokenize(item.Label);
+            ContentWords = Tokenize(item.Content);
+            TagLower = item.Tag.ToLowerInvariant();
+            QuickCodeLower = item.QuickCode.ToLowerInvariant();
         }
     }
 
@@ -70,9 +74,10 @@ public static class SnippetSearch
     /// Returns entries matching <paramref name="query"/>, best first.
     /// An empty query returns everything, most recently used first.
     /// </summary>
-    public static List<Entry> Search(IReadOnlyList<Entry> entries, string? query)
+    public static List<Entry<T>> Search<T>(IReadOnlyList<Entry<T>> entries, string? query)
+        where T : ISearchable
     {
-        var scored = new List<(Entry Entry, int Score)>();
+        var scored = new List<(Entry<T> Entry, int Score)>();
         var tokens = Tokenize(query ?? "");
         // Quick-codes are a single run of characters; only a spaceless query can be one.
         string quickQuery = query is null || query.Contains(' ') ? "" : query.Trim().ToLowerInvariant();
@@ -88,16 +93,17 @@ public static class SnippetSearch
         {
             int byScore = b.Score.CompareTo(a.Score);
             if (byScore != 0) return byScore;
-            return b.Entry.Snippet.LastUsedAt.CompareTo(a.Entry.Snippet.LastUsedAt);
+            return b.Entry.Item.LastUsedAt.CompareTo(a.Entry.Item.LastUsedAt);
         });
 
-        var result = new List<Entry>(scored.Count);
+        var result = new List<Entry<T>>(scored.Count);
         foreach (var (entry, _) in scored)
             result.Add(entry);
         return result;
     }
 
-    private static int Score(Entry entry, string[] tokens, string quickQuery)
+    private static int Score<T>(Entry<T> entry, string[] tokens, string quickQuery)
+        where T : ISearchable
     {
         if (tokens.Length == 0) return 0; // empty query: everything matches equally
 
