@@ -65,6 +65,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Set by the view; writes a copy payload to the platform clipboard.</summary>
     public Func<CopyPayload, Task>? ClipboardWriter { get; set; }
 
+    /// <summary>Raised after a snippet reaches the clipboard, so the view can reset its search box.</summary>
+    public event Action? Copied;
+
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
         ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter  ⌘P preview"
         : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter  Ctrl+P preview";
@@ -159,6 +162,7 @@ public partial class MainViewModel : ViewModelBase
             await write(RichTextClipboard.BuildPayload(row.Model));
         _store.MarkUsed(row.Model);
         ShowToast();
+        Copied?.Invoke();
     }
 
     [RelayCommand]

@@ -56,12 +56,28 @@ public partial class MainWindow : Window
         base.OnDataContextChanged(e);
 
         if (_watched is { } previous)
+        {
             previous.PropertyChanged -= VmPropertyChanged;
+            previous.Copied -= SelectSearchText;
+        }
         _watched = Vm;
         if (_watched is { } current)
+        {
             current.PropertyChanged += VmPropertyChanged;
+            current.Copied += SelectSearchText;
+        }
 
         ApplyPreviewHeight();
+    }
+
+    /// <summary>
+    /// After a copy the search term has done its job, so hand focus back to the box with the
+    /// text selected — the next keystroke starts a fresh search instead of appending to the old one.
+    /// </summary>
+    private void SelectSearchText()
+    {
+        SearchBox.Focus();
+        SearchBox.SelectAll();
     }
 
     private void VmPropertyChanged(object? sender, PropertyChangedEventArgs e)
