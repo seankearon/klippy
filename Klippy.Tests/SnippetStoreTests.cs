@@ -39,13 +39,13 @@ public class SnippetStoreTests : IDisposable
         store.Add(snippet);
 
         var reloaded = new SnippetStore(_path);
-        var loaded = Assert.Single(reloaded.Entries).Snippet;
+        var loaded = Assert.Single(reloaded.Entries).Item;
         Assert.Equal("Test", loaded.Label);
         Assert.Equal("tst", loaded.QuickCode);
 
         loaded.Label = "Renamed";
         reloaded.Update(loaded);
-        Assert.Equal("Renamed", Assert.Single(new SnippetStore(_path).Entries).Snippet.Label);
+        Assert.Equal("Renamed", Assert.Single(new SnippetStore(_path).Entries).Item.Label);
 
         reloaded.Delete(loaded.Id);
         Assert.Empty(new SnippetStore(_path, seedIfEmpty: false).Entries);
@@ -81,8 +81,8 @@ public class SnippetStoreTests : IDisposable
         store.Add(new Snippet { Label = "plain", Content = "hi" });
 
         var reloaded = new SnippetStore(_path);
-        Assert.True(reloaded.Entries.Single(e => e.Snippet.Label == "md").Snippet.IsMarkdown);
-        Assert.False(reloaded.Entries.Single(e => e.Snippet.Label == "plain").Snippet.IsMarkdown);
+        Assert.True(reloaded.Entries.Single(e => e.Item.Label == "md").Item.IsMarkdown);
+        Assert.False(reloaded.Entries.Single(e => e.Item.Label == "plain").Item.IsMarkdown);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class SnippetStoreTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         File.WriteAllText(_path, """[{"Id":"11111111-1111-1111-1111-111111111111","Label":"Old","Content":"a_b_c","Tag":"dev"}]""");
         var store = new SnippetStore(_path);
-        Assert.False(Assert.Single(store.Entries).Snippet.IsMarkdown);
+        Assert.False(Assert.Single(store.Entries).Item.IsMarkdown);
     }
 
     [Fact]

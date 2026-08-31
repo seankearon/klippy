@@ -49,7 +49,7 @@ public class BackupLocationTests : IDisposable
         Assert.False(store.IsIncludedInBackup);
         Assert.True(File.Exists(StorageLocations.BackupExemptPath!));
         Assert.False(File.Exists(StorageLocations.BackedUpPath)); // no copy left behind to be backed up
-        Assert.Equal("secret", Assert.Single(store.Entries).Snippet.Label);
+        Assert.Equal("secret", Assert.Single(store.Entries).Item.Label);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class BackupLocationTests : IDisposable
         // simulates relaunching the app: the choice is inferred from where the file is
         var reopened = new SnippetStore(seedIfEmpty: false);
         Assert.False(reopened.IsIncludedInBackup);
-        Assert.Equal("kept", Assert.Single(reopened.Entries).Snippet.Label);
+        Assert.Equal("kept", Assert.Single(reopened.Entries).Item.Label);
     }
 
     [Fact]

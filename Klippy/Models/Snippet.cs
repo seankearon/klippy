@@ -3,7 +3,7 @@ using System;
 namespace Klippy.Models;
 
 /// <summary>A stored piece of text the user can copy to the clipboard.</summary>
-public sealed class Snippet
+public sealed class Snippet : ISearchable
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 

@@ -25,6 +25,13 @@ public sealed record HotkeySpec(HotkeyModifiers Modifiers, string Key)
     public static string PlatformDefault => OperatingSystem.IsMacOS() ? "Cmd+Alt+K" : "Ctrl+Alt+K";
 
     /// <summary>
+    /// Summons the clipboard history rather than the snippets. Next to the snippet key on
+    /// the keyboard, because the two are the same gesture aimed at different halves of
+    /// the app and the fingers should not have to travel between them.
+    /// </summary>
+    public static string HistoryPlatformDefault => OperatingSystem.IsMacOS() ? "Cmd+Alt+J" : "Ctrl+Alt+J";
+
+    /// <summary>
     /// Plain literal, deliberately NOT routed through <see cref="TryParse"/>: TryParse seeds
     /// its out-parameter from this, so making this parse would recurse forever.
     /// </summary>

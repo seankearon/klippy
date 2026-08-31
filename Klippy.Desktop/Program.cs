@@ -27,6 +27,16 @@ sealed class Program
 
         var settings = AppSettings.Load();
 
+        // Built before the app, because OnFrameworkInitializationCompleted constructs the
+        // view models and they need to know whether there is a history to show.
+        // File and image clips need clipboard formats Avalonia cannot express; text and
+        // HTML still go through Avalonia, which is what the Markdown flavours rely on.
+        if (OperatingSystem.IsWindows())
+            RichTextClipboard.NativeWriter = WindowsClipboardWriter.TryWriteAsync;
+
+        using var history = new ClipboardHistoryService(settings);
+        ClipboardHistory.Store = settings.HistoryEnabled ? history.Store : null;
+
         var lifetime = new ClassicDesktopStyleApplicationLifetime
         {
             Args = args,
@@ -39,10 +49,26 @@ sealed class Program
         using var host = new LauncherHost(lifetime, settings);
         host.Start();
 
+        // After the app is up: the flush timer needs Avalonia's dispatcher.
+        history.Start();
+
+        if (settings.HistoryEnabled && !history.IsCapturing)
+            Console.Error.WriteLine(
+                "Clipboard history is on but this platform could not start capture; " +
+                "snippets still work.");
+
         if (settings.HotkeyEnabled && !host.HotkeyRegistered)
             Console.Error.WriteLine(
                 $"Could not register the global hotkey ({settings.ParsedHotkey}); another app may hold it. " +
                 $"Change \"Hotkey\" in {AppSettings.FilePath} and restart.");
+
+        // Reported separately: the two register independently, so losing one key does not
+        // cost the other, and saying which failed is the difference between the two.
+        if (settings.HotkeyEnabled && ClipboardHistory.IsAvailable &&
+            settings.ParsedHistoryHotkey is { } historyHotkey && !host.HistoryHotkeyRegistered)
+            Console.Error.WriteLine(
+                $"Could not register the clipboard-history hotkey ({historyHotkey}); another app may hold it. " +
+                $"Change \"HistoryHotkey\" in {AppSettings.FilePath} and restart.");
 
         return lifetime.Start(args);
     }

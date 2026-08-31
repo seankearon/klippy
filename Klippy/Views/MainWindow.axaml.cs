@@ -204,7 +204,7 @@ public partial class MainWindow : Window
         if (Vm is not { } vm) return;
         if (e.Source is Visual source && source.FindAncestorOfType<Button>(includeSelf: true) is not null)
             return;
-        if (sender is Control { DataContext: SnippetViewModel row })
+        if (sender is Control { DataContext: RowViewModel row })
         {
             vm.SelectedSnippet = row;
             vm.CopyCommand.Execute(row);

@@ -13,6 +13,12 @@
   <StreamGeometry x:Key="IconTransfer">M 8,20 L 8,4 M 4,8 L 8,4 L 12,8 M 16,4 L 16,20 M 12,16 L 16,20 L 20,16</StreamGeometry>
   <!-- corner hatch for the editor dialog's resize grip -->
   <StreamGeometry x:Key="IconResizeGrip">M 21,10 L 10,21 M 21,16 L 16,21</StreamGeometry>
+  <!-- stacked sheets, for a clip that holds a file selection -->
+  <StreamGeometry x:Key="IconFiles">M 8,3 L 15,3 L 20,8 L 20,17 A 2,2 0 0 1 18,19 L 8,19 A 2,2 0 0 1 6,17 L 6,5 A 2,2 0 0 1 8,3 Z M 15,3 L 15,8 L 20,8 M 3,8 L 3,20 A 2,2 0 0 0 5,22 L 16,22</StreamGeometry>
+  <!-- pushpin, for keeping a clip out of the history's eviction -->
+  <StreamGeometry x:Key="IconPin">M 9,4 L 15,4 M 10,4 L 10,10 L 6.5,14 L 17.5,14 L 14,10 L 14,4 M 12,14 L 12,21</StreamGeometry>
+  <!-- bookmark: promote a clip into a saved snippet -->
+  <StreamGeometry x:Key="IconBookmark">M 6,3 L 18,3 A 1,1 0 0 1 19,4 L 19,21 L 12,16 L 5,21 L 5,4 A 1,1 0 0 1 6,3 Z</StreamGeometry>
   <!-- copy glyph with a plus in the front sheet (duplicate) -->
   <StreamGeometry x:Key="IconDuplicate">M 11,9 L 18,9 A 2,2 0 0 1 20,11 L 20,18 A 2,2 0 0 1 18,20 L 11,20 A 2,2 0 0 1 9,18 L 9,11 A 2,2 0 0 1 11,9 Z M 5,15 L 5,5 A 2,2 0 0 1 7,3 L 17,3 M 14.5,11.5 L 14.5,17.5 M 11.5,14.5 L 17.5,14.5</StreamGeometry>
 </ResourceDictionary>
