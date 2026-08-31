@@ -88,20 +88,44 @@ transfer button in the mobile header.
   contains), then merges everything or just one tag. Merging never wipes data:
   a snippet with a known id replaces the existing copy, everything else is added.
 
-## Global hotkey (desktop)
+## Global hotkeys (desktop)
 
 Klippy runs as a resident launcher: it stays alive behind a tray / menu-bar icon, and a
-system-wide hotkey summons it. Press it again — or `Esc`, once the filter and any overlay
-are cleared — to dismiss it and return to what you were doing. Closing the window hides
-it rather than quitting; use the tray menu's **Quit** to exit for real. Only one instance
-runs at a time, so launching Klippy again just tells you it is already resident.
+system-wide hotkey summons it. Closing the window hides it rather than quitting; use the
+tray menu's **Quit** to exit for real. Only one instance runs at a time, so launching
+Klippy again just tells you it is already resident.
 
-Default is `Ctrl+Alt+K` on Windows and `⌥⌘K` on macOS, stored in `settings.json` next to
-your snippets:
+There are two keys, one per half of the app:
+
+| Key (Windows / macOS) | Summons |
+|---|---|
+| `Ctrl+Alt+K` / `⌥⌘K` | Saved snippets |
+| `Ctrl+Alt+J` / `⌥⌘J` | Clipboard history |
+
+Each means *show me this view*. Pressing a key while its view is already in front
+dismisses the window, as the single key always did; pressing the **other** key switches
+views rather than hiding, which is the point of having two. `Esc` still dismisses once
+the filter and any overlay are cleared. Arriving in a view clears the search box, since
+a filter typed against snippets means nothing against clips.
+
+They register independently, so one losing the race for its combination leaves the other
+working, and Klippy says on stderr which one it could not claim. The history key is only
+registered where there is a history to summon — not on mobile, and not with history
+switched off.
+
+Stored in `settings.json` next to your snippets:
 
 ```json
-{ "Hotkey": "Ctrl+Alt+K", "HotkeyEnabled": true }
+{
+  "Hotkey": "Ctrl+Alt+K",
+  "HotkeyEnabled": true,
+  "HistoryHotkey": "Ctrl+Alt+J"
+}
 ```
+
+`HotkeyEnabled` is the master switch for both. Setting `HistoryHotkey` to `""` turns off
+just that one — it is not filled back in with the default, since that would re-register a
+key you had just removed.
 
 Modifiers may be written as Ctrl/Control, Alt/Option, Shift and Cmd/Command/Win/Meta, in
 any order and any case; at least one modifier is required, since a bare key would swallow
@@ -112,17 +136,20 @@ Keeping the app resident has a second benefit on Windows: the HTML clipboard fla
 served through OLE for as long as Klippy runs, so the "paste before closing Klippy" caveat
 above effectively disappears.
 
-Implementation is per-platform, since Avalonia has no global-hotkey API:
-[`WindowsHotkey`](Klippy.Desktop/WindowsHotkey.cs) uses `RegisterHotKey` with a
-message-only window on its own thread, and [`MacHotkey`](Klippy.Desktop/MacHotkey.cs) uses
+Implementation is per-platform, since Avalonia has no global-hotkey API. Each key is a
+separate registration on its own [`MessageOnlyWindow`](Klippy.Desktop/MessageOnlyWindow.cs),
+which costs an idle thread apiece and buys independent failure:
+[`WindowsHotkey`](Klippy.Desktop/WindowsHotkey.cs) uses `RegisterHotKey`, and
+[`MacHotkey`](Klippy.Desktop/MacHotkey.cs) uses
 Carbon's `RegisterEventHotKey` — chosen over an event tap because it needs no Accessibility
 permission. **The macOS path compiles but has not been run**, since it cannot be tested
 from Windows.
 
 ## Clipboard history (Windows)
 
-Klippy also keeps what you copy. The **History** chip, first in the chip row, switches
-the list from saved snippets to captured clips — newest first, searchable with the same
+Klippy also keeps what you copy. `Ctrl+Alt+J` summons it directly (see
+[Global hotkeys](#global-hotkeys-desktop)), or the **History** chip, first in the chip
+row, switches the list from saved snippets to captured clips — newest first, searchable with the same
 prefix matching, and copied back with the same Enter or click. A clip carries the app it
 came from and its age instead of a tag and a quick-code, and keeps whatever flavours it
 was captured with, so pasting one back into a rich-text editor gives what the original

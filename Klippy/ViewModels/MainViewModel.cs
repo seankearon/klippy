@@ -217,8 +217,28 @@ public partial class MainViewModel : ViewModelBase
         // The History chip switches what the list shows; every other chip filters it.
         // Both leave the search box empty, since a search spans whatever the current mode
         // holds and the chips must always describe what the list is actually doing.
-        IsHistoryMode = chip.IsMode;
-        ActivateTag(chip.IsMode ? HistoryTag : chip.Name);
+        if (chip.IsMode) ShowHistory();
+        else ShowMode(history: false, chip.Name);
+    }
+
+    /// <summary>
+    /// Switches the list to the clipboard history. Public because a global hotkey summons
+    /// this view directly, without any chip being clicked. No-op where there is no history.
+    /// </summary>
+    public void ShowHistory()
+    {
+        if (!HasHistory) return;
+        ShowMode(history: true, HistoryTag);
+    }
+
+    /// <summary>Switches the list back to saved snippets, showing every tag.</summary>
+    public void ShowSnippets() => ShowMode(history: false, AllTag);
+
+    private void ShowMode(bool history, string tag)
+    {
+        IsHistoryMode = history;
+        ActivateTag(tag);
+        // A filter typed against snippets means nothing against clips, and vice versa.
         FilterText = "";
         Refresh(); // FilterText may already have been empty, so nothing fired above
     }

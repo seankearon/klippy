@@ -14,6 +14,17 @@ public sealed class AppSettings
     /// <summary>Set false to leave the key alone entirely.</summary>
     public bool HotkeyEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Global hotkey that summons the clipboard history, e.g. "Ctrl+Alt+J". Empty turns
+    /// this one off while leaving the snippet hotkey alone.
+    /// </summary>
+    public string HistoryHotkey { get; set; } = HotkeySpec.HistoryPlatformDefault;
+
+    /// <summary>The history hotkey, or null when it is switched off or unparseable.</summary>
+    [JsonIgnore]
+    public HotkeySpec? ParsedHistoryHotkey =>
+        HotkeySpec.TryParse(HistoryHotkey, out var spec) ? spec : null;
+
     /// <summary>Whether to record what gets copied. Desktop only; ignored where the OS forbids capture.</summary>
     public bool HistoryEnabled { get; set; } = true;
 

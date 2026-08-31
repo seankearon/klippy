@@ -163,6 +163,73 @@ public class HistoryModeTests
         Assert.Contains("snippets", vm.SearchWatermark, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ---- summoning a view directly, as the global hotkeys do ----
+
+    [AvaloniaFact]
+    public void ShowHistorySwitchesTheListAndLightsTheChip()
+    {
+        var (vm, _) = NewVm("a clip");
+
+        vm.ShowHistory();
+
+        Assert.True(vm.IsHistoryMode);
+        Assert.True(HistoryChip(vm).IsSelected);
+        Assert.All(vm.Filtered, row => Assert.IsType<ClipViewModel>(row));
+    }
+
+    [AvaloniaFact]
+    public void ShowSnippetsGoesBackToEveryTag()
+    {
+        var (vm, _) = NewVm("a clip");
+        vm.ShowHistory();
+
+        vm.ShowSnippets();
+
+        Assert.False(vm.IsHistoryMode);
+        Assert.True(vm.Tags.First(t => t.Name == MainViewModel.AllTag).IsSelected);
+        Assert.All(vm.Filtered, row => Assert.IsType<SnippetViewModel>(row));
+    }
+
+    [AvaloniaFact]
+    public void SummoningAViewClearsAFilterMeantForTheOther()
+    {
+        // "docker" typed against snippets means nothing against clips, so arriving in the
+        // history with it still in the box would show a puzzlingly empty list.
+        var (vm, _) = NewVm("a clip");
+        vm.FilterText = "docker";
+
+        vm.ShowHistory();
+
+        Assert.Equal("", vm.FilterText);
+    }
+
+    [AvaloniaFact]
+    public void ShowHistoryDoesNothingWhereThereIsNoHistory()
+    {
+        // The hotkey is not registered in this case, but the view model must not be
+        // willing to enter a mode it cannot populate.
+        var vm = new MainViewModel(NewSnippetStore(), history: null);
+
+        vm.ShowHistory();
+
+        Assert.False(vm.IsHistoryMode);
+        Assert.All(vm.Filtered, row => Assert.IsType<SnippetViewModel>(row));
+    }
+
+    [AvaloniaFact]
+    public void SummoningTheViewYouAreAlreadyOnIsIdempotent()
+    {
+        // The launcher turns a second press into a dismiss; the view model itself simply
+        // stays put rather than toggling underneath it.
+        var (vm, _) = NewVm("a clip");
+        vm.ShowHistory();
+
+        vm.ShowHistory();
+
+        Assert.True(vm.IsHistoryMode);
+        Assert.Single(vm.Tags.Where(t => t.IsSelected));
+    }
+
     // ---- searching ----
 
     [AvaloniaFact]

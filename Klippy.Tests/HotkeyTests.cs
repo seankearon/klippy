@@ -53,6 +53,23 @@ public class HotkeyTests
     }
 
     [Fact]
+    public void BothPlatformDefaultsParse()
+    {
+        Assert.True(HotkeySpec.TryParse(HotkeySpec.PlatformDefault, out _));
+        Assert.True(HotkeySpec.TryParse(HotkeySpec.HistoryPlatformDefault, out _));
+        Assert.NotEqual(HotkeySpec.PlatformDefault, HotkeySpec.HistoryPlatformDefault);
+    }
+
+    [Fact]
+    public void AnEmptyHistoryHotkeyTurnsThatKeyOffRatherThanFallingBack()
+    {
+        // Falling back to a default here would re-register a key the user just removed.
+        Assert.Null(new AppSettings { HistoryHotkey = "" }.ParsedHistoryHotkey);
+        Assert.Null(new AppSettings { HistoryHotkey = "nonsense" }.ParsedHistoryHotkey);
+        Assert.NotNull(new AppSettings { HistoryHotkey = "Ctrl+Alt+J" }.ParsedHistoryHotkey);
+    }
+
+    [Fact]
     public void RoundTripsThroughToString()
     {
         Assert.True(HotkeySpec.TryParse("Ctrl+Alt+K", out var spec));

@@ -62,6 +62,14 @@ sealed class Program
                 $"Could not register the global hotkey ({settings.ParsedHotkey}); another app may hold it. " +
                 $"Change \"Hotkey\" in {AppSettings.FilePath} and restart.");
 
+        // Reported separately: the two register independently, so losing one key does not
+        // cost the other, and saying which failed is the difference between the two.
+        if (settings.HotkeyEnabled && ClipboardHistory.IsAvailable &&
+            settings.ParsedHistoryHotkey is { } historyHotkey && !host.HistoryHotkeyRegistered)
+            Console.Error.WriteLine(
+                $"Could not register the clipboard-history hotkey ({historyHotkey}); another app may hold it. " +
+                $"Change \"HistoryHotkey\" in {AppSettings.FilePath} and restart.");
+
         return lifetime.Start(args);
     }
 
