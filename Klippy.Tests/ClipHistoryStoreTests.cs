@@ -11,9 +11,13 @@ public class ClipHistoryStoreTests : IDisposable
 {
     private readonly string _path = Path.Combine(Path.GetTempPath(), $"klippy-history-{Guid.NewGuid():N}.json");
 
+    private string BlobDirectory =>
+        Path.Combine(Path.GetDirectoryName(_path)!, ClipBlobs.DirectoryName);
+
     public void Dispose()
     {
         if (File.Exists(_path)) File.Delete(_path);
+        if (Directory.Exists(BlobDirectory)) Directory.Delete(BlobDirectory, recursive: true);
     }
 
     private static ClipEntry Clip(string text, string app = "", DateTimeOffset? at = null) =>
@@ -249,6 +253,152 @@ public class ClipHistoryStoreTests : IDisposable
     {
         var clip = Clip("\n\n  Send log files  \nand the config");
         Assert.Equal("Send log files", clip.Label);
+    }
+
+    // ---- images and files ----
+
+    private static byte[] FakePng(byte seed) => new byte[] { 0x89, 0x50, 0x4E, 0x47, seed, 1, 2, 3, 4, 5, 6, 7 };
+
+    [Fact]
+    public void ImageBytesAreStoredOutsideTheJson()
+    {
+        var store = new ClipHistoryStore(_path);
+        var clip = store.AddImage(FakePng(1), "PNG", 800, 600, "snippingtool");
+        store.Flush();
+
+        Assert.Equal(ClipKind.Image, clip.Kind);
+        Assert.Equal("Image 800 × 600", clip.Label);
+        Assert.Equal(FakePng(1), store.TryLoadImage(clip));
+
+        // The JSON stays small: it names the blob rather than carrying it.
+        var json = File.ReadAllText(_path);
+        Assert.Contains(clip.BlobFile!, json);
+        Assert.DoesNotContain("iVBOR", json); // no base64 payload
+    }
+
+    [Fact]
+    public void TheSamePictureCopiedTwiceIsOneClipAndOneBlob()
+    {
+        var store = new ClipHistoryStore(_path);
+        var first = store.AddImage(FakePng(1), "PNG", 800, 600);
+        var again = store.AddImage(FakePng(1), "PNG", 800, 600);
+
+        Assert.Equal(first.Id, again.Id);
+        Assert.Single(store.Entries);
+        Assert.Single(Directory.GetFiles(BlobDirectory));
+    }
+
+    [Fact]
+    public void DifferentPicturesOfTheSameSizeAreDistinctClips()
+    {
+        // Two screenshots of the same window are the same dimensions and different content.
+        var store = ClipHistoryStore.InMemory();
+        store.AddImage(FakePng(1), "PNG", 800, 600);
+        store.AddImage(FakePng(2), "PNG", 800, 600);
+
+        Assert.Equal(2, store.Count);
+    }
+
+    [Fact]
+    public void RemovingAnImageTakesItsBlobWithIt()
+    {
+        var store = new ClipHistoryStore(_path);
+        var clip = store.AddImage(FakePng(1), "PNG", 10, 10);
+        Assert.Single(Directory.GetFiles(BlobDirectory));
+
+        store.Remove(clip.Id);
+
+        Assert.Empty(Directory.GetFiles(BlobDirectory));
+    }
+
+    [Fact]
+    public void EvictionTakesBlobsWithItSoTheyCannotAccumulate()
+    {
+        var store = new ClipHistoryStore(_path, capacity: 2);
+        for (byte i = 1; i <= 5; i++)
+            store.AddImage(FakePng(i), "PNG", 10, 10);
+
+        Assert.Equal(2, store.Count);
+        Assert.Equal(2, Directory.GetFiles(BlobDirectory).Length);
+    }
+
+    [Fact]
+    public void ImagesSurviveAReloadAndAreStillReadable()
+    {
+        var store = new ClipHistoryStore(_path);
+        store.AddImage(FakePng(9), "PNG", 640, 480, "chrome");
+        store.Flush();
+
+        var reloaded = new ClipHistoryStore(_path);
+
+        var clip = Assert.Single(reloaded.Entries);
+        Assert.Equal(ClipKind.Image, clip.Kind);
+        Assert.Equal(FakePng(9), reloaded.TryLoadImage(clip));
+    }
+
+    [Fact]
+    public void SessionOnlyImagesNeverReachTheDisk()
+    {
+        var store = ClipHistoryStore.InMemory();
+        var clip = store.AddImage(FakePng(1), "PNG", 10, 10);
+        store.Flush();
+
+        Assert.Equal(FakePng(1), store.TryLoadImage(clip)); // still usable in memory
+        Assert.False(Directory.Exists(BlobDirectory));
+    }
+
+    [Fact]
+    public void AFileClipIsIdentifiedByItsPathsAndKeepsThemAsText()
+    {
+        var store = ClipHistoryStore.InMemory();
+        var clip = store.Add(new ClipEntry
+        {
+            Kind = ClipKind.Files,
+            Files = new[] { @"C:\work\report.pdf", @"C:\work\notes.txt" },
+            Text = "C:\\work\\report.pdf\r\nC:\\work\\notes.txt",
+        });
+
+        Assert.Equal("2 files — report.pdf, …", clip.Label);
+        // Searchable by file name, because the paths are also the text.
+        Assert.Equal(clip.Id, Assert.Single(store.Search("notes")).Item.Id);
+    }
+
+    [Fact]
+    public void TheSameFileSelectionCopiedTwiceIsOneClip()
+    {
+        var store = ClipHistoryStore.InMemory();
+        var files = new[] { @"C:\work\report.pdf" };
+        var first = store.Add(new ClipEntry { Kind = ClipKind.Files, Files = files, Text = files[0] });
+        var again = store.Add(new ClipEntry { Kind = ClipKind.Files, Files = files, Text = files[0] });
+
+        Assert.Equal(first.Id, again.Id);
+        Assert.Single(store.Entries);
+    }
+
+    [Fact]
+    public void AFileClipAndATextClipOfTheSamePathAreNotConfused()
+    {
+        var store = ClipHistoryStore.InMemory();
+        var path = @"C:\work\report.pdf";
+        store.Add(new ClipEntry { Kind = ClipKind.Files, Files = new[] { path }, Text = path });
+        store.Add(new ClipEntry { Kind = ClipKind.Text, Text = path });
+
+        // Copying a file and copying its path are different clips: only one pastes a file.
+        Assert.Equal(2, store.Count);
+    }
+
+    [Fact]
+    public void AnImageWhoseBlobWentMissingDoesNotBreakTheHistory()
+    {
+        var store = new ClipHistoryStore(_path);
+        var clip = store.AddImage(FakePng(1), "PNG", 10, 10);
+        store.Flush();
+        File.Delete(Path.Combine(BlobDirectory, clip.BlobFile!));
+
+        var reloaded = new ClipHistoryStore(_path);
+
+        Assert.Single(reloaded.Entries);
+        Assert.Null(reloaded.TryLoadImage(reloaded.Entries[0]));
     }
 
     // ---- persistence ----

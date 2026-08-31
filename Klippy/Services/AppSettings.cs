@@ -27,6 +27,18 @@ public sealed class AppSettings
     /// </summary>
     public bool HistorySessionOnly { get; set; }
 
+    /// <summary>Set false to leave screenshots and copied pictures out of the history.</summary>
+    public bool HistoryCaptureImages { get; set; } = true;
+
+    /// <summary>Set false to leave copied file selections out of the history.</summary>
+    public bool HistoryCaptureFiles { get; set; } = true;
+
+    /// <summary>
+    /// Largest picture worth keeping, in megabytes. Images are blobs on disk, so this is
+    /// about not filling a drive with copies of whole screens.
+    /// </summary>
+    public int HistoryImageLimitMb { get; set; } = 16;
+
     /// <summary>
     /// Applications never recorded from, by process name ("keepass"). Password managers
     /// already mark their own clipboard writes and those are honoured regardless — this

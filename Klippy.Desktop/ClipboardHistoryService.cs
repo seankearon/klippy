@@ -28,7 +28,13 @@ internal sealed class ClipboardHistoryService : IDisposable
     public ClipboardHistoryService(AppSettings settings)
     {
         _settings = settings;
-        _rules = new CaptureRules { ExcludedApps = settings.HistoryExcludedApps };
+        _rules = new CaptureRules
+        {
+            ExcludedApps = settings.HistoryExcludedApps,
+            CaptureImages = settings.HistoryCaptureImages,
+            CaptureFiles = settings.HistoryCaptureFiles,
+            MaxImageBytes = Math.Max(1, settings.HistoryImageLimitMb) * 1024 * 1024,
+        };
 
         Store = settings.HistorySessionOnly
             ? ClipHistoryStore.InMemory(settings.HistoryLimit)
@@ -45,6 +51,11 @@ internal sealed class ClipboardHistoryService : IDisposable
         _monitor = ClipboardMonitor.TryStart(OnClipboardChanged);
         if (_monitor is null) return;
 
+        // Copying a file or image clip back has to own the clipboard as this process, or
+        // capture cannot tell our own write from anybody else's and records it.
+        if (OperatingSystem.IsWindows())
+            WindowsClipboardWriter.OwnerWindow = _monitor.Handle;
+
         _flushTimer = new DispatcherTimer { Interval = FlushInterval };
         _flushTimer.Tick += (_, _) => Store.Flush();
         _flushTimer.Start();
@@ -55,22 +66,38 @@ internal sealed class ClipboardHistoryService : IDisposable
     {
         var context = new CaptureContext
         {
+            Kind = snapshot.Kind,
             Formats = snapshot.Formats,
             CanIncludeInClipboardHistory = snapshot.CanIncludeInClipboardHistory,
             SourceApp = snapshot.SourceApp,
             TextLength = snapshot.Text.Length,
+            ImageBytes = snapshot.Image?.Length ?? 0,
+            FileCount = snapshot.Files.Length,
             IsSelfWrite = snapshot.IsSelfWrite,
         };
 
         if (!CapturePolicy.ShouldCapture(context, _rules)) return;
 
+        var sourceApp = snapshot.SourceApp ?? "";
+
         // The store backs the visible list, so it is only ever mutated on the UI thread.
-        Dispatcher.UIThread.Post(() => Store.Add(new ClipEntry
+        Dispatcher.UIThread.Post(() =>
         {
-            Text = snapshot.Text,
-            Html = snapshot.Html,
-            SourceApp = snapshot.SourceApp ?? "",
-        }));
+            if (snapshot is { Kind: ClipKind.Image, Image: { } bytes })
+            {
+                Store.AddImage(bytes, snapshot.ImageFormat, snapshot.PixelWidth, snapshot.PixelHeight, sourceApp);
+                return;
+            }
+
+            Store.Add(new ClipEntry
+            {
+                Kind = snapshot.Kind,
+                Text = snapshot.Text,
+                Html = snapshot.Html,
+                Files = snapshot.Files,
+                SourceApp = sourceApp,
+            });
+        });
     }
 
     public void Dispose()

@@ -268,13 +268,30 @@
 
                       <!-- A clip has no name of its own: its label already *is* the first
                            line, so a preview line underneath would only repeat it. The
-                           chevron is what offers the rest of a multi-line clip. -->
-                      <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Spacing="1">
+                           chevron is what offers the rest of a multi-line clip. An image
+                           row leads with a thumbnail, since a size alone identifies nothing. -->
+                      <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                                  Spacing="10" VerticalAlignment="Center">
+                        <Border IsVisible="{Binding IsImage}"
+                                Background="{StaticResource CodeBgBrush}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                CornerRadius="4" Padding="1" VerticalAlignment="Center">
+                          <Image Source="{Binding Thumbnail}" Height="26" MaxWidth="48"
+                                 Stretch="Uniform" />
+                        </Border>
+                        <Viewbox Width="13" Height="13" VerticalAlignment="Center"
+                                 IsVisible="{Binding IsFiles}">
+                          <Grid Width="24" Height="24">
+                            <Path Data="{StaticResource IconFiles}" Stroke="{StaticResource Muted3Brush}"
+                                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                          </Grid>
+                        </Viewbox>
                         <TextBlock Classes="rowPreview mono" FontSize="12"
+                                   VerticalAlignment="Center"
                                    Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
                       </StackPanel>
 
-                      <!-- trailing: pin, html marker, source app, age, chevron, copy -->
+                      <!-- trailing: pin, kind marker, source app, age, chevron, copy -->
                       <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
                                   Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
                                   VerticalAlignment="Center">
@@ -288,6 +305,10 @@
                         <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                                    Foreground="{StaticResource Muted2Brush}" Text="html"
                                    IsVisible="{Binding HasHtml}" />
+                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Muted2Brush}"
+                                   Text="{Binding KindMarker}"
+                                   IsVisible="{Binding HasKindMarker}" />
                         <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                                    Foreground="{StaticResource Muted2Brush}"
                                    Text="{Binding SourceApp}" TextTrimming="CharacterEllipsis" />
@@ -343,7 +364,7 @@
                             </Grid>
                           </Viewbox>
                         </Button>
-                        <Button Classes="icon"
+                        <Button Classes="icon" IsVisible="{Binding !IsImage}"
                                 Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).PromoteToSnippetCommand}"
                                 CommandParameter="{Binding}">
                           <Viewbox Width="12" Height="12">

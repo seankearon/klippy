@@ -128,6 +128,34 @@ came from and its age instead of a tag and a quick-code, and keeps whatever flav
 was captured with, so pasting one back into a rich-text editor gives what the original
 copy would have.
 
+### Text, files and images
+
+A clip is one of three kinds, and each pastes back as what it was:
+
+| Kind | Captured from | Pastes as |
+|---|---|---|
+| Text | `CF_UNICODETEXT`, plus `HTML Format` when offered | text, with formatting where the target takes it |
+| Files | `CF_HDROP` | real files in Explorer; the paths in a text editor |
+| Image | `PNG` where offered, otherwise `CF_DIB` | `CF_DIB` for a bitmap, `PNG` otherwise |
+
+File clips store paths, not contents, so copying a 4 GB folder costs a few hundred
+bytes — and pasting one later fails the same way Explorer would if the files have since
+moved. Image clips store the bytes the source app offered, unconverted: PNG when it is
+on the clipboard, otherwise the raw DIB with a BMP file header on the front. That is
+why Klippy needs no image codec at all.
+
+Image bytes live in `clips/` beside `history.json` rather than inside it, because the
+JSON is rewritten whole on every flush and megabytes of base64 would make each copy cost
+the entire history. A blob is deleted with its clip, whether that is a delete, a clear
+or an eviction. Images above `HistoryImageLimitMb` (16 by default) are not recorded.
+
+Copying a file or image clip back is done through Win32 rather than Avalonia, whose
+clipboard cannot express `CF_HDROP` or `CF_DIB` at all. Text and HTML still go through
+Avalonia exactly as before — that path is what the Markdown flavours depend on and it
+is left alone. One consequence worth knowing: a PNG-flavoured clip goes back as PNG,
+which browsers, Office and chat clients accept, but a few paint-style apps that only
+speak DIB will not see it.
+
 Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
 (opens the editor prefilled — the clip stays put), **delete**, and **copy**. Deleting a
 clip asks for no confirmation, unlike deleting a snippet: a clip is transient by nature
@@ -169,6 +197,9 @@ In `settings.json`, next to the hotkey:
   "HistoryEnabled": true,
   "HistoryLimit": 500,
   "HistorySessionOnly": false,
+  "HistoryCaptureImages": true,
+  "HistoryCaptureFiles": true,
+  "HistoryImageLimitMb": 16,
   "HistoryExcludedApps": ["keepass", "some-other-app"]
 }
 ```

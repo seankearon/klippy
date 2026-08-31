@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Klippy.Models;
 
 namespace Klippy.Services;
 
@@ -22,6 +23,9 @@ public enum CaptureVerdict
 
     /// <summary>The source app is on the user's exclusion list.</summary>
     ExcludedApp,
+
+    /// <summary>Images or files, which the user has turned off.</summary>
+    ExcludedKind,
 }
 
 /// <summary>What the platform saw on the clipboard at the moment it changed.</summary>
@@ -43,7 +47,16 @@ public sealed record CaptureContext
     /// </summary>
     public string? SourceApp { get; init; }
 
+    /// <summary>What the clip holds, which decides how its size is judged.</summary>
+    public ClipKind Kind { get; init; } = ClipKind.Text;
+
     public int TextLength { get; init; }
+
+    /// <summary>Payload size for an image clip, which is capped in bytes rather than characters.</summary>
+    public int ImageBytes { get; init; }
+
+    /// <summary>How many paths a file clip carries.</summary>
+    public int FileCount { get; init; }
 
     /// <summary>True when Klippy itself put this on the clipboard.</summary>
     public bool IsSelfWrite { get; init; }
@@ -54,6 +67,18 @@ public sealed class CaptureRules
 {
     /// <summary>Roughly 200 KB of UTF-16. Past this a clip is almost certainly a file dump.</summary>
     public int MaxTextLength { get; set; } = 100_000;
+
+    /// <summary>
+    /// 16 MB. Images are kept as blobs on disk, so the cap is about not filling a drive
+    /// with copies of whole screens rather than about the JSON staying small.
+    /// </summary>
+    public int MaxImageBytes { get; set; } = 16 * 1024 * 1024;
+
+    /// <summary>Set false to leave screenshots and copied pictures out of the history.</summary>
+    public bool CaptureImages { get; set; } = true;
+
+    /// <summary>Set false to leave copied file selections out of the history.</summary>
+    public bool CaptureFiles { get; set; } = true;
 
     /// <summary>Process names never recorded from, matched without path or extension.</summary>
     public IReadOnlyCollection<string> ExcludedApps { get; set; } = Array.Empty<string>();
@@ -95,7 +120,10 @@ public static class CapturePolicy
         // without this every snippet copied would be echoed straight into the history.
         if (context.IsSelfWrite) return CaptureVerdict.SelfWrite;
 
-        if (context.TextLength <= 0) return CaptureVerdict.Empty;
+        if (IsEmpty(context)) return CaptureVerdict.Empty;
+
+        if (context.Kind == ClipKind.Image && !rules.CaptureImages) return CaptureVerdict.ExcludedKind;
+        if (context.Kind == ClipKind.Files && !rules.CaptureFiles) return CaptureVerdict.ExcludedKind;
 
         foreach (var format in context.Formats)
             foreach (var blocking in BlockingFormats)
@@ -107,11 +135,26 @@ public static class CapturePolicy
         if (IsExcludedApp(context.SourceApp, rules.ExcludedApps)) return CaptureVerdict.ExcludedApp;
 
         // Last, so that a rejection is reported as the specific reason it was refused
-        // rather than as a length problem it also happens to have.
-        if (context.TextLength > rules.MaxTextLength) return CaptureVerdict.TooLong;
+        // rather than as a size problem it also happens to have.
+        if (IsTooBig(context, rules)) return CaptureVerdict.TooLong;
 
         return CaptureVerdict.Capture;
     }
+
+    private static bool IsEmpty(CaptureContext context) => context.Kind switch
+    {
+        ClipKind.Image => context.ImageBytes <= 0,
+        ClipKind.Files => context.FileCount <= 0,
+        _ => context.TextLength <= 0,
+    };
+
+    private static bool IsTooBig(CaptureContext context, CaptureRules rules) => context.Kind switch
+    {
+        // A file clip is a handful of paths however large the files themselves are.
+        ClipKind.Image => context.ImageBytes > rules.MaxImageBytes,
+        ClipKind.Files => false,
+        _ => context.TextLength > rules.MaxTextLength,
+    };
 
     /// <summary>Convenience for callers that only care whether to store the clip.</summary>
     public static bool ShouldCapture(CaptureContext context, CaptureRules rules) =>

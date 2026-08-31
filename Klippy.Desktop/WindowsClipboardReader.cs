@@ -6,14 +6,28 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
+using Klippy.Models;
 
 namespace Klippy.Desktop;
 
 /// <summary>What was on the clipboard when it last changed.</summary>
 internal sealed record ClipboardSnapshot
 {
+    public ClipKind Kind { get; init; } = ClipKind.Text;
     public string Text { get; init; } = "";
     public string? Html { get; init; }
+
+    /// <summary>Paths for a file clip.</summary>
+    public string[] Files { get; init; } = Array.Empty<string>();
+
+    /// <summary>Encoded image bytes for an image clip, in <see cref="ImageFormat"/>.</summary>
+    public byte[]? Image { get; init; }
+
+    /// <summary>"PNG" or "BMP".</summary>
+    public string ImageFormat { get; init; } = "";
+
+    public int PixelWidth { get; init; }
+    public int PixelHeight { get; init; }
     public IReadOnlyCollection<string> Formats { get; init; } = Array.Empty<string>();
     public bool? CanIncludeInClipboardHistory { get; init; }
 
@@ -36,6 +50,8 @@ internal sealed record ClipboardSnapshot
 internal static class WindowsClipboardReader
 {
     private const uint CF_UNICODETEXT = 13;
+    private const uint CF_DIB = 8;
+    private const uint CF_HDROP = 15;
     private const int ERROR_ACCESS_DENIED = 5;
 
     // The clipboard is a single system-wide resource and the app that just wrote to it may
@@ -56,13 +72,15 @@ internal static class WindowsClipboardReader
         try
         {
             var formats = EnumerateFormats();
-            var text = ReadUnicodeText();
-            if (text.Length == 0) return null;
 
-            return new ClipboardSnapshot
+            // Order matters. A file copy from Explorer also carries the paths as text, and
+            // a picture copied from a browser often carries its URL — so the richer kind
+            // is recognised first and text is the fallback rather than the default.
+            var snapshot = ReadFiles(formats) ?? ReadImage(formats) ?? ReadText(formats);
+            if (snapshot is null) return null;
+
+            return snapshot with
             {
-                Text = text,
-                Html = ReadHtml(formats),
                 Formats = formats,
                 CanIncludeInClipboardHistory = ReadHistoryOptOut(formats),
                 SourceApp = sourceApp,
@@ -127,10 +145,125 @@ internal static class WindowsClipboardReader
             // Registered (custom) formats are the ones that carry names worth having;
             // the standard ones are identified by number and are not what policy tests.
             int length = GetClipboardFormatName(format, buffer, buffer.Capacity);
-            names.Add(length > 0 ? buffer.ToString(0, length) : $"#{format}");
+            names.Add(length > 0 ? buffer.ToString(0, length) : StandardFormatName(format));
         }
         return names;
     }
+
+    private static ClipboardSnapshot? ReadText(List<string> formats)
+    {
+        var text = ReadUnicodeText();
+        if (text.Length == 0) return null;
+
+        return new ClipboardSnapshot { Kind = ClipKind.Text, Text = text, Html = ReadHtml(formats) };
+    }
+
+    /// <summary>
+    /// A file selection. CF_HDROP is a DROPFILES header followed by a double-null
+    /// terminated path list, which DragQueryFile walks for us.
+    /// </summary>
+    private static ClipboardSnapshot? ReadFiles(List<string> formats)
+    {
+        if (!formats.Contains(StandardFormatName(CF_HDROP))) return null;
+
+        var handle = GetClipboardData(CF_HDROP);
+        if (handle == IntPtr.Zero) return null;
+
+        uint count = DragQueryFile(handle, 0xFFFFFFFF, null, 0);
+        if (count == 0) return null;
+
+        var paths = new List<string>((int)count);
+        var buffer = new StringBuilder(1024);
+        for (uint i = 0; i < count; i++)
+        {
+            int length = (int)DragQueryFile(handle, i, buffer, (uint)buffer.Capacity);
+            if (length > 0) paths.Add(buffer.ToString(0, length));
+        }
+        if (paths.Count == 0) return null;
+
+        return new ClipboardSnapshot
+        {
+            Kind = ClipKind.Files,
+            Files = paths.ToArray(),
+            // Also kept as text, so pasting a file clip into an editor gives the paths —
+            // which is what dropping files on a text target does anyway.
+            Text = string.Join(Environment.NewLine, paths),
+        };
+    }
+
+    /// <summary>
+    /// A picture. PNG is preferred where the source app offers it (browsers and the
+    /// Snipping Tool do) because it is already a file format; otherwise CF_DIB is wrapped
+    /// in a BMP file header, which costs fourteen bytes and no image codec at all.
+    /// </summary>
+    private static ClipboardSnapshot? ReadImage(List<string> formats)
+    {
+        if (formats.Contains("PNG", StringComparer.OrdinalIgnoreCase) &&
+            ReadBytes(RegisterClipboardFormat("PNG")) is { Length: > 24 } png)
+        {
+            var (pngWidth, pngHeight) = PngSize(png);
+            return new ClipboardSnapshot
+            {
+                Kind = ClipKind.Image,
+                Image = png,
+                ImageFormat = "PNG",
+                PixelWidth = pngWidth,
+                PixelHeight = pngHeight,
+            };
+        }
+
+        if (!formats.Contains(StandardFormatName(CF_DIB))) return null;
+        if (ReadBytes(CF_DIB) is not { Length: >= 40 } dib) return null;
+
+        return new ClipboardSnapshot
+        {
+            Kind = ClipKind.Image,
+            Image = WrapDibAsBmp(dib),
+            ImageFormat = "BMP",
+            PixelWidth = BitConverter.ToInt32(dib, 4),
+            PixelHeight = Math.Abs(BitConverter.ToInt32(dib, 8)), // negative means top-down
+        };
+    }
+
+    /// <summary>
+    /// Prefixes a BITMAPFILEHEADER to a DIB, turning the clipboard's headerless bitmap
+    /// into a .bmp file that anything can read back.
+    /// </summary>
+    public static byte[] WrapDibAsBmp(byte[] dib)
+    {
+        const int FileHeaderSize = 14;
+        int headerSize = BitConverter.ToInt32(dib, 0);
+        int bitCount = BitConverter.ToInt16(dib, 14);
+        int paletteEntries = BitConverter.ToInt32(dib, 32);
+
+        // A palette sits between the header and the pixels. Left at zero it means "all of
+        // them" at 8bpp and below, and none at all above that.
+        if (paletteEntries == 0 && bitCount <= 8) paletteEntries = 1 << bitCount;
+
+        int offset = FileHeaderSize + headerSize + paletteEntries * 4;
+
+        var bmp = new byte[FileHeaderSize + dib.Length];
+        bmp[0] = 0x42; // B
+        bmp[1] = 0x4D; // M
+        BitConverter.GetBytes(bmp.Length).CopyTo(bmp, 2);
+        BitConverter.GetBytes(offset).CopyTo(bmp, 10);
+        dib.CopyTo(bmp, FileHeaderSize);
+        return bmp;
+    }
+
+    /// <summary>Width and height from a PNG's IHDR, which is always its first chunk.</summary>
+    public static (int Width, int Height) PngSize(byte[] png)
+    {
+        // 8-byte signature, 4-byte length, "IHDR", then width and height, big-endian.
+        if (png.Length < 24) return (0, 0);
+
+        int width = (png[16] << 24) | (png[17] << 16) | (png[18] << 8) | png[19];
+        int height = (png[20] << 24) | (png[21] << 16) | (png[22] << 8) | png[23];
+        return (width, height);
+    }
+
+    /// <summary>How <see cref="EnumerateFormats"/> names a numbered (non-registered) format.</summary>
+    private static string StandardFormatName(uint format) => "#" + format;
 
     private static string ReadUnicodeText()
     {
@@ -261,4 +394,7 @@ internal static class WindowsClipboardReader
     [DllImport("kernel32.dll")] private static extern bool GlobalUnlock(IntPtr handle);
 
     [DllImport("kernel32.dll")] private static extern UIntPtr GlobalSize(IntPtr handle);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint DragQueryFile(IntPtr hDrop, uint index, StringBuilder? file, uint max);
 }

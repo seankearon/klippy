@@ -25,6 +25,7 @@ public sealed class ClipHistoryStore
     public const int DefaultCapacity = 500;
 
     private readonly string? _filePath;
+    private readonly IClipBlobStore _blobs;
     private readonly List<ClipEntry> _entries = new();                     // newest first
     private readonly List<SnippetSearch.Entry<ClipEntry>> _index = new();  // parallel to _entries
     private int _capacity;
@@ -64,7 +65,7 @@ public sealed class ClipHistoryStore
     public ClipHistoryStore(string? filePath = null, int capacity = DefaultCapacity)
         : this(filePath ?? StorageLocations.HistoryPath, capacity, persist: true) { }
 
-    /// <summary>Session-only history: nothing is read from or written to disk.</summary>
+    /// <summary>Session-only history: nothing is read from or written to disk, images included.</summary>
     public static ClipHistoryStore InMemory(int capacity = DefaultCapacity) =>
         new(null, capacity, persist: false);
 
@@ -72,8 +73,20 @@ public sealed class ClipHistoryStore
     {
         _filePath = persist ? filePath : null;
         _capacity = Math.Max(1, capacity);
+
+        var blobDirectory = _filePath is null
+            ? null
+            : Path.Combine(Path.GetDirectoryName(_filePath) ?? ".", ClipBlobs.DirectoryName);
+        _blobs = blobDirectory is null
+            ? new MemoryClipBlobStore()
+            : new FileClipBlobStore(blobDirectory);
+
         Load();
     }
+
+    /// <summary>Image bytes for a clip, or null if it has none or the blob has gone missing.</summary>
+    public byte[]? TryLoadImage(ClipEntry entry) =>
+        entry.BlobFile is { Length: > 0 } name ? _blobs.TryLoad(name) : null;
 
     /// <summary>
     /// Records a clip and returns the stored entry.
@@ -85,9 +98,7 @@ public sealed class ClipHistoryStore
     /// </summary>
     public ClipEntry Add(ClipEntry entry)
     {
-        int existing = _entries.FindIndex(e =>
-            string.Equals(e.Text, entry.Text, StringComparison.Ordinal) &&
-            string.Equals(e.Html, entry.Html, StringComparison.Ordinal));
+        int existing = FindDuplicate(entry);
 
         if (existing >= 0)
         {
@@ -105,6 +116,40 @@ public sealed class ClipHistoryStore
         MarkChanged();
         return entry;
     }
+
+    /// <summary>
+    /// Records an image, writing its bytes to a blob. Returns the stored clip, which is
+    /// an existing one when the same picture is already in the history.
+    ///
+    /// The store owns the blob because it owns the clip's lifetime: an image saved by a
+    /// caller would outlive its entry the first time eviction ran.
+    /// </summary>
+    public ClipEntry AddImage(byte[] bytes, string format, int width, int height, string sourceApp = "")
+    {
+        var entry = new ClipEntry
+        {
+            Kind = ClipKind.Image,
+            BlobFormat = format,
+            PixelWidth = width,
+            PixelHeight = height,
+            ContentHash = ClipBlobs.Hash(bytes),
+            SourceApp = sourceApp,
+        };
+
+        // Checked before writing anything: the same picture copied twice should cost one
+        // blob, not two, and Add will move the existing clip back to the top for us.
+        if (FindDuplicate(entry) < 0)
+        {
+            entry.BlobFile = ClipBlobs.FileName(entry.Id, format);
+            _blobs.Save(entry.BlobFile, bytes);
+        }
+
+        return Add(entry);
+    }
+
+    private int FindDuplicate(ClipEntry entry) => _entries.FindIndex(e =>
+        e.Kind == entry.Kind &&
+        string.Equals(e.DedupKey, entry.DedupKey, StringComparison.Ordinal));
 
     /// <summary>
     /// Bumps an existing clip to the top, as a fresh capture of the same text would.
@@ -206,6 +251,11 @@ public sealed class ClipHistoryStore
     // history — which, at a keystroke's notice and 500 clips, would be felt.
     private void RemoveAt(int i)
     {
+        // The blob goes with the clip. Nothing else refers to it — a duplicate image
+        // reuses the original entry rather than pointing a second one at the same file.
+        if (_entries[i].BlobFile is { Length: > 0 } blob)
+            _blobs.Delete(blob);
+
         _entries.RemoveAt(i);
         _index.RemoveAt(i);
     }
@@ -232,7 +282,10 @@ public sealed class ClipHistoryStore
 
             foreach (var entry in loaded)
             {
-                if (entry.Text.Length == 0) continue; // hand-edited or truncated file
+                // An image carries no text, and a clip with neither text nor payload is
+                // the mark of a hand-edited or truncated file.
+                if (entry.Kind != ClipKind.Image && entry.Text.Length == 0) continue;
+                if (entry.Kind == ClipKind.Image && entry.BlobFile is not { Length: > 0 }) continue;
                 if (entry.Id == Guid.Empty) entry.Id = Guid.NewGuid();
                 _entries.Add(entry);
                 _index.Add(new SnippetSearch.Entry<ClipEntry>(entry));

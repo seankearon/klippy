@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Headless;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Klippy.Models;
@@ -31,6 +33,21 @@ public class HistoryModeTests
     private static TagChipViewModel HistoryChip(MainViewModel vm) =>
         vm.Tags.First(t => t.Name == MainViewModel.HistoryTag);
 
+    /// <summary>A real PNG, so the row's thumbnail is exercised rather than stubbed.</summary>
+    private static byte[] SamplePng()
+    {
+        var bitmap = new RenderTargetBitmap(new PixelSize(160, 90));
+        using (var ctx = bitmap.CreateDrawingContext())
+        {
+            ctx.FillRectangle(Brushes.SlateGray, new Rect(0, 0, 160, 90));
+            ctx.FillRectangle(Brushes.Goldenrod, new Rect(20, 20, 60, 50));
+        }
+
+        using var stream = new MemoryStream();
+        bitmap.Save(stream);
+        return stream.ToArray();
+    }
+
     [AvaloniaFact]
     public void HistoryView_Renders_AndCapturesScreenshot()
     {
@@ -43,6 +60,15 @@ public class HistoryModeTests
                      ("DE44 5001 0517 5407 3249 31", "explorer"),
                  })
             history.Add(new ClipEntry { Text = text, SourceApp = app });
+
+        history.Add(new ClipEntry
+        {
+            Kind = ClipKind.Files,
+            Files = new[] { @"C:\work\invoice-2026-08.pdf", @"C:\work\receipts.zip" },
+            Text = "C:\\work\\invoice-2026-08.pdf\r\nC:\\work\\receipts.zip",
+            SourceApp = "explorer",
+        });
+        history.AddImage(SamplePng(), "PNG", 1280, 720, "snippingtool");
 
         var vm = new MainViewModel(NewSnippetStore(), history);
         vm.SelectTagCommand.Execute(HistoryChip(vm));

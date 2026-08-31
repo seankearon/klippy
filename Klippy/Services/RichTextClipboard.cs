@@ -12,7 +12,20 @@ using Markdig.Renderers;
 namespace Klippy.Services;
 
 /// <summary>What a copy puts on the clipboard: always plain text, plus HTML for Markdown snippets.</summary>
-public sealed record CopyPayload(string Plain, string? Html);
+public sealed record CopyPayload(string Plain, string? Html)
+{
+    /// <summary>Paths, when the clip being copied back is a file selection.</summary>
+    public string[]? Files { get; init; }
+
+    /// <summary>Encoded image bytes, when the clip being copied back is a picture.</summary>
+    public byte[]? Image { get; init; }
+
+    /// <summary>"PNG" or "BMP" — how <see cref="Image"/> is encoded.</summary>
+    public string ImageFormat { get; init; } = "";
+
+    /// <summary>True when this payload needs formats Avalonia's clipboard cannot carry.</summary>
+    public bool NeedsNativeWrite => Files is { Length: > 0 } || Image is { Length: > 0 };
+}
 
 /// <summary>
 /// Converts Markdown snippets to HTML and writes them to the clipboard with two
@@ -120,11 +133,24 @@ public static class RichTextClipboard
     public static Func<CopyPayload, Task>? PlatformWriter { get; set; }
 
     /// <summary>
+    /// Set by a platform head that can put file and image flavours on the clipboard.
+    /// Returns false to fall back to the ordinary path — a file clip still pastes as its
+    /// paths, which is better than nothing. Null where the platform cannot do it.
+    /// </summary>
+    public static Func<CopyPayload, Task<bool>>? NativeWriter { get; set; }
+
+    /// <summary>
     /// Writes the payload to the clipboard. Falls back to plain text if the platform
     /// rejects the HTML flavour, so a copy never silently fails.
     /// </summary>
     public static async Task WriteAsync(IClipboard? clipboard, CopyPayload payload)
     {
+        // Files and images need CF_HDROP and CF_DIB, which Avalonia's clipboard has no way
+        // to express. Only those two kinds take this path — text and HTML keep going
+        // through Avalonia exactly as before, since that is what already works.
+        if (payload.NeedsNativeWrite && NativeWriter is { } native && await native(payload))
+            return;
+
         if (PlatformWriter is { } platform)
         {
             await platform(payload);

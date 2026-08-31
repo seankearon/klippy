@@ -167,7 +167,7 @@ public partial class MainViewModel : ViewModelBase
         foreach (var entry in _history.Search(FilterText))
         {
             if (!_clipCache.TryGetValue(entry.Item.Id, out var row))
-                _clipCache[entry.Item.Id] = row = new ClipViewModel(entry.Item);
+                _clipCache[entry.Item.Id] = row = new ClipViewModel(entry.Item, _history.TryLoadImage);
             else
                 row.NotifyModelChanged(); // pin state and age move under the row
             Filtered.Add(row);
@@ -237,9 +237,10 @@ public partial class MainViewModel : ViewModelBase
         var payload = row switch
         {
             SnippetViewModel snippet => RichTextClipboard.BuildPayload(snippet.Model),
-            // A clip keeps whatever flavours it was captured with, so pasting it back into
-            // a rich-text editor gives what the original copy would have.
-            ClipViewModel clip => new CopyPayload(clip.Model.Text, clip.Model.Html),
+            // A clip keeps whatever flavours it was captured with, so pasting it back gives
+            // what the original copy would have — real files into Explorer, a picture into
+            // an image editor, formatting into a rich-text box.
+            ClipViewModel clip => BuildClipPayload(clip),
             _ => null,
         };
         if (payload is null) return;
@@ -255,6 +256,17 @@ public partial class MainViewModel : ViewModelBase
         ShowToast();
         Copied?.Invoke();
     }
+
+    private CopyPayload BuildClipPayload(ClipViewModel clip) => clip.Model.Kind switch
+    {
+        ClipKind.Files => new CopyPayload(clip.Model.Text, null) { Files = clip.Model.Files },
+        ClipKind.Image => new CopyPayload("", null)
+        {
+            Image = _history?.TryLoadImage(clip.Model),
+            ImageFormat = clip.Model.BlobFormat,
+        },
+        _ => new CopyPayload(clip.Model.Text, clip.Model.Html),
+    };
 
     /// <summary>Keeps a clip out of the history's eviction, or releases it.</summary>
     [RelayCommand]
@@ -293,7 +305,9 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void PromoteToSnippet(ClipViewModel? row)
     {
-        if (row is null) return;
+        // A snippet is text, so a picture has nothing to promote into one. File clips do:
+        // their paths are the text.
+        if (row is null || row.Model.Kind == ClipKind.Image) return;
 
         Editor = new EditorViewModel(null, SaveSnippet, CloseEditor, title: "New snippet from clip")
         {

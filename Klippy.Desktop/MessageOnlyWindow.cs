@@ -31,10 +31,17 @@ internal sealed class MessageOnlyWindow : IDisposable
     private readonly Action<IntPtr>? _detach;
     private uint _threadId;
     private volatile bool _running;
+    private volatile nint _handle;
     private WndProcDelegate? _wndProc; // rooted: the OS holds a raw pointer to this
 
     /// <summary>True once the window exists and <c>attach</c> succeeded.</summary>
     public bool IsRunning => _running;
+
+    /// <summary>
+    /// The window itself, or zero before it exists. Writing to the clipboard needs an
+    /// owner window in this process, or the write cannot be told apart from anyone else's.
+    /// </summary>
+    public IntPtr Handle => _handle;
 
     /// <param name="name">Window class prefix, for debuggability only.</param>
     /// <param name="attach">Registers interest on the pump thread; false aborts the window.</param>
@@ -85,6 +92,7 @@ internal sealed class MessageOnlyWindow : IDisposable
 
             if (!_attach(hwnd)) return;
 
+            _handle = hwnd;
             _running = true;
         }
         finally
@@ -96,6 +104,7 @@ internal sealed class MessageOnlyWindow : IDisposable
             _onMessage(msg.message, msg.wParam, msg.lParam);
 
         _detach?.Invoke(hwnd);
+        _handle = IntPtr.Zero;
         DestroyWindow(hwnd);
         _running = false;
     }

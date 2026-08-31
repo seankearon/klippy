@@ -29,6 +29,11 @@ sealed class Program
 
         // Built before the app, because OnFrameworkInitializationCompleted constructs the
         // view models and they need to know whether there is a history to show.
+        // File and image clips need clipboard formats Avalonia cannot express; text and
+        // HTML still go through Avalonia, which is what the Markdown flavours rely on.
+        if (OperatingSystem.IsWindows())
+            RichTextClipboard.NativeWriter = WindowsClipboardWriter.TryWriteAsync;
+
         using var history = new ClipboardHistoryService(settings);
         ClipboardHistory.Store = settings.HistoryEnabled ? history.Store : null;
 

@@ -7,6 +7,9 @@ namespace Klippy.Desktop;
 internal interface IClipboardMonitor : IDisposable
 {
     bool IsRunning { get; }
+
+    /// <summary>A window in this process, for code that must own the clipboard to write it.</summary>
+    IntPtr Handle { get; }
 }
 
 internal static class ClipboardMonitor
@@ -44,6 +47,8 @@ internal sealed class WindowsClipboardMonitor : IClipboardMonitor
     private readonly MessageOnlyWindow _window;
 
     public bool IsRunning => _window.IsRunning;
+
+    public IntPtr Handle => _window.Handle;
 
     private WindowsClipboardMonitor(Action<ClipboardSnapshot> onCopy)
     {
