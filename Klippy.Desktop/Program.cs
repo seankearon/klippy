@@ -27,6 +27,11 @@ sealed class Program
 
         var settings = AppSettings.Load();
 
+        // Built before the app, because OnFrameworkInitializationCompleted constructs the
+        // view models and they need to know whether there is a history to show.
+        using var history = new ClipboardHistoryService(settings);
+        ClipboardHistory.Store = settings.HistoryEnabled ? history.Store : null;
+
         var lifetime = new ClassicDesktopStyleApplicationLifetime
         {
             Args = args,
@@ -38,6 +43,14 @@ sealed class Program
 
         using var host = new LauncherHost(lifetime, settings);
         host.Start();
+
+        // After the app is up: the flush timer needs Avalonia's dispatcher.
+        history.Start();
+
+        if (settings.HistoryEnabled && !history.IsCapturing)
+            Console.Error.WriteLine(
+                "Clipboard history is on but this platform could not start capture; " +
+                "snippets still work.");
 
         if (settings.HotkeyEnabled && !host.HotkeyRegistered)
             Console.Error.WriteLine(

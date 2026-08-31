@@ -14,12 +14,20 @@ public partial class TagChipViewModel : ViewModelBase
 {
     public string Name { get; }
 
+    /// <summary>
+    /// True for the History chip, which switches what the list is showing rather than
+    /// filtering it. It sits in the same row because it is the same gesture, but the view
+    /// sets it apart so it does not read as just another tag.
+    /// </summary>
+    public bool IsMode { get; }
+
     [ObservableProperty]
     private bool _isSelected;
 
-    public TagChipViewModel(string name, bool isSelected = false)
+    public TagChipViewModel(string name, bool isSelected = false, bool isMode = false)
     {
         Name = name;
+        IsMode = isMode;
         _isSelected = isSelected;
     }
 }
@@ -27,19 +35,22 @@ public partial class TagChipViewModel : ViewModelBase
 public partial class MainViewModel : ViewModelBase
 {
     public const string AllTag = "All";
+    public const string HistoryTag = "History";
 
     private readonly SnippetStore _store;
+    private readonly ClipHistoryStore? _history;
     private readonly Dictionary<Guid, SnippetViewModel> _rowCache = new();
+    private readonly Dictionary<Guid, ClipViewModel> _clipCache = new();
     private readonly DispatcherTimer _toastTimer;
 
-    public ObservableCollection<SnippetViewModel> Filtered { get; } = new();
+    public ObservableCollection<RowViewModel> Filtered { get; } = new();
     public ObservableCollection<TagChipViewModel> Tags { get; } = new();
 
     [ObservableProperty]
     private string _filterText = "";
 
     [ObservableProperty]
-    private SnippetViewModel? _selectedSnippet;
+    private RowViewModel? _selectedSnippet;
 
     [ObservableProperty]
     private EditorViewModel? _editor;
@@ -60,6 +71,16 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _snippetCountText = "";
 
+    /// <summary>Whether the list is showing captured clips instead of saved snippets.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SearchWatermark))]
+    private bool _isHistoryMode;
+
+    /// <summary>The search box says what it is searching, since the list holds two different things.</summary>
+    public string SearchWatermark => IsHistoryMode
+        ? "Filter clipboard history"
+        : "Filter snippets or type a quick-code";
+
     private string _activeTag = AllTag;
 
     /// <summary>Set by the view; writes a copy payload to the platform clipboard.</summary>
@@ -76,15 +97,29 @@ public partial class MainViewModel : ViewModelBase
 
     public string PreviewKeyHint { get; } = OperatingSystem.IsMacOS() ? "⌘P" : "Ctrl P";
 
-    public MainViewModel() : this(new SnippetStore()) { }
+    /// <summary>Whether there is a clipboard history to switch to. False on mobile.</summary>
+    public bool HasHistory => _history is not null;
 
-    public MainViewModel(SnippetStore store)
+    public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store) { }
+
+    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null)
     {
         _store = store;
+        _history = history;
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); IsToastVisible = false; };
+
+        // Clips arrive while the window is open, so the list cannot wait for a user action.
+        if (_history is not null)
+            _history.Changed += OnHistoryChanged;
+
         RebuildTags();
         Refresh();
+    }
+
+    private void OnHistoryChanged()
+    {
+        if (IsHistoryMode) Refresh();
     }
 
     partial void OnFilterTextChanged(string value)
@@ -100,6 +135,14 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Re-runs the search and updates the visible rows, keeping row VMs (and their expanded state) stable.</summary>
     private void Refresh()
     {
+        if (IsHistoryMode) RefreshHistory();
+        else RefreshSnippets();
+
+        SelectedSnippet = Filtered.Count > 0 ? Filtered[0] : null;
+    }
+
+    private void RefreshSnippets()
+    {
         var results = _store.Search(FilterText);
 
         Filtered.Clear();
@@ -113,35 +156,69 @@ public partial class MainViewModel : ViewModelBase
             Filtered.Add(row);
         }
 
-        SelectedSnippet = Filtered.Count > 0 ? Filtered[0] : null;
         SnippetCountText = Filtered.Count == 1 ? "1 snippet" : $"{Filtered.Count} snippets";
+    }
+
+    private void RefreshHistory()
+    {
+        Filtered.Clear();
+        if (_history is null) return;
+
+        foreach (var entry in _history.Search(FilterText))
+        {
+            if (!_clipCache.TryGetValue(entry.Item.Id, out var row))
+                _clipCache[entry.Item.Id] = row = new ClipViewModel(entry.Item);
+            else
+                row.NotifyModelChanged(); // pin state and age move under the row
+            Filtered.Add(row);
+        }
+
+        // Rows cached for evicted clips would otherwise accumulate for the whole session.
+        if (_clipCache.Count > _history.Count * 2)
+            PruneClipCache();
+
+        SnippetCountText = Filtered.Count == 1 ? "1 clip" : $"{Filtered.Count} clips";
+    }
+
+    private void PruneClipCache()
+    {
+        var live = new HashSet<Guid>();
+        foreach (var clip in _history!.Entries) live.Add(clip.Id);
+
+        foreach (var id in new List<Guid>(_clipCache.Keys))
+            if (!live.Contains(id))
+                _clipCache.Remove(id);
     }
 
     private void RebuildTags()
     {
         Tags.Clear();
-        Tags.Add(new TagChipViewModel(AllTag, _activeTag == AllTag));
+        if (HasHistory)
+            Tags.Add(new TagChipViewModel(HistoryTag, IsHistoryMode, isMode: true));
+        Tags.Add(new TagChipViewModel(AllTag, !IsHistoryMode && _activeTag == AllTag));
         bool activeStillExists = _activeTag == AllTag;
         foreach (var tag in _store.Tags())
         {
             bool isActive = string.Equals(tag, _activeTag, StringComparison.OrdinalIgnoreCase);
             activeStillExists |= isActive;
-            Tags.Add(new TagChipViewModel(tag, isActive));
+            Tags.Add(new TagChipViewModel(tag, !IsHistoryMode && isActive));
         }
         // e.g. the last snippet with the active tag was deleted
         if (!activeStillExists)
         {
             _activeTag = AllTag;
-            Tags[0].IsSelected = true;
+            if (!IsHistoryMode) ActivateTag(AllTag);
         }
     }
 
     [RelayCommand]
     private void SelectTag(TagChipViewModel chip)
     {
-        ActivateTag(chip.Name);
-        // Searching spans every tag, so picking one has to leave search mode; otherwise
-        // the chip would advertise a filter the results aren't obeying.
+        // The History chip switches what the list shows; every other chip filters it.
+        // Both leave the search box empty, since a search spans whatever the current mode
+        // holds and the chips must always describe what the list is actually doing.
+        IsHistoryMode = chip.IsMode;
+        ActivateTag(chip.IsMode ? HistoryTag : chip.Name);
         FilterText = "";
         Refresh(); // FilterText may already have been empty, so nothing fired above
     }
@@ -149,20 +226,81 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Makes <paramref name="tag"/> the active filter and moves the chip highlight to it.</summary>
     private void ActivateTag(string tag)
     {
-        _activeTag = tag;
+        if (tag != HistoryTag) _activeTag = tag;
         foreach (var t in Tags)
             t.IsSelected = string.Equals(t.Name, tag, StringComparison.Ordinal);
     }
 
     [RelayCommand]
-    private async Task Copy(SnippetViewModel? row)
+    private async Task Copy(RowViewModel? row)
     {
-        if (row is null) return;
+        var payload = row switch
+        {
+            SnippetViewModel snippet => RichTextClipboard.BuildPayload(snippet.Model),
+            // A clip keeps whatever flavours it was captured with, so pasting it back into
+            // a rich-text editor gives what the original copy would have.
+            ClipViewModel clip => new CopyPayload(clip.Model.Text, clip.Model.Html),
+            _ => null,
+        };
+        if (payload is null) return;
+
         if (ClipboardWriter is { } write)
-            await write(RichTextClipboard.BuildPayload(row.Model));
-        _store.MarkUsed(row.Model);
+            await write(payload);
+
+        if (row is SnippetViewModel s) _store.MarkUsed(s.Model);
+        // Re-copying a clip promotes it back to the top, exactly as capture would — and
+        // has to say so, since Klippy's own clipboard writes are never captured.
+        else if (row is ClipViewModel c) _history?.MarkUsed(c.Model.Id);
+
         ShowToast();
         Copied?.Invoke();
+    }
+
+    /// <summary>Keeps a clip out of the history's eviction, or releases it.</summary>
+    [RelayCommand]
+    private void TogglePin(ClipViewModel? row)
+    {
+        if (row is null || _history is null) return;
+        _history.SetPinned(row.Model.Id, !row.Model.IsPinned);
+        Refresh();
+    }
+
+    /// <summary>
+    /// Drops a clip. No confirmation, unlike deleting a snippet: a clip is transient by
+    /// nature and the next copy makes another, so the gesture does not deserve a dialog.
+    /// </summary>
+    [RelayCommand]
+    private void DeleteClip(ClipViewModel? row)
+    {
+        if (row is null || _history is null) return;
+        _history.Remove(row.Model.Id);
+        Refresh();
+    }
+
+    /// <summary>Empties the history, keeping pinned clips.</summary>
+    [RelayCommand]
+    private void ClearHistory()
+    {
+        _history?.Clear();
+        Refresh();
+    }
+
+    /// <summary>
+    /// Opens the snippet editor prefilled from a clip — the bridge between the two halves
+    /// of the app, and the reason a clipboard history belongs in a snippet manager at all.
+    /// The clip stays in the history; saving creates a snippet beside it.
+    /// </summary>
+    [RelayCommand]
+    private void PromoteToSnippet(ClipViewModel? row)
+    {
+        if (row is null) return;
+
+        Editor = new EditorViewModel(null, SaveSnippet, CloseEditor, title: "New snippet from clip")
+        {
+            Label = row.Label,
+            Content = row.Model.Text,
+            IsMarkdown = false, // captured text is not known to be Markdown
+        };
     }
 
     [RelayCommand]

@@ -82,6 +82,41 @@ public class ClipHistoryStoreTests : IDisposable
         Assert.Equal("code", only.SourceApp);
     }
 
+    [Fact]
+    public void MarkUsedBumpsAClipBackToTheTop()
+    {
+        // Copying a clip out of the history is not a capture, so re-ranking is explicit.
+        var store = ClipHistoryStore.InMemory();
+        var first = store.Add(Clip("older"));
+        store.Add(Clip("newer"));
+
+        Assert.True(store.MarkUsed(first.Id));
+
+        Assert.Equal(new[] { "older", "newer" }, store.Entries.Select(e => e.Text));
+        Assert.Equal(2, store.Count);
+    }
+
+    [Fact]
+    public void MarkUsedRefreshesTheTimestampSoSearchAgreesWithTheList()
+    {
+        var store = ClipHistoryStore.InMemory();
+        var first = store.Add(Clip("older", at: DateTimeOffset.UtcNow.AddHours(-1)));
+        store.Add(Clip("newer"));
+
+        store.MarkUsed(first.Id);
+
+        // An empty query ranks by recency, so the search order must match the list order.
+        Assert.Equal(new[] { "older", "newer" }, store.Search("").Select(r => r.Item.Text));
+    }
+
+    [Fact]
+    public void MarkUsedIgnoresAClipThatIsNoLongerThere()
+    {
+        var store = ClipHistoryStore.InMemory();
+
+        Assert.False(store.MarkUsed(Guid.NewGuid()));
+    }
+
     // ---- capacity, eviction, pinning ----
 
     [Fact]

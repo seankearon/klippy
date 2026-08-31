@@ -119,6 +119,75 @@ Carbon's `RegisterEventHotKey` — chosen over an event tap because it needs no 
 permission. **The macOS path compiles but has not been run**, since it cannot be tested
 from Windows.
 
+## Clipboard history (Windows)
+
+Klippy also keeps what you copy. The **History** chip, first in the chip row, switches
+the list from saved snippets to captured clips — newest first, searchable with the same
+prefix matching, and copied back with the same Enter or click. A clip carries the app it
+came from and its age instead of a tag and a quick-code, and keeps whatever flavours it
+was captured with, so pasting one back into a rich-text editor gives what the original
+copy would have.
+
+Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
+(opens the editor prefilled — the clip stays put), **delete**, and **copy**. Deleting a
+clip asks for no confirmation, unlike deleting a snippet: a clip is transient by nature
+and the next copy makes another. The footer's **clear history** empties everything
+except pinned clips.
+
+**Windows only, and mobile never.** Capture is `AddClipboardFormatListener` on the same
+message-only window the global hotkey uses ([`MessageOnlyWindow`](Klippy.Desktop/MessageOnlyWindow.cs)),
+so it costs one shared thread. Android has forbidden background clipboard reads since
+API 29 and shows a system toast on any foreground read since API 31; iOS forbids them
+outright. There is no polite way around either, so mobile stays a snippet manager and
+the History chip is simply absent there. macOS is not wired up yet — it needs a
+`NSPasteboard.changeCount` poll, since it has no notification API at all.
+
+### What is deliberately not recorded
+
+Password managers mark their clipboard writes so managers like this one look away, and
+[`CapturePolicy`](Klippy/Services/CapturePolicy.cs) honours them: the
+`ExcludeClipboardContentFromMonitorProcessing` format that KeePass, 1Password and
+Bitwarden set, the older `Clipboard Viewer Ignore` convention, and
+`CanIncludeInClipboardHistory` — which is read *by value*, since an app setting it to 1
+is opting in rather than out. Klippy's own copies are skipped too, identified by
+comparing the clipboard's owning process to its own; without that, every snippet copied
+would be echoed straight back into the history.
+
+The policy is a pure function with no Win32 in it, so the security-critical half of
+capture is something the tests pin down rather than something you have to trust.
+
+That said, **the history is a plaintext record of what you copied**, protected by the
+same `%APPDATA%` permissions as `snippets.json` and nothing more. If that is not a trade
+you want, `"HistorySessionOnly": true` keeps it in memory and never writes it to disk.
+
+### Settings
+
+In `settings.json`, next to the hotkey:
+
+```json
+{
+  "HistoryEnabled": true,
+  "HistoryLimit": 500,
+  "HistorySessionOnly": false,
+  "HistoryExcludedApps": ["keepass", "some-other-app"]
+}
+```
+
+`HistoryExcludedApps` matches on process name, so `keepass` catches
+`C:\Program Files\KeePass\KeePass.exe`. At the limit the oldest unpinned clips are
+dropped — but never a pinned one, and never the clip that just arrived, since a history
+full of pinned clips would otherwise swallow every new copy in silence.
+
+Clips live in `history.json` beside the snippets, written on a two-second timer and on
+exit rather than per copy: history changes on *every* copy anywhere on the system, and
+rewriting the file each time would be the wrong shape entirely. The cost is that a hard
+crash loses the last couple of seconds — the right trade for data that is itself
+transient, and a real difference from `snippets.json`, which is atomic per mutation.
+
+**Not yet done:** paste-back. Selecting a clip copies it; it does not paste it into the
+window you came from, which is the thing that makes Ditto feel fast. That needs
+`SetForegroundWindow` plus synthesised Ctrl+V, and is the next piece of work.
+
 ## Provenance and bulk import
 
 Every snippet carries an optional `Source` and `ExternalId` (e.g. `BoldDesk Aug 2026`

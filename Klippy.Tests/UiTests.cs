@@ -349,7 +349,7 @@ public class UiTests
     {
         var vm = NewVm();
         int before = vm.Filtered.Count;
-        var row = vm.Filtered.First(r => r.Label == "Send log files");
+        var row = Assert.IsType<SnippetViewModel>(vm.Filtered.First(r => r.Label == "Send log files"));
 
         vm.DuplicateCommand.Execute(row);
 
@@ -418,7 +418,7 @@ public class UiTests
         var vm = NewVm();
         var personal = vm.Tags.First(t => t.Name == "personal");
         vm.SelectTagCommand.Execute(personal);
-        Assert.All(vm.Filtered, row => Assert.Equal("personal", row.Tag));
+        Assert.All(vm.Filtered, row => Assert.Equal("personal", Assert.IsType<SnippetViewModel>(row).Tag));
 
         // a word search reaches a snippet the active tag was hiding
         vm.FilterText = "docker";
@@ -443,6 +443,6 @@ public class UiTests
         vm.SelectTagCommand.Execute(vm.Tags.First(t => t.Name == "dev"));
 
         Assert.Equal("", vm.FilterText);
-        Assert.All(vm.Filtered, row => Assert.Equal("dev", row.Tag));
+        Assert.All(vm.Filtered, row => Assert.Equal("dev", Assert.IsType<SnippetViewModel>(row).Tag));
     }
 }

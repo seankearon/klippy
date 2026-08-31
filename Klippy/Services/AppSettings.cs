@@ -14,6 +14,26 @@ public sealed class AppSettings
     /// <summary>Set false to leave the key alone entirely.</summary>
     public bool HotkeyEnabled { get; set; } = true;
 
+    /// <summary>Whether to record what gets copied. Desktop only; ignored where the OS forbids capture.</summary>
+    public bool HistoryEnabled { get; set; } = true;
+
+    /// <summary>How many clips to keep before the oldest unpinned ones are dropped.</summary>
+    public int HistoryLimit { get; set; } = ClipHistoryStore.DefaultCapacity;
+
+    /// <summary>
+    /// Keep history in memory only, so nothing copied is ever written to disk. The
+    /// history is a record of everything that passed through the clipboard, and that is
+    /// a thing a person is entitled to decline.
+    /// </summary>
+    public bool HistorySessionOnly { get; set; }
+
+    /// <summary>
+    /// Applications never recorded from, by process name ("keepass"). Password managers
+    /// already mark their own clipboard writes and those are honoured regardless — this
+    /// is for anything else the user would rather not have kept.
+    /// </summary>
+    public string[] HistoryExcludedApps { get; set; } = Array.Empty<string>();
+
     [JsonIgnore]
     public HotkeySpec ParsedHotkey =>
         HotkeySpec.TryParse(Hotkey, out var spec) ? spec : HotkeySpec.Default;

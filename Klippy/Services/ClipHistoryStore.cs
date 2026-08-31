@@ -30,6 +30,12 @@ public sealed class ClipHistoryStore
     private int _capacity;
     private bool _dirty;
 
+    /// <summary>
+    /// Raised after any change to the history. Capture happens while the window is open,
+    /// so the list has to learn about a new clip from somewhere other than a user action.
+    /// </summary>
+    public event Action? Changed;
+
     /// <summary>Clips newest first.</summary>
     public IReadOnlyList<ClipEntry> Entries => _entries;
 
@@ -51,7 +57,7 @@ public sealed class ClipHistoryStore
         set
         {
             _capacity = Math.Max(1, value);
-            if (Evict()) _dirty = true;
+            if (Evict()) MarkChanged();
         }
     }
 
@@ -89,15 +95,34 @@ public sealed class ClipHistoryStore
             found.CapturedAt = entry.CapturedAt;
             if (entry.SourceApp.Length > 0) found.SourceApp = entry.SourceApp;
             MoveToHead(existing);
-            _dirty = true;
+            MarkChanged();
             return found;
         }
 
         _entries.Insert(0, entry);
         _index.Insert(0, new SnippetSearch.Entry<ClipEntry>(entry));
         Evict();
-        _dirty = true;
+        MarkChanged();
         return entry;
+    }
+
+    /// <summary>
+    /// Bumps an existing clip to the top, as a fresh capture of the same text would.
+    ///
+    /// Copying a clip out of the history is not a capture — Klippy's own writes are
+    /// deliberately ignored — so re-ranking has to be asked for explicitly. Passing the
+    /// clip back through <see cref="Add"/> would not do it: the caller holds the very
+    /// instance the store holds, so refreshing the timestamp there assigns to itself.
+    /// </summary>
+    public bool MarkUsed(Guid id)
+    {
+        int i = _entries.FindIndex(e => e.Id == id);
+        if (i < 0) return false;
+
+        _entries[i].CapturedAt = DateTimeOffset.UtcNow;
+        MoveToHead(i);
+        MarkChanged();
+        return true;
     }
 
     public bool SetPinned(Guid id, bool pinned)
@@ -109,7 +134,7 @@ public sealed class ClipHistoryStore
         // Unpinning can push the store back over capacity, since pinned clips were
         // exempt from the cap while they held that state.
         if (!pinned) Evict();
-        _dirty = true;
+        MarkChanged();
         return true;
     }
 
@@ -119,7 +144,7 @@ public sealed class ClipHistoryStore
         if (i < 0) return false;
 
         RemoveAt(i);
-        _dirty = true;
+        MarkChanged();
         return true;
     }
 
@@ -129,10 +154,16 @@ public sealed class ClipHistoryStore
         for (int i = _entries.Count - 1; i >= 0; i--)
             if (includePinned || !_entries[i].IsPinned)
                 RemoveAt(i);
-        _dirty = true;
+        MarkChanged();
     }
 
     public List<SnippetSearch.Entry<ClipEntry>> Search(string? query) => SnippetSearch.Search(_index, query);
+
+    private void MarkChanged()
+    {
+        _dirty = true;
+        Changed?.Invoke();
+    }
 
     /// <summary>Writes pending changes to disk. No-op when clean or session-only.</summary>
     public void Flush()

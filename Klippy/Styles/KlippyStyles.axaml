@@ -161,6 +161,12 @@
     <Setter Property="Background" Value="{StaticResource AccentBrush}" />
     <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}" />
   </Style>
+  <!-- The History chip switches what the list shows rather than filtering it, so it is
+       set apart: a heavier border and a gap before the tags that follow it. -->
+  <Style Selector="Button.chip.mode">
+    <Setter Property="BorderBrush" Value="{StaticResource Muted2Brush}" />
+    <Setter Property="Margin" Value="0,0,8,0" />
+  </Style>
   <!-- mobile chips are a size up -->
   <Style Selector="Button.chip.mobileChip">
     <Setter Property="FontSize" Value="12" />
