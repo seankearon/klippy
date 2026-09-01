@@ -11,3 +11,6 @@ artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# Build output from Klippy.Build
+_build/
