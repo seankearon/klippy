@@ -25,9 +25,7 @@ let BuildDir       = RepoFolder +/ "_build"
 let OutDir         = BuildDir   +/ "out"
 let DropFolder     = BuildDir   +/ "drop"
 
-/// Klippy's default branch is master, not main.
-let ReleaseBranch = "master"
-
+let ReleaseBranch = "main"
 let WindowsRuntime = "win-x64"
 
 /// Both mac architectures: Parcel merges them into one universal bundle with lipo, so a
