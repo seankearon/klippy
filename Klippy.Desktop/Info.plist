@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Klippy is a hotkey-driven launcher that lives in the menu bar, so it has no
+         business in the Dock or the app switcher. LSUIElement makes it an agent: no
+         Dock tile, no Cmd-Tab entry. The tray icon's Quit item is how it is closed. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+</dict>
+</plist>

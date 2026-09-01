@@ -104,6 +104,20 @@ let parcel (args: string list) =
 
     cmdInRedirectingWith RepoFolder "parcel" (String.Join(" ", args)) scrubLicenceKey true
 
+// --- github ----------------------------------------------------------------
+
+let gh = cmd "gh"
+
+/// The installers, as opposed to Parcel's scratch files. Filtering by extension rather
+/// than taking everything under the drop folder keeps temp/ and any stray logs out of a
+/// published release.
+let releaseArtifacts () =
+    let installers = set [ ".exe"; ".dmg"; ".msix"; ".pkg"; ".zip"; ".deb"; ".rpm" ]
+
+    Directory.GetFiles(DropFolder, "*", SearchOption.AllDirectories)
+    |> Array.filter (fun f -> installers.Contains(Path.GetExtension(f).ToLowerInvariant()))
+    |> Array.sort
+
 // --- the build -------------------------------------------------------------
 
 let buildKlippy () =
@@ -262,12 +276,47 @@ let buildKlippy () =
             revertPropsFile ())
 
         if isRelease then
+            let tag = $"v{version}"
+
             stage "Tag Repo" (fun () ->
                 workingDir RepoFolder
-                let tag = $"v{version}"
+
+                // git here is the non-failing runner, so a rejected tag would otherwise
+                // pass silently and the release below would attach to whatever that tag
+                // already pointed at - a previous build's commit.
+                let existing = cmdInFolderReturningOutput RepoFolder "git" $"tag --list {tag}" |> trim
+
+                if existing <> "" then
+                    failwith $"Tag {tag} already exists. Bump ver.txt, or pass version:X.Y.Z for a different one."
+
                 Write.line $"Tagging {ReleaseBranch} with {tag}"
                 git $"tag {tag}"
                 git $"push origin {tag}")
+
+            stage "GitHub Release" (fun () ->
+                workingDir RepoFolder
+
+                let artifacts = releaseArtifacts ()
+
+                if artifacts.Length = 0 then
+                    failwith $"No installers under {DropFolder} - refusing to publish an empty release."
+
+                Write.line $"Attaching {artifacts.Length} artifact(s):"
+                for file in artifacts do
+                    Write.line $"  {Path.GetFileName file} ({FileInfo(file).Length / 1024L / 1024L} MB)"
+
+                // --generate-notes builds the changelog from the commits since the previous
+                // tag, which is exactly the range this release covers.
+                let title = doubleQuote $"Klippy {version}"
+
+                gh [
+                    "release"; "create"; tag
+                    $"--title {title}"
+                    "--generate-notes"
+                    yield! artifacts |> Array.map doubleQuote
+                ]
+
+                Write.line $"Published release {tag}")
 
             stage "Update Version File" (fun () ->
                 workingDir RepoFolder
@@ -277,7 +326,7 @@ let buildKlippy () =
                 git $"push origin {ReleaseBranch}")
         else
             Write.line ""
-            Write.line "Local build: skipped tagging, the version bump and the push."
+            Write.line "Local build: skipped tagging, the GitHub release and the version bump."
             Write.line "Re-run with `release` to publish."
 
         stopwatch.Stop()
