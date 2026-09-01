@@ -129,7 +129,10 @@ else {
 
 if (-not $DryRun -and -not $Force) {
     Write-Host ''
-    $answer = Read-Host "Publish release v$plannedVersion? [y/N]"
+    # $() around the variable is required, not stylistic: '?' is a legal character in a
+    # PowerShell variable name, so "v$plannedVersion?" parses as the variable
+    # $plannedVersion? and fails under Set-StrictMode.
+    $answer = Read-Host "Publish release v$($plannedVersion)? [y/N]"
 
     if ($answer -notmatch '^(y|yes)$') {
         Write-Warn 'Cancelled. Nothing has been changed.'
