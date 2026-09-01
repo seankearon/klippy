@@ -1,0 +1,16 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Project Path="Klippy.Android/Klippy.Android.csproj" />
+  <Project Path="Klippy.Build/Klippy.Build.fsproj" />
+  <Project Path="Klippy.Desktop/Klippy.Desktop.csproj" />
+  <Project Path="Klippy.iOS/Klippy.iOS.csproj" />
+  <Project Path="Klippy.Tests/Klippy.Tests.csproj" />
+  <Project Path="Klippy/Klippy.csproj" />
+</Solution>
