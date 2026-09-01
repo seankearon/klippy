@@ -15,6 +15,19 @@
        Publish with: dotnet publish -c Release -r win-x64 (or osx-arm64/osx-x64 on a Mac). -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <PublishAot>true</PublishAot>
+
+    <!-- NativeAOT emits native code for the target, and ILC refuses to do that across
+         operating systems: publishing osx-* from Windows fails with "Cross-OS native
+         compilation is not supported". So for the mac runtimes, AOT is on exactly when
+         the build is happening on a Mac. -->
+    <PublishAot Condition="'$(RuntimeIdentifier)' == 'osx-arm64' Or '$(RuntimeIdentifier)' == 'osx-x64'">$([MSBuild]::IsOSPlatform(OSX))</PublishAot>
+
+    <!-- The fallback for anything cross-built: trimmed and self-contained. Larger than a
+         native binary and JIT-started rather than instant, but it runs, which is more
+         than can be said for one that cannot be compiled. -->
+    <PublishTrimmed Condition="'$(PublishAot)' != 'true'">true</PublishTrimmed>
+    <SelfContained Condition="'$(PublishAot)' != 'true'">true</SelfContained>
+
     <OptimizationPreference>Size</OptimizationPreference>
     <StackTraceSupport>false</StackTraceSupport>
     <InvariantGlobalization>true</InvariantGlobalization>
