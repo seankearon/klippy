@@ -1,0 +1,32 @@
+{
+    "GeneralSettings": {
+        "NetProjectPath": "Klippy.Desktop.csproj",
+        "PackageName": "Klippy",
+        "AssemblyName": {
+            "$type": "msbuild",
+            "property": "AssemblyName"
+        },
+        "ApplicationName": "Klippy",
+        "Version": {
+            "$type": "msbuild",
+            "property": "Version"
+        },
+        "Icon": "../Klippy/Assets/klippy.ico",
+        "Company": "Sean Kearon"
+    },
+    "LinuxSettings": {
+        "CreateBinSymlink": "True"
+    },
+    "Win32Settings": {
+        "IncludeUninstaller": "True"
+    },
+    "MacOsSettings": {
+        "CreateBundle": true,
+        "BundleIdentifier": "com.seankearon.klippy",
+        "SigningCredentialsType": "AdHoc"
+    },
+    "PublishSettings": {
+        "PublishSingleFile": "False",
+        "ExtraBuildProperties": {}
+    }
+}

@@ -18,7 +18,7 @@ let RepoFolder = findFirstParentFolderContainingFile ApplicationExeFolder "Klipp
 
 let DesktopProject = RepoFolder +/ "Klippy.Desktop" +/ "Klippy.Desktop.csproj"
 let TestProject    = RepoFolder +/ "Klippy.Tests"   +/ "Klippy.Tests.csproj"
-let ParcelProject  = RepoFolder +/ "Klippy.Desktop" +/ "Klippy.parcel"
+let ParcelProject  = RepoFolder +/ "Klippy.Desktop" +/ "Klippy.Desktop.parcel"
 let PropsFile      = RepoFolder +/ "Directory.Build.props"
 let VersionFile    = RepoFolder +/ "ver.txt"
 let BuildDir       = RepoFolder +/ "_build"
@@ -149,8 +149,19 @@ let buildKlippy () =
         stage "Restore" (fun () ->
             // The runtime must match the publish stage below: with --no-restore there,
             // win-x64 has to already be in the assets file from this restore.
+            //
+            // Configuration must match too, and that is far less obvious. PublishAot is
+            // set inside a Release-only PropertyGroup, and restore defaults to Debug - so
+            // without this the ILCompiler package is never restored, and the Release
+            // publish below quietly produces an ordinary self-contained build instead of
+            // a native one. It succeeds; it just ships 103 MB rather than 30 MB.
             workingDir RepoFolder
-            dotnet [ "restore"; doubleQuote DesktopProject; $"--runtime {WindowsRuntime}" ])
+
+            dotnet [
+                "restore"; doubleQuote DesktopProject
+                $"--runtime {WindowsRuntime}"
+                "-p:Configuration=Release"
+            ])
 
         stage "Test" (fun () ->
             workingDir RepoFolder
@@ -188,7 +199,38 @@ let buildKlippy () =
                 "--self-contained true"
                 "--verbosity minimal"
                 $"--output {OutDir +/ WindowsRuntime |> doubleQuote}"
-            ])
+            ]
+
+            // NativeAOT fails open, not closed: when the ILCompiler package is missing
+            // from the assets file the publish still reports success and writes a managed
+            // self-contained app. The apphost exe is the tell - a native publish produces
+            // one, a managed publish here does not - so check for it rather than trust the
+            // exit code.
+            let publishDir = OutDir +/ WindowsRuntime
+            let exe = publishDir +/ "Klippy.Desktop.exe"
+
+            if not (File.Exists exe) then
+                failwith
+                    $"Publish reported success but {exe} does not exist - NativeAOT silently \
+                      downgraded to a managed publish. Check that the Restore stage ran with \
+                      -p:Configuration=Release so Microsoft.DotNet.ILCompiler is in the assets file."
+
+            let files = Directory.GetFiles(publishDir, "*", SearchOption.AllDirectories)
+
+            // Excluding pdbs: the NativeAOT symbol file is larger than everything that
+            // actually ships put together, so a raw total tells you nothing useful.
+            let shippingMb =
+                files
+                |> Array.filter (fun f -> Path.GetExtension f <> ".pdb")
+                |> Array.sumBy (fun f -> FileInfo(f).Length)
+                |> fun bytes -> bytes / 1024L / 1024L
+
+            Write.line $"Published {FileInfo(exe).Length / 1024L / 1024L} MB exe, {files.Length} file(s), {shippingMb} MB shipping"
+
+            // A native publish is a handful of files. Anything resembling the ~220 of a
+            // managed one means AOT did not really happen, however the exe check went.
+            if files.Length > 50 then
+                Write.line $"WARNING: {files.Length} files in a NativeAOT publish looks wrong - expected under a dozen.")
 
         stage "Package" (fun () ->
             if not (File.Exists ParcelProject) then
