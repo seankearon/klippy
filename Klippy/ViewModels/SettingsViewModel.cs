@@ -31,6 +31,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _markdownDoubleSpaced;
 
+    /// <summary>Whether the plain-text flavour reduces Markdown links to their bare URL.</summary>
+    [ObservableProperty]
+    private bool _markdownSanitiseLinks;
+
     [ObservableProperty]
     private string? _statusText;
 
@@ -49,7 +53,15 @@ public partial class SettingsViewModel : ViewModelBase
         _close = close;
         _markdownToHtml = settings.MarkdownToHtml;
         _markdownDoubleSpaced = settings.MarkdownDoubleSpaced;
+        _markdownSanitiseLinks = settings.MarkdownSanitiseLinks;
         _loaded = true;
+    }
+
+    partial void OnMarkdownSanitiseLinksChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.MarkdownSanitiseLinks = value;
+        Save();
     }
 
     partial void OnMarkdownToHtmlChanged(bool value)

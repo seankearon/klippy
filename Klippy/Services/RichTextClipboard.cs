@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -36,7 +37,7 @@ public sealed record CopyPayload(string Plain, string? Html)
 /// Markdown. That dual-flavour write is what makes formatting survive a paste;
 /// converting alone would not.
 /// </summary>
-public static class RichTextClipboard
+public static partial class RichTextClipboard
 {
     // Deliberately conservative. Autolinks turn bare URLs into links (helpdesk replies
     // are full of them) and soft line breaks become <br> so a canned reply keeps the
@@ -87,16 +88,43 @@ public static class RichTextClipboard
         return string.Join(doubleSpaced ? "\n" + Spacer + "\n" : "\n", blocks);
     }
 
+    /// <summary>
+    /// An inline Markdown link: <c>[text](url)</c>, with an optional <c>"title"</c> after
+    /// the URL and the URL itself optionally in angle brackets. The negative lookbehind
+    /// leaves images alone — <c>![alt](src)</c> is not a link, and a bare image URL is
+    /// no more readable in plain text than the source was.
+    /// </summary>
+    // Source-generated rather than RegexOptions.Compiled, which NativeAOT cannot honour.
+    [GeneratedRegex(@"(?<!!)\[[^\]]*\]\(\s*(?:<(?<url>[^>]*)>|(?<url>[^\s)]+))(?:\s+(?:""[^""]*""|'[^']*'|\([^)]*\)))?\s*\)")]
+    private static partial Regex InlineLink();
+
+    /// <summary>
+    /// Reduces every inline Markdown link to its bare URL, for targets that only take
+    /// plain text and would otherwise show the link syntax verbatim. The link text is
+    /// dropped rather than kept beside the URL: "www.qwe.com https://www.qwe.com" is
+    /// worse than either on its own, and the URL is the part that still works.
+    /// </summary>
+    public static string SanitiseLinks(string markdown) =>
+        InlineLink().Replace(markdown ?? "", m => m.Groups["url"].Value);
+
     /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
     public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null)
     {
         settings ??= AppSettings.Current;
 
+        if (!snippet.IsMarkdown)
+            return new CopyPayload(snippet.Content, null);
+
+        // The HTML is rendered from the source as written, never the sanitised text: a
+        // rich-text target can show a real link, so it should get one. Sanitising only
+        // touches the plain flavour, which is all a plain-text target ever sees.
+        var plain = settings.MarkdownSanitiseLinks ? SanitiseLinks(snippet.Content) : snippet.Content;
+
         // With the HTML flavour switched off a Markdown snippet is just its source, which
         // is exactly what a plain snippet already is — so both take the same path.
-        return snippet.IsMarkdown && settings.MarkdownToHtml
-            ? new CopyPayload(snippet.Content, ToHtml(snippet.Content, settings.MarkdownDoubleSpaced))
-            : new CopyPayload(snippet.Content, null);
+        return settings.MarkdownToHtml
+            ? new CopyPayload(plain, ToHtml(snippet.Content, settings.MarkdownDoubleSpaced))
+            : new CopyPayload(plain, null);
     }
 
     /// <summary>

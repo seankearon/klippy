@@ -158,6 +158,74 @@ public class RichTextTests
         Assert.DoesNotContain(Spacer, payload.Html);
     }
 
+    // ---- Sanitised links (issue #6) ----
+
+    [Theory]
+    [InlineData("[www.qwe.com](https://www.qwe.com)", "https://www.qwe.com")]
+    [InlineData("[some plain words](https://www.qwe.com)", "https://www.qwe.com")]
+    [InlineData("See [the docs](https://a.io/x \"Docs\") first.", "See https://a.io/x first.")]
+    [InlineData("[angled](<https://a.io/with space>)", "https://a.io/with space")]
+    [InlineData("[one](https://a.io) and [two](https://b.io)", "https://a.io and https://b.io")]
+    public void SanitiseLinks_ReducesInlineLinksToTheirUrl(string markdown, string expected)
+    {
+        Assert.Equal(expected, RichTextClipboard.SanitiseLinks(markdown));
+    }
+
+    [Theory]
+    [InlineData("![screenshot](https://a.io/pic.png)")] // an image is not a link
+    [InlineData("[ref style][docs]")]                    // no URL here to reduce to
+    [InlineData("[not a link] (a space breaks it)")]     // CommonMark needs ]( adjacent
+    [InlineData("plain https://a.io stays")]
+    public void SanitiseLinks_LeavesEverythingElseAlone(string markdown)
+    {
+        Assert.Equal(markdown, RichTextClipboard.SanitiseLinks(markdown));
+    }
+
+    [Fact]
+    public void BuildPayload_SanitiseLinksOn_TouchesThePlainFlavourOnly()
+    {
+        var snippet = new Snippet { Content = "Go to [our site](https://www.qwe.com)", IsMarkdown = true };
+        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings { MarkdownSanitiseLinks = true });
+
+        // A plain-text target gets a URL that works...
+        Assert.Equal("Go to https://www.qwe.com", payload.Plain);
+
+        // ...while a rich-text target still gets the real link, text and all.
+        Assert.Contains("<a href=\"https://www.qwe.com\">our site</a>", payload.Html);
+    }
+
+    [Fact]
+    public void BuildPayload_SanitiseLinksOn_AppliesWithRichTextOffToo()
+    {
+        // The two are independent: this is about the plain flavour, which is all that is
+        // copied once HTML is switched off.
+        var snippet = new Snippet { Content = "[x](https://a.io)", IsMarkdown = true };
+        var payload = RichTextClipboard.BuildPayload(snippet,
+            new AppSettings { MarkdownSanitiseLinks = true, MarkdownToHtml = false });
+
+        Assert.Equal("https://a.io", payload.Plain);
+        Assert.Null(payload.Html);
+    }
+
+    [Fact]
+    public void BuildPayload_SanitiseLinksOn_LeavesPlainSnippetsAsWritten()
+    {
+        // Only Markdown has links to sanitise; in a plain snippet the brackets are content.
+        var snippet = new Snippet { Content = "[x](https://a.io)", IsMarkdown = false };
+        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings { MarkdownSanitiseLinks = true });
+
+        Assert.Equal("[x](https://a.io)", payload.Plain);
+    }
+
+    [Fact]
+    public void BuildPayload_SanitiseLinksOff_LeavesTheSourceAlone()
+    {
+        var snippet = new Snippet { Content = "[x](https://a.io)", IsMarkdown = true };
+        var payload = RichTextClipboard.BuildPayload(snippet, Defaults);
+
+        Assert.Equal("[x](https://a.io)", payload.Plain);
+    }
+
     // ---- CF_HTML wire format ----
 
     [Fact]
