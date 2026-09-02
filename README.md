@@ -368,6 +368,23 @@ On Windows use [`build.ps1`](build.ps1), which publishes the desktop head in Rel
 > PowerShell 7 (`pwsh`), or run it as
 > `powershell -ExecutionPolicy Bypass -File .\build.ps1`.
 
+> **Code signing (releases).** [`release.ps1`](release.ps1) hands packaging to Parcel,
+> which signs the Windows exe, uninstaller and NSIS installer with **Azure Trusted
+> Signing**. Nothing that identifies the signing account is in the repo: the build and
+> the script load `%USERPROFILE%\.config\shine.env` (a private `KEY=value` file, never
+> checked in) and refuse to start unless it holds all six keys —
+> `CodeSigning__TenantId`, `CodeSigning__ClientId`, `CodeSigning__ClientSecret` for the
+> Entra app registration that has the *Trusted Signing Certificate Profile Signer* role,
+> and `CodeSigning__Endpoint`, `CodeSigning__AccountName`,
+> `CodeSigning__CertificateProfileName` for the Trusted Signing resource. The checked-in
+> `Klippy.Desktop.parcel` knows nothing about signing: the build writes a copy under
+> `_build` with the signing block filled in from those keys and packs from that, so a
+> hand-run `parcel pack` on the original still gives an unsigned build. A value already
+> exported in the shell wins over the file. This exists because an unsigned NSIS
+> installer wrapping a native binary trips Defender's `Wacatac.B!ml` heuristic: 1.0.2
+> was quarantined on download. `build.ps1` is unaffected — it publishes the bare exe and
+> signs nothing.
+
 NativeAOT links with MSVC, so the script checks for the Visual Studio
 "Desktop development with C++" workload **before** building. Without that check the
 failure only surfaces minutes in, as a bare "Platform linker not found". When the
