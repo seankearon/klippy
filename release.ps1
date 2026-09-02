@@ -31,10 +31,11 @@
 .PARAMETER Force
     Skips the confirmation prompt. Intended for unattended use.
 
-.PARAMETER AndroidNoAot
-    Builds the APK without Mono AOT. Needed while the MonoAOTCompiler SDK will not resolve
-    on this machine, which otherwise fails the Android stage before anything is published.
-    The APK is identical bar a slower cold start, so this is a stopgap, not a setting.
+.PARAMETER AndroidAot
+    Builds the APK with Mono AOT. Off by default: the MonoAOTCompiler SDK does not resolve
+    on this machine, and with AOT on the Android stage fails at evaluation time - after the
+    slow Windows and macOS packaging, but before anything is published. The APK is
+    identical bar a slower cold start. Pass this once the workload is fixed.
 
 .EXAMPLE
     .\release.ps1
@@ -59,8 +60,8 @@ param(
     # Skip the confirmation prompt.
     [switch] $Force,
 
-    # Build the APK without Mono AOT. See .PARAMETER AndroidNoAot above.
-    [switch] $AndroidNoAot
+    # Build the APK with Mono AOT. See .PARAMETER AndroidAot above.
+    [switch] $AndroidAot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -160,6 +161,11 @@ else {
     Write-Warn 'and users will need right-click > Open the first time.'
     Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
     Write-Warn 'properly-signed build will refuse to install over it.'
+
+    if (-not $AndroidAot) {
+        Write-Warn 'The APK is built without Mono AOT, so it starts more slowly than it should.'
+        Write-Warn 'Pass -AndroidAot once the MonoAOTCompiler workload resolves again.'
+    }
 }
 
 # --- confirm ---------------------------------------------------------------
@@ -183,7 +189,7 @@ $buildArgs = @('run', '--project', (Join-Path $root 'Klippy.Build'), '-c', 'Rele
 
 if (-not $DryRun) { $buildArgs += 'release' }
 if ($Version) { $buildArgs += "version:$Version" }
-if ($AndroidNoAot) { $buildArgs += 'android-no-aot' }
+if (-not $AndroidAot) { $buildArgs += 'android-no-aot' }
 
 Write-Step "Running the build$(if ($DryRun) { ' (dry run)' })"
 Write-Host "    dotnet $($buildArgs -join ' ')" -ForegroundColor DarkGray
