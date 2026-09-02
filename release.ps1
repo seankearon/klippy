@@ -90,6 +90,32 @@ if (-not $DryRun) {
     Write-Ok "gh authenticated$(if ($account) { " as $account" })"
 }
 
+# Parcel signs the Windows exe and installer with Azure Trusted Signing. Everything it
+# needs - tenant, app registration, endpoint, account, certificate profile - lives in the
+# machine's private shine.env, never in the repo. The build loads that file itself and
+# checks the same keys; checking here as well keeps the failure ahead of the
+# confirmation prompt rather than behind it.
+$shineEnv = Join-Path $env:USERPROFILE '.config\shine.env'
+$signingKeys = @(
+    'CodeSigning__TenantId', 'CodeSigning__ClientId', 'CodeSigning__ClientSecret',
+    'CodeSigning__Endpoint', 'CodeSigning__AccountName', 'CodeSigning__CertificateProfileName'
+)
+
+# Only into this process, and only for keys the shell has not already set.
+if (Test-Path $shineEnv) {
+    foreach ($line in Get-Content $shineEnv) {
+        if ($line -match '^\s*([^#=\s][^=]*?)\s*=\s*(.*)$' -and -not (Test-Path "env:$($Matches[1])")) {
+            Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
+        }
+    }
+}
+
+$missing = $signingKeys | Where-Object { [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value) }
+if ($missing) {
+    throw "Code-signing configuration is missing: $($missing -join ', '). Add them to $shineEnv."
+}
+Write-Ok "code-signing configuration present ($shineEnv)"
+
 # --- what is about to happen -----------------------------------------------
 
 # Displayed so the prompt can name a version. Klippy.Build computes this itself and is
@@ -120,6 +146,7 @@ if ($DryRun) {
 else {
     Write-Host "    tag       : v$plannedVersion  (pushed to origin)"
     Write-Host "    release   : public GitHub release with the Windows installer and both macOS disk images"
+    Write-Host "    signing   : Windows exe and installer signed with Azure Trusted Signing"
     Write-Host ''
     Write-Warn 'The macOS disk images are ad-hoc signed: Gatekeeper will quarantine them,'
     Write-Warn 'and users will need right-click > Open the first time.'

@@ -1,6 +1,8 @@
 open System
 open System.Diagnostics
 open System.IO
+open System.Text.Json
+open System.Text.Json.Nodes
 open BuildLib
 
 // Klippy's release build, modelled on Pirform.Build: a sequence of named stages, each
@@ -90,19 +92,154 @@ let ensureNativeLinkerIsReachable () =
         Environment.SetEnvironmentVariable("PATH", $"{installerDir};{path}")
         Write.line "Added the VS Installer folder to PATH for this build (vswhere)"
 
+// --- local configuration ---------------------------------------------------
+
+/// The machine's private configuration: %USERPROFILE%\.config\shine.env, a KEY=value
+/// file with # comments, shared by every Shine build and never checked in. Anything
+/// here that identifies an Azure tenant, account or company belongs in that file, not
+/// in this repo, which may one day be public.
+///
+/// Loaded into this process's environment (not the machine's), and only for keys that
+/// are not already set - so a value exported in the shell still wins, which is how CI
+/// or a one-off override would supply it. Child processes inherit the result, which is
+/// what lets Parcel read its own settings with the env: prefix.
+module ShineEnv =
+    let Path =
+        let home =
+            Environment.GetEnvironmentVariable "USERPROFILE"
+            |> Option.ofObj
+            |> Option.defaultWith (fun () -> Environment.GetEnvironmentVariable "HOME")
+
+        home +/ ".config" +/ "shine.env"
+
+    let load () =
+        if File.Exists Path then
+            let mutable loaded = 0
+
+            for raw in File.ReadAllLines Path do
+                let line = raw.Trim()
+
+                if line <> "" && not (line.StartsWith "#") then
+                    match line.IndexOf '=' with
+                    | i when i > 0 ->
+                        let key = line.Substring(0, i).Trim()
+                        let value = line.Substring(i + 1).Trim()
+
+                        if String.IsNullOrEmpty(Environment.GetEnvironmentVariable key) then
+                            Environment.SetEnvironmentVariable(key, value)
+                            loaded <- loaded + 1
+                    | _ -> ()
+
+            Write.line $"Loaded {loaded} value(s) from {Path}"
+        else
+            Write.line $"No {Path} - relying on the environment alone"
+
+// --- code signing ----------------------------------------------------------
+
+/// Azure Trusted Signing (formerly Azure Code Signing).
+///
+/// Parcel does the signing itself - the app exe, the NSIS uninstaller and the installer,
+/// all in the Package stage - given a .parcel file whose Win32Settings name the endpoint,
+/// account and certificate profile, and an Azure credential, which a service principal
+/// in AZURE_* variables satisfies.
+///
+/// None of that is in the checked-in .parcel file, which knows nothing about signing.
+/// Parcel's env: prefix would have been the obvious way to keep it out, but Parcel does
+/// not resolve it for these settings (the literal "env:..." reaches signtool, which
+/// fails with an internal error; the endpoint is rejected earlier still, as not a URL).
+/// So the build writes a signed copy of the project under _build instead - the original
+/// plus the signing block, with its relative paths made absolute so the copy works from
+/// there - and packs from that. The repo stays clean, nothing needs reverting, and a
+/// `parcel pack` on the checked-in file by hand still produces an unsigned build.
+///
+/// Why sign at all: an unsigned NSIS installer wrapping a large native binary is exactly
+/// the shape Defender's Wacatac.B!ml heuristic flags, and v1.0.2 was quarantined on
+/// download. The bare exe scanned clean; the signed installer scans clean too.
+module AzureSigning =
+    /// Every variable Parcel or the build reads. Named in the shine.env Section__Key style.
+    let TenantId    = "CodeSigning__TenantId"
+    let ClientId    = "CodeSigning__ClientId"
+    let ClientSecret = "CodeSigning__ClientSecret"
+    let Endpoint    = "CodeSigning__Endpoint"
+    let AccountName = "CodeSigning__AccountName"
+    let ProfileName = "CodeSigning__CertificateProfileName"
+
+    let Required = [ TenantId; ClientId; ClientSecret; Endpoint; AccountName; ProfileName ]
+
+    let get name =
+        Environment.GetEnvironmentVariable name
+        |> Option.ofObj
+        |> Option.filter (String.IsNullOrWhiteSpace >> not)
+
+    /// Checked up front rather than left to Parcel, which would only fail after the
+    /// NativeAOT publish it runs first - several minutes in, with an Azure error that
+    /// says nothing about which variable was missing.
+    let ensureCredentialsArePresent () =
+        match Required |> List.filter (get >> Option.isNone) with
+        | [] -> Write.line "Code-signing configuration present"
+        | missing ->
+            failwith
+                $"""Code-signing configuration is missing: {String.Join(", ", missing)}.
+Add them to {ShineEnv.Path} (tenant, client id and secret of the Entra app registration
+that holds the Trusted Signing Certificate Profile Signer role; the endpoint, account
+and certificate profile of the Trusted Signing resource)."""
+
+    /// Adds the service-principal credentials to a child process, and only there.
+    let addTo (si: ProcessStartInfo) =
+        let value name = get name |> Option.defaultValue ""
+        si.EnvironmentVariables["AZURE_TENANT_ID"]     <- value TenantId
+        si.EnvironmentVariables["AZURE_CLIENT_ID"]     <- value ClientId
+        si.EnvironmentVariables["AZURE_CLIENT_SECRET"] <- value ClientSecret
+
+    /// Writes a copy of the .parcel project with the Trusted Signing block added and
+    /// returns its path. Paths in the project are relative to the file, so the copy,
+    /// living elsewhere, gets them as absolute. Only the two that exist today are
+    /// rewritten; Parcel would say soon enough if another appeared.
+    let writeSignedParcelProject (source: string) (destination: string) =
+        let sourceDir = Path.GetDirectoryName source
+        let project = JsonNode.Parse(File.ReadAllText source).AsObject()
+
+        let general = project["GeneralSettings"].AsObject()
+
+        for key in [ "NetProjectPath"; "Icon" ] do
+            match general[key] with
+            | null -> ()
+            | node -> general[key] <- JsonValue.Create(Path.GetFullPath(sourceDir +/ node.GetValue<string>()))
+
+        let win32 =
+            match project["Win32Settings"] with
+            | null ->
+                let o = JsonObject()
+                project["Win32Settings"] <- o
+                o
+            | node -> node.AsObject()
+
+        let value name = get name |> Option.defaultValue ""
+        win32["SigningType"]                           <- JsonValue.Create "AzureTrustedSigning"
+        win32["ArtifactSigningEndpoint"]               <- JsonValue.Create(value Endpoint)
+        win32["ArtifactSigningCodeSigningAccountName"] <- JsonValue.Create(value AccountName)
+        win32["ArtifactSigningCertificateProfileName"] <- JsonValue.Create(value ProfileName)
+
+        ensureFolder (Path.GetDirectoryName destination) |> ignore
+        File.WriteAllText(destination, project.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
+        Write.line $"Wrote signed Parcel project to {destination}"
+        destination
+
 // --- parcel ----------------------------------------------------------------
 
-/// Runs Parcel with AVALONIA_TOOLS_LICENSE_KEY removed from the child process only.
+/// Runs Parcel with the signing credentials added and AVALONIA_TOOLS_LICENSE_KEY removed,
+/// both in the child process only.
 ///
 /// That variable holds a stale online key. Parcel prefers it over the saved portal
 /// session and the portal then rejects it, so its presence turns a working setup into
 /// "This subscription doesn't provide online license keys". Scrubbing it here fixes the
 /// build without touching the machine's environment, which other tools also read.
 let parcel (args: string list) =
-    let scrubLicenceKey (si: ProcessStartInfo) =
+    let configure (si: ProcessStartInfo) =
         si.EnvironmentVariables.Remove "AVALONIA_TOOLS_LICENSE_KEY"
+        AzureSigning.addTo si
 
-    cmdInRedirectingWith RepoFolder "parcel" (String.Join(" ", args)) scrubLicenceKey true
+    cmdInRedirectingWith RepoFolder "parcel" (String.Join(" ", args)) configure true
 
 // --- github ----------------------------------------------------------------
 
@@ -142,7 +279,10 @@ let buildKlippy () =
                    "Cannot run the build: there are uncommitted changes."
 
             verify (fun () -> gitBranchName RepoFolder = ReleaseBranch)
-                   $"The build expects to run on the {ReleaseBranch} branch, but is on {gitBranchName RepoFolder}.")
+                   $"The build expects to run on the {ReleaseBranch} branch, but is on {gitBranchName RepoFolder}."
+
+            ShineEnv.load ()
+            AzureSigning.ensureCredentialsArePresent ())
 
         stage "Update" (fun () ->
             workingDir RepoFolder
@@ -254,12 +394,13 @@ let buildKlippy () =
                       exposes only pack/step/install-tools), then re-run."
 
             let runtimes = WindowsRuntime :: MacRuntimes
+            let signedProject = AzureSigning.writeSignedParcelProject ParcelProject (BuildDir +/ "Klippy.Desktop.parcel")
 
             // Parcel builds the app itself. That repeats the publish above for win-x64;
             // once the .parcel publish settings are confirmed to match the csproj
             // (AOT, trimming, self-contained), --no-build removes the duplication.
             parcel [
-                "pack"; doubleQuote ParcelProject
+                "pack"; doubleQuote signedProject
                 yield! runtimes |> List.map (fun r -> $"--runtimes {r}")
                 "--packages nsis"
                 "--packages dmg"
