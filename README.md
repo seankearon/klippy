@@ -368,6 +368,18 @@ On Windows use [`build.ps1`](build.ps1), which publishes the desktop head in Rel
 > PowerShell 7 (`pwsh`), or run it as
 > `powershell -ExecutionPolicy Bypass -File .\build.ps1`.
 
+> **Code signing (releases).** [`release.ps1`](release.ps1) hands packaging to Parcel,
+> which signs the Windows exe, uninstaller and NSIS installer with **Azure Trusted
+> Signing** — the account and certificate profile are in `Klippy.Desktop.parcel`, shared
+> with Pirform, so the installer is signed as Atlantic Business Solutions Ltd. The build
+> passes Parcel a service principal from `Klippy.Build/Program.fs` (`AzureSigning`); the
+> one thing that must be on the machine is its secret, in the
+> `PIRFORM_CODE_SIGNING_AZURE_CLIENT_SECRET` environment variable. Both `release.ps1` and
+> the build refuse to start without it. This exists because an unsigned NSIS installer
+> wrapping a native binary trips Defender's `Wacatac.B!ml` heuristic: 1.0.2 was
+> quarantined on download. `build.ps1` is unaffected — it publishes the bare exe and
+> signs nothing.
+
 NativeAOT links with MSVC, so the script checks for the Visual Studio
 "Desktop development with C++" workload **before** building. Without that check the
 failure only surfaces minutes in, as a bare "Platform linker not found". When the

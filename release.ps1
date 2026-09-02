@@ -90,6 +90,14 @@ if (-not $DryRun) {
     Write-Ok "gh authenticated$(if ($account) { " as $account" })"
 }
 
+# Parcel signs the Windows exe and installer with Azure Trusted Signing, using Pirform's
+# service principal. The build checks this too, but checking here as well keeps the
+# failure ahead of the confirmation prompt rather than behind it.
+if ([string]::IsNullOrWhiteSpace($env:PIRFORM_CODE_SIGNING_AZURE_CLIENT_SECRET)) {
+    throw 'PIRFORM_CODE_SIGNING_AZURE_CLIENT_SECRET is not set. It holds the Entra app registration client secret for Azure Trusted Signing - the same one Pirform.Build reads.'
+}
+Write-Ok 'code-signing secret present'
+
 # --- what is about to happen -----------------------------------------------
 
 # Displayed so the prompt can name a version. Klippy.Build computes this itself and is
@@ -120,6 +128,7 @@ if ($DryRun) {
 else {
     Write-Host "    tag       : v$plannedVersion  (pushed to origin)"
     Write-Host "    release   : public GitHub release with the Windows installer and both macOS disk images"
+    Write-Host "    signing   : Windows exe and installer signed with Azure Trusted Signing"
     Write-Host ''
     Write-Warn 'The macOS disk images are ad-hoc signed: Gatekeeper will quarantine them,'
     Write-Warn 'and users will need right-click > Open the first time.'

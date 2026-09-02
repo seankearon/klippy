@@ -8,8 +8,10 @@ open System.IO
 open System.Text
 
 // Adapted from Pirform.Build's BuildLib. Only the general-purpose parts came across:
-// Klippy signs nothing, has no obfuscator and no InstallMate, and Parcel owns packaging,
-// so the Azure Trusted Signing, MSIX and AssemblyInfo machinery was left behind.
+// Klippy has no obfuscator and no InstallMate, and Parcel owns packaging and signing,
+// so the signtool, MSIX and AssemblyInfo machinery was left behind. (Signing is still
+// Azure Trusted Signing with Pirform's account - see AzureSigning in Program.fs - but
+// Parcel drives signtool itself; the build only lends it the credentials.)
 //
 // Declarations are ordered so nothing refers forward. `module rec` is kept only so this
 // file stays interchangeable with Pirform's — if these two are ever pulled into a shared

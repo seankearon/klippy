@@ -90,19 +90,67 @@ let ensureNativeLinkerIsReachable () =
         Environment.SetEnvironmentVariable("PATH", $"{installerDir};{path}")
         Write.line "Added the VS Installer folder to PATH for this build (vswhere)"
 
+// --- code signing ----------------------------------------------------------
+
+/// Azure Trusted Signing (formerly Azure Code Signing), shared with Pirform.
+///
+/// Parcel does the signing itself - the app exe, the NSIS uninstaller and the installer,
+/// all in the Package stage - using the account and certificate profile in the .parcel
+/// file's Win32Settings. What it needs from here is a way to authenticate: it resolves
+/// an Azure credential the standard way, so a service principal in the AZURE_* variables
+/// of its environment is enough. These are Pirform's, from Pirform.Build's AzureSigning
+/// module; the secret lives in the same environment variable that build reads.
+///
+/// The certificate is issued to the company behind the account, whichever profile is
+/// used, so borrowing Pirform's profile signs Klippy as "Atlantic Business Solutions Ltd"
+/// - which is the identity Windows checks, and the whole point.
+///
+/// Why sign at all: an unsigned NSIS installer wrapping a large native binary is exactly
+/// the shape Defender's Wacatac.B!ml heuristic flags, and v1.0.2 was quarantined on
+/// download. The bare exe scanned clean; the signed installer scans clean too.
+module AzureSigning =
+    let TenantId = "e661a696-2ab4-42d5-95fd-d876160f45a8"
+    let ClientId = "fc97a9f9-e749-4afc-b165-2c8c4718f379"
+    let SecretVariable = "PIRFORM_CODE_SIGNING_AZURE_CLIENT_SECRET"
+
+    let secret () =
+        Environment.GetEnvironmentVariable SecretVariable
+        |> Option.ofObj
+        |> Option.filter (String.IsNullOrWhiteSpace >> not)
+
+    /// Checked up front rather than left to Parcel, which would only fail after the
+    /// NativeAOT publish it runs first - several minutes in, with an Azure error that
+    /// says nothing about which variable was missing.
+    let ensureCredentialsArePresent () =
+        match secret () with
+        | Some _ -> Write.line "Code-signing credentials present"
+        | None ->
+            failwith
+                $"The code-signing secret is not set. Put the Entra app registration's client secret \
+                  in the {SecretVariable} environment variable (it is the same one Pirform.Build uses)."
+
+    /// Adds the service-principal credentials to a child process, and only there: the
+    /// machine's environment is left alone.
+    let addTo (si: ProcessStartInfo) =
+        si.EnvironmentVariables["AZURE_TENANT_ID"] <- TenantId
+        si.EnvironmentVariables["AZURE_CLIENT_ID"] <- ClientId
+        si.EnvironmentVariables["AZURE_CLIENT_SECRET"] <- (secret () |> Option.defaultValue "")
+
 // --- parcel ----------------------------------------------------------------
 
-/// Runs Parcel with AVALONIA_TOOLS_LICENSE_KEY removed from the child process only.
+/// Runs Parcel with the signing credentials added and AVALONIA_TOOLS_LICENSE_KEY removed,
+/// both in the child process only.
 ///
 /// That variable holds a stale online key. Parcel prefers it over the saved portal
 /// session and the portal then rejects it, so its presence turns a working setup into
 /// "This subscription doesn't provide online license keys". Scrubbing it here fixes the
 /// build without touching the machine's environment, which other tools also read.
 let parcel (args: string list) =
-    let scrubLicenceKey (si: ProcessStartInfo) =
+    let configure (si: ProcessStartInfo) =
         si.EnvironmentVariables.Remove "AVALONIA_TOOLS_LICENSE_KEY"
+        AzureSigning.addTo si
 
-    cmdInRedirectingWith RepoFolder "parcel" (String.Join(" ", args)) scrubLicenceKey true
+    cmdInRedirectingWith RepoFolder "parcel" (String.Join(" ", args)) configure true
 
 // --- github ----------------------------------------------------------------
 
@@ -142,7 +190,9 @@ let buildKlippy () =
                    "Cannot run the build: there are uncommitted changes."
 
             verify (fun () -> gitBranchName RepoFolder = ReleaseBranch)
-                   $"The build expects to run on the {ReleaseBranch} branch, but is on {gitBranchName RepoFolder}.")
+                   $"The build expects to run on the {ReleaseBranch} branch, but is on {gitBranchName RepoFolder}."
+
+            AzureSigning.ensureCredentialsArePresent ())
 
         stage "Update" (fun () ->
             workingDir RepoFolder

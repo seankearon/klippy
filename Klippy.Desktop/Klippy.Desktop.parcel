@@ -18,7 +18,11 @@
         "CreateBinSymlink": "True"
     },
     "Win32Settings": {
-        "IncludeUninstaller": "True"
+        "IncludeUninstaller": "True",
+        "SigningType": "AzureTrustedSigning",
+        "ArtifactSigningEndpoint": "https://neu.codesigning.azure.net/",
+        "ArtifactSigningCertificateProfileName": "Pirform-CodeSigning",
+        "ArtifactSigningCodeSigningAccountName": "shine-signing"
     },
     "MacOsSettings": {
         "CreateBundle": true,
