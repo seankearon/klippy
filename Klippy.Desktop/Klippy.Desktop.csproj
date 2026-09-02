@@ -9,6 +9,12 @@
 
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Embeds a Win32 icon resource in the exe. The window and tray icons are loaded at
+         runtime from the same .ico as an Avalonia asset, so the app looks right once it is
+         up - but the Start menu entry, the pinned/shortcut taskbar button and Explorer all
+         read the icon off the binary, and without this they fall back to the blank default
+         placeholder. That is what an installed copy shows. -->
+    <ApplicationIcon>..\Klippy\Assets\klippy.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- Native AOT publish: fast cold start, small self-contained binary.
