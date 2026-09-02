@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -22,6 +22,11 @@ public partial class MainView : UserControl
     private Border? _openRow;     // row currently showing its actions
     private Point _pressPoint;
     private double _startX;
+    // Where the drag has actually got to. Not read back from the transform: its X has a
+    // transition, so every set during a drag is animated and reading it gives the
+    // in-flight value, tens of pixels behind the finger. Deciding open-vs-closed from
+    // that snapped a fast swipe shut just as the buttons came into view.
+    private double _dragX;
     private bool _dragging;
 
     private MainViewModel? Vm => DataContext as MainViewModel;
@@ -60,7 +65,8 @@ public partial class MainView : UserControl
         if (sender is not Border row) return;
         _activeRow = row;
         _pressPoint = e.GetPosition(this);
-        _startX = Transform(row).X;
+        _startX = ReferenceEquals(_openRow, row) ? OpenX : 0;
+        _dragX = _startX;
         _dragging = false;
     }
 
@@ -79,7 +85,10 @@ public partial class MainView : UserControl
         }
 
         if (_dragging)
-            Transform(row).X = Math.Clamp(_startX + dx, OpenX, 0);
+        {
+            _dragX = Math.Clamp(_startX + dx, OpenX, 0);
+            Transform(row).X = _dragX;
+        }
     }
 
     private void RowPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -88,7 +97,7 @@ public partial class MainView : UserControl
 
         if (_dragging)
         {
-            Snap(row, open: Transform(row).X < OpenX / 2);
+            Snap(row, open: _dragX < OpenX / 2);
         }
         else if (_openRow is not null)
         {
@@ -107,7 +116,7 @@ public partial class MainView : UserControl
     {
         // e.g. the list's scroll gesture took over — settle to nearest state.
         if (_activeRow is { } row && _dragging)
-            Snap(row, open: Transform(row).X < OpenX / 2);
+            Snap(row, open: _dragX < OpenX / 2);
         _activeRow = null;
         _dragging = false;
     }
@@ -118,6 +127,7 @@ public partial class MainView : UserControl
             Snap(_openRow, open: false);
 
         Transform(row).X = open ? OpenX : 0;
+        _dragX = open ? OpenX : 0;
         _openRow = open ? row : (ReferenceEquals(_openRow, row) ? null : _openRow);
     }
 
