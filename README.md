@@ -23,7 +23,8 @@ scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
-search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import, `Esc`
+search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
+`Ctrl/⌘+,` settings, `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row also copies it.
 
 A **preview pane** at the bottom shows the full content of the selected snippet —
@@ -75,6 +76,21 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 > **Note:** on Windows the HTML flavour is served through OLE while Klippy is running.
 > Copy, then paste with Klippy still open (its normal launcher lifecycle). If Klippy is
 > closed before you paste, the plain-text flavour still works.
+
+## Settings
+
+Two preferences change what a copy puts on the clipboard, both about Markdown. Open with
+the **settings** footer link (`Ctrl/⌘+,`) on desktop, or the sliders button in the
+mobile header — Android shows no window chrome, so there is no footer to reach.
+
+| Toggle | On (default) | Off |
+|---|---|---|
+| **Rich text** | A Markdown snippet copies HTML alongside the plain text | It copies its raw Markdown everywhere — what you want when the target is another Markdown editor |
+| **Double spacing** | A blank line between blocks, so composers that strip `<p>` margins (Zendesk) still show the separation | Blocks are joined directly, which suits Outlook and Word — they honour those margins and would otherwise space it twice over |
+
+Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
+is no OK button to forget. Both default to today's behaviour, so an upgrade changes
+nothing about how existing snippets copy.
 
 ## Export / import
 

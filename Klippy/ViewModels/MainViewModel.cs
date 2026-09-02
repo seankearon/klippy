@@ -62,6 +62,9 @@ public partial class MainViewModel : ViewModelBase
     private TransferViewModel? _transfer;
 
     [ObservableProperty]
+    private SettingsViewModel? _settings;
+
+    [ObservableProperty]
     private bool _isToastVisible;
 
     /// <summary>Whether the bottom preview pane is showing. Starts closed — the list is the primary surface.</summary>
@@ -433,12 +436,17 @@ public partial class MainViewModel : ViewModelBase
         },
         close: () => Transfer = null);
 
+    [RelayCommand]
+    private void OpenSettings() =>
+        Settings = new SettingsViewModel(AppSettings.Current, close: () => Settings = null);
+
     /// <summary>Esc: close whichever overlay is open, else clear the filter. Returns false if there was nothing to do.</summary>
     public bool HandleEscape()
     {
         if (Editor is not null) { Editor = null; return true; }
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
         if (Transfer is not null) { Transfer = null; return true; }
+        if (Settings is not null) { Settings = null; return true; }
         if (FilterText.Length > 0) { FilterText = ""; return true; }
         return false;
     }

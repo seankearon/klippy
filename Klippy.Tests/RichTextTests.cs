@@ -105,13 +105,27 @@ public class RichTextTests
         return count;
     }
 
+    [Fact]
+    public void ToHtml_NotDoubleSpaced_JoinsBlocksWithoutASpacer()
+    {
+        // Outlook and Word honour <p> margins, so the spacer paragraph doubles the gap.
+        var html = RichTextClipboard.ToHtml("First.\n\nSecond.", doubleSpaced: false);
+
+        Assert.Equal("<p>First.</p>\n<p>Second.</p>", html);
+    }
+
     // ---- payload selection ----
+    //
+    // Settings are passed explicitly: BuildPayload otherwise reads AppSettings.Current,
+    // which on a developer's machine is whatever they last chose in the overlay.
+
+    private static readonly AppSettings Defaults = new();
 
     [Fact]
     public void BuildPayload_PlainSnippet_HasNoHtml()
     {
         var snippet = new Snippet { Content = "ssh-ed25519 AAAA_key_data", IsMarkdown = false };
-        var payload = RichTextClipboard.BuildPayload(snippet);
+        var payload = RichTextClipboard.BuildPayload(snippet, Defaults);
         Assert.Equal(snippet.Content, payload.Plain);
         Assert.Null(payload.Html); // never risk mangling keys/commands
     }
@@ -120,9 +134,28 @@ public class RichTextTests
     public void BuildPayload_MarkdownSnippet_CarriesBothFlavours()
     {
         var snippet = new Snippet { Content = "Send the **logs**", IsMarkdown = true };
-        var payload = RichTextClipboard.BuildPayload(snippet);
+        var payload = RichTextClipboard.BuildPayload(snippet, Defaults);
         Assert.Equal("Send the **logs**", payload.Plain); // plain fallback stays raw markdown
         Assert.Contains("<strong>logs</strong>", payload.Html);
+    }
+
+    [Fact]
+    public void BuildPayload_MarkdownToHtmlOff_CopiesTheRawSourceOnly()
+    {
+        var snippet = new Snippet { Content = "Send the **logs**", IsMarkdown = true };
+        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings { MarkdownToHtml = false });
+
+        Assert.Equal("Send the **logs**", payload.Plain);
+        Assert.Null(payload.Html); // a Markdown editor should receive Markdown
+    }
+
+    [Fact]
+    public void BuildPayload_DoubleSpacingOff_ReachesTheHtml()
+    {
+        var snippet = new Snippet { Content = "First.\n\nSecond.", IsMarkdown = true };
+        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings { MarkdownDoubleSpaced = false });
+
+        Assert.DoesNotContain(Spacer, payload.Html);
     }
 
     // ---- CF_HTML wire format ----

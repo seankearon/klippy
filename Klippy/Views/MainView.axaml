@@ -37,6 +37,18 @@
               </Grid>
             </Viewbox>
           </Button>
+          <!-- Mobile has no window chrome to hang a footer link on, so settings live here. -->
+          <Button DockPanel.Dock="Right" Classes="icon" Width="32" Height="32"
+                  CornerRadius="8" Margin="0,0,8,0"
+                  Background="{StaticResource SelectedRowBrush}"
+                  Command="{Binding OpenSettingsCommand}">
+            <Viewbox Width="16" Height="16">
+              <Grid Width="24" Height="24">
+                <Path Data="{StaticResource IconSettings}" Stroke="{StaticResource Muted3Brush}"
+                      StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
+              </Grid>
+            </Viewbox>
+          </Button>
           <TextBlock Text="Klippy" FontSize="20" FontWeight="Bold" LetterSpacing="-0.4"
                      VerticalAlignment="Center" />
         </DockPanel>
@@ -179,5 +191,6 @@
     <views:EditorOverlay />
     <views:ConfirmOverlay />
     <views:TransferOverlay />
+    <views:SettingsOverlay />
   </Panel>
 </UserControl>
