@@ -72,6 +72,16 @@ public sealed class AppSettings
     public bool MarkdownDoubleSpaced { get; set; } = true;
 
     /// <summary>
+    /// Whether the plain-text flavour of a Markdown snippet has its links reduced to bare
+    /// URLs: <c>[www.qwe.com](https://www.qwe.com)</c> becomes <c>https://www.qwe.com</c>.
+    /// For targets that only take plain text (the Zendesk mobile app), where the raw
+    /// Markdown link syntax would otherwise land verbatim. The HTML flavour keeps its
+    /// links intact, so rich-text targets lose nothing. Off by default: a Markdown editor
+    /// wants the source as written.
+    /// </summary>
+    public bool MarkdownSanitiseLinks { get; set; }
+
+    /// <summary>
     /// The one instance the app reads and writes. Loaded on first touch, because the
     /// shared UI needs preferences on platforms whose head never loads them itself
     /// (Android, iOS) — and where there is no settings.json a user could edit by hand.

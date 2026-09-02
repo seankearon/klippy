@@ -44,6 +44,17 @@
                              Foreground="{StaticResource MutedBrush}"
                              Text="Blank line between paragraphs. On for helpdesk composers, off for Outlook and Word." />
                 </Grid>
+
+                <!-- Plain-text flavour only, so it stays enabled whatever Rich text says. -->
+                <Grid ColumnDefinitions="Auto,8,*">
+                  <ToggleButton Grid.Column="0" Classes="chip" Content="Bare links"
+                                VerticalAlignment="Top"
+                                IsChecked="{Binding MarkdownSanitiseLinks}" />
+                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="In the plain-text copy, [text](url) becomes just the URL. For apps that paste as plain text, like Zendesk on mobile." />
+                </Grid>
               </StackPanel>
 
               <Border Height="1" Background="{StaticResource HairlineBrush}"

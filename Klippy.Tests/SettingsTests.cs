@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Klippy.Services;
 using Klippy.ViewModels;
@@ -18,6 +18,7 @@ public class SettingsTests
         var settings = new AppSettings();
         Assert.True(settings.MarkdownToHtml);
         Assert.True(settings.MarkdownDoubleSpaced);
+        Assert.False(settings.MarkdownSanitiseLinks); // a workaround, so opt-in
     }
 
     [Fact]
@@ -26,11 +27,12 @@ public class SettingsTests
         var path = TempSettingsPath();
         try
         {
-            new AppSettings { MarkdownToHtml = false, MarkdownDoubleSpaced = false }.Save(path);
+            new AppSettings { MarkdownToHtml = false, MarkdownDoubleSpaced = false, MarkdownSanitiseLinks = true }.Save(path);
 
             var loaded = AppSettings.Load(path);
             Assert.False(loaded.MarkdownToHtml);
             Assert.False(loaded.MarkdownDoubleSpaced);
+            Assert.True(loaded.MarkdownSanitiseLinks);
         }
         finally
         {
@@ -59,10 +61,14 @@ public class SettingsTests
             vm.MarkdownDoubleSpaced = false;
             Assert.False(settings.MarkdownDoubleSpaced);
 
+            vm.MarkdownSanitiseLinks = true;
+            Assert.True(settings.MarkdownSanitiseLinks);
+
             // ...and it has to reach disk, or it would not survive a restart.
             var reloaded = AppSettings.Load(path);
             Assert.False(reloaded.MarkdownToHtml);
             Assert.False(reloaded.MarkdownDoubleSpaced);
+            Assert.True(reloaded.MarkdownSanitiseLinks);
         }
         finally
         {
