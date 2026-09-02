@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase
 
     private readonly SnippetStore _store;
     private readonly ClipHistoryStore? _history;
+    private readonly AppSettings _prefs;
     private readonly Dictionary<Guid, SnippetViewModel> _rowCache = new();
     private readonly Dictionary<Guid, ClipViewModel> _clipCache = new();
     private readonly DispatcherTimer _toastTimer;
@@ -93,6 +94,13 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Raised after a snippet reaches the clipboard, so the view can reset its search box.</summary>
     public event Action? Copied;
 
+    /// <summary>
+    /// Raised after a copy the user asked to be dismissed by. The view model has no window
+    /// to hide, so it says what it wants and the head decides whether it can — nothing
+    /// listens on mobile, which has no launcher to dismiss to.
+    /// </summary>
+    public event Action? CloseRequested;
+
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
         ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter  ⌘P preview"
         : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter  Ctrl+P preview";
@@ -123,10 +131,12 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store) { }
 
-    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null)
+    /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
+    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null, AppSettings? settings = null)
     {
         _store = store;
         _history = history;
+        _prefs = settings ?? AppSettings.Current;
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); IsToastVisible = false; };
 
@@ -296,6 +306,13 @@ public partial class MainViewModel : ViewModelBase
 
         ShowToast();
         Copied?.Invoke();
+
+        // Read per copy rather than cached: the Settings overlay writes straight through
+        // to the same instance, so a toggle applies to the very next copy.
+        bool close = row is ClipViewModel
+            ? _prefs.CloseAfterClipboardCopy
+            : _prefs.CloseAfterSnippetCopy;
+        if (close) CloseRequested?.Invoke();
     }
 
     private CopyPayload BuildClipPayload(ClipViewModel clip) => clip.Model.Kind switch
@@ -456,7 +473,7 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenSettings() =>
-        Settings = new SettingsViewModel(AppSettings.Current, close: () => Settings = null);
+        Settings = new SettingsViewModel(_prefs, close: () => Settings = null);
 
     /// <summary>Esc: close whichever overlay is open, else clear the filter. Returns false if there was nothing to do.</summary>
     public bool HandleEscape()

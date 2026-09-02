@@ -59,12 +59,14 @@ public partial class MainWindow : Window
         {
             previous.PropertyChanged -= VmPropertyChanged;
             previous.Copied -= SelectSearchText;
+            previous.CloseRequested -= HideAfterCopy;
         }
         _watched = Vm;
         if (_watched is { } current)
         {
             current.PropertyChanged += VmPropertyChanged;
             current.Copied += SelectSearchText;
+            current.CloseRequested += HideAfterCopy;
         }
 
         ApplyPreviewHeight();
@@ -79,6 +81,12 @@ public partial class MainWindow : Window
         SearchBox.Focus();
         SearchBox.SelectAll();
     }
+
+    /// <summary>
+    /// "Close after copy" means what Esc means: dismiss the launcher, leaving it resident.
+    /// Nothing to do when there is no launcher — a plain window run has nowhere to hide to.
+    /// </summary>
+    private void HideAfterCopy() => HideRequested?.Invoke();
 
     private void VmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

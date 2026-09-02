@@ -79,9 +79,10 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 
 ## Settings
 
-Three preferences change what a copy puts on the clipboard, all about Markdown. Open with
-the **settings** footer link (`Ctrl/⌘+,`) on desktop, or the sliders button in the
-mobile header — Android shows no window chrome, so there is no footer to reach.
+Three preferences change what a copy puts on the clipboard, all about Markdown, and two
+more say whether a copy dismisses the window. Open with the **settings** footer link
+(`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
+window chrome, so there is no footer to reach.
 
 | Toggle | On (default) | Off |
 |---|---|---|
@@ -89,9 +90,20 @@ mobile header — Android shows no window chrome, so there is no footer to reach
 | **Double spacing** | A blank line between blocks, so composers that strip `<p>` margins (Zendesk) still show the separation | Blocks are joined directly, which suits Outlook and Word — they honour those margins and would otherwise space it twice over |
 | **Bare links** (default off) | In the plain-text flavour, `[some words](https://www.qwe.com)` becomes just `https://www.qwe.com` — for apps that paste as plain text (the Zendesk mobile app), where the link syntax would otherwise land verbatim. The HTML flavour keeps its links intact | The plain text is the Markdown source as written |
 
+Two more, desktop only, decide whether a copy dismisses Klippy — the same dismissal
+`Esc` does, leaving it resident behind the tray icon. They are separate because the two
+halves of the app are used differently: you summon the history to paste one clip and be
+gone, while snippets get browsed and copied a couple at a time. Mobile has no launcher to
+dismiss to, so the pair is hidden there.
+
+| Toggle | On | Off |
+|---|---|---|
+| **Close on clip** (default on) | Copying from the clipboard history hides the window, so the app you are pasting into comes straight back to the front | The list stays up |
+| **Close on snippet** (default off) | Copying a snippet hides the window too | The list stays up for the next copy |
+
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
-is no OK button to forget. All three default to today's behaviour, so an upgrade changes
-nothing about how existing snippets copy.
+is no OK button to forget. The Markdown three default to today's behaviour, so an upgrade
+changes nothing about how existing snippets copy.
 
 ## Export / import
 

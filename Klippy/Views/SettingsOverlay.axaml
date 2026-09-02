@@ -58,6 +58,34 @@
               </StackPanel>
 
               <Border Height="1" Background="{StaticResource HairlineBrush}"
+                      IsVisible="{Binding ShowCloseAfterCopy}" />
+
+              <StackPanel Spacing="8" IsVisible="{Binding ShowCloseAfterCopy}">
+                <TextBlock Classes="mono" Text="AFTER COPY" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+
+                <Grid ColumnDefinitions="Auto,8,*">
+                  <ToggleButton Grid.Column="0" Classes="chip" Content="Close on clip"
+                                VerticalAlignment="Top"
+                                IsChecked="{Binding CloseAfterClipboardCopy}" />
+                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="Copying from the clipboard history dismisses Klippy, ready to paste." />
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,8,*">
+                  <ToggleButton Grid.Column="0" Classes="chip" Content="Close on snippet"
+                                VerticalAlignment="Top"
+                                IsChecked="{Binding CloseAfterSnippetCopy}" />
+                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="Copying a snippet dismisses Klippy too. Off leaves the list up for the next one." />
+                </Grid>
+              </StackPanel>
+
+              <Border Height="1" Background="{StaticResource HairlineBrush}"
                       IsVisible="{Binding ShowSettingsPath}" />
 
               <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"

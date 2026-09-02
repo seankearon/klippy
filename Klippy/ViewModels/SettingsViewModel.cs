@@ -35,6 +35,14 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _markdownSanitiseLinks;
 
+    /// <summary>Whether copying a clip from the history dismisses the window.</summary>
+    [ObservableProperty]
+    private bool _closeAfterClipboardCopy;
+
+    /// <summary>Whether copying a snippet dismisses the window.</summary>
+    [ObservableProperty]
+    private bool _closeAfterSnippetCopy;
+
     [ObservableProperty]
     private string? _statusText;
 
@@ -47,6 +55,12 @@ public partial class SettingsViewModel : ViewModelBase
     /// </summary>
     public bool ShowSettingsPath => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
+    /// <summary>
+    /// Whether to offer the close-after-copy toggles. Only the desktop launcher has a
+    /// window to dismiss; on mobile the app *is* the screen, so the choice would do nothing.
+    /// </summary>
+    public bool ShowCloseAfterCopy => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
     public SettingsViewModel(AppSettings settings, Action close)
     {
         _settings = settings;
@@ -54,6 +68,8 @@ public partial class SettingsViewModel : ViewModelBase
         _markdownToHtml = settings.MarkdownToHtml;
         _markdownDoubleSpaced = settings.MarkdownDoubleSpaced;
         _markdownSanitiseLinks = settings.MarkdownSanitiseLinks;
+        _closeAfterClipboardCopy = settings.CloseAfterClipboardCopy;
+        _closeAfterSnippetCopy = settings.CloseAfterSnippetCopy;
         _loaded = true;
     }
 
@@ -75,6 +91,20 @@ public partial class SettingsViewModel : ViewModelBase
     {
         if (!_loaded) return;
         _settings.MarkdownDoubleSpaced = value;
+        Save();
+    }
+
+    partial void OnCloseAfterClipboardCopyChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.CloseAfterClipboardCopy = value;
+        Save();
+    }
+
+    partial void OnCloseAfterSnippetCopyChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.CloseAfterSnippetCopy = value;
         Save();
     }
 

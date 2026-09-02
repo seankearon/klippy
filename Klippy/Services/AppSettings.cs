@@ -82,6 +82,19 @@ public sealed class AppSettings
     public bool MarkdownSanitiseLinks { get; set; }
 
     /// <summary>
+    /// Whether copying a clip from the history dismisses the window. On by default: the
+    /// history is a launcher gesture — summon, pick, paste — and leaving the window in
+    /// front of the app you are pasting into just means dismissing it by hand.
+    /// </summary>
+    public bool CloseAfterClipboardCopy { get; set; } = true;
+
+    /// <summary>
+    /// Whether copying a snippet dismisses the window. Off by default: snippets are
+    /// browsed as much as they are used, and copying two in a row is ordinary.
+    /// </summary>
+    public bool CloseAfterSnippetCopy { get; set; }
+
+    /// <summary>
     /// The one instance the app reads and writes. Loaded on first touch, because the
     /// shared UI needs preferences on platforms whose head never loads them itself
     /// (Android, iOS) — and where there is no settings.json a user could edit by hand.
