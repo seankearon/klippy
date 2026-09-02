@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -95,6 +96,23 @@ public partial class MainViewModel : ViewModelBase
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
         ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter  ⌘P preview"
         : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter  Ctrl+P preview";
+
+    /// <summary>Shown next to the title, as "v1.0.3". The release build stamps the version
+    /// into every head from ver.txt; a local build reports the SDK default of 1.0.0.</summary>
+    public string VersionText { get; } = ReadVersionText();
+
+    private static string ReadVersionText()
+    {
+        var version = typeof(MainViewModel).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (string.IsNullOrWhiteSpace(version)) return string.Empty;
+
+        // The SDK appends "+<commit sha>" when the repo is a git checkout, which is noise
+        // in a title bar.
+        var build = version.IndexOf('+');
+        return "v" + (build >= 0 ? version[..build] : version);
+    }
 
     public string SearchKeyHint { get; } = OperatingSystem.IsMacOS() ? "⌘F" : "Ctrl F";
 

@@ -22,9 +22,15 @@
 
       <!-- Titlebar strip (client area extends into it; centered title like the mock) -->
       <Border DockPanel.Dock="Top" Height="34" IsHitTestVisible="False">
-        <TextBlock Text="Klippy" FontSize="13" FontWeight="SemiBold"
-                   Foreground="{StaticResource Muted3Brush}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+        <StackPanel Orientation="Horizontal" Spacing="6"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock Text="Klippy" FontSize="13" FontWeight="SemiBold"
+                     Foreground="{StaticResource Muted3Brush}"
+                     VerticalAlignment="Center" />
+          <TextBlock Classes="mono" FontSize="10"
+                     Foreground="{StaticResource MutedBrush}"
+                     Text="{Binding VersionText}" VerticalAlignment="Center" />
+        </StackPanel>
       </Border>
 
       <!-- Footer: key hints + export/import + count -->
