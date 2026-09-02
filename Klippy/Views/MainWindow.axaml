@@ -40,6 +40,8 @@
                     Command="{Binding ClearHistoryCommand}" />
             <Button Classes="footerLink" Content="export / import"
                     Command="{Binding OpenTransferCommand}" />
+            <Button Classes="footerLink" Content="settings"
+                    Command="{Binding OpenSettingsCommand}" />
             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                        Foreground="{StaticResource MutedBrush}"
                        Text="{Binding SnippetCountText}" />
@@ -491,5 +493,6 @@
     <views:EditorOverlay />
     <views:ConfirmOverlay />
     <views:TransferOverlay />
+    <views:SettingsOverlay />
   </Panel>
 </Window>

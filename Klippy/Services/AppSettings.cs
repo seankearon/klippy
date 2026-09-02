@@ -57,11 +57,46 @@ public sealed class AppSettings
     /// </summary>
     public string[] HistoryExcludedApps { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Whether copying a Markdown snippet also puts an HTML flavour on the clipboard.
+    /// Off makes a Markdown snippet copy as its raw source everywhere — what you want
+    /// when the target is another Markdown editor rather than a rich-text box.
+    /// </summary>
+    public bool MarkdownToHtml { get; set; } = true;
+
+    /// <summary>
+    /// Whether the HTML puts a blank line between blocks. On suits composers that strip
+    /// paragraph margins (Zendesk), where the separation would otherwise vanish; off
+    /// suits Outlook and Word, which honour those margins and so space it twice over.
+    /// </summary>
+    public bool MarkdownDoubleSpaced { get; set; } = true;
+
+    /// <summary>
+    /// The one instance the app reads and writes. Loaded on first touch, because the
+    /// shared UI needs preferences on platforms whose head never loads them itself
+    /// (Android, iOS) — and where there is no settings.json a user could edit by hand.
+    /// </summary>
+    public static AppSettings Current
+    {
+        get => _current ??= Load();
+        set => _current = value;
+    }
+
+    private static AppSettings? _current;
+
     [JsonIgnore]
     public HotkeySpec ParsedHotkey =>
         HotkeySpec.TryParse(Hotkey, out var spec) ? spec : HotkeySpec.Default;
 
     public static string FilePath => StorageLocations.SettingsPath;
+
+    /// <summary>
+    /// Where this instance came from, and where <see cref="Save"/> writes back. Carried on
+    /// the instance so a caller that loaded from somewhere else — a test, mostly — cannot
+    /// have its writes land on the real settings file.
+    /// </summary>
+    [JsonIgnore]
+    public string SourcePath { get; set; } = FilePath;
 
     /// <summary>Never throws: unreadable settings fall back to defaults.</summary>
     public static AppSettings Load(string? path = null)
@@ -73,19 +108,22 @@ public sealed class AppSettings
             {
                 using var stream = File.OpenRead(path);
                 if (JsonSerializer.Deserialize(stream, SettingsJsonContext.Default.AppSettings) is { } loaded)
+                {
+                    loaded.SourcePath = path;
                     return loaded;
+                }
             }
         }
         catch (Exception)
         {
             // fall through to defaults
         }
-        return new AppSettings();
+        return new AppSettings { SourcePath = path };
     }
 
     public void Save(string? path = null)
     {
-        path ??= FilePath;
+        path ??= SourcePath;
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 

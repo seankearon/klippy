@@ -59,7 +59,11 @@ public static class RichTextClipboard
     /// </summary>
     private const string Spacer = "<p>&nbsp;</p>";
 
-    public static string ToHtml(string markdown)
+    /// <param name="doubleSpaced">
+    /// False joins blocks with a plain newline instead of the <see cref="Spacer"/>, for
+    /// targets that honour &lt;p&gt; margins and would otherwise space them twice over.
+    /// </param>
+    public static string ToHtml(string markdown, bool doubleSpaced = true)
     {
         var document = Markdown.Parse(markdown ?? "", Pipeline);
 
@@ -80,13 +84,20 @@ public static class RichTextClipboard
                 blocks.Add(html);
         }
 
-        return string.Join("\n" + Spacer + "\n", blocks);
+        return string.Join(doubleSpaced ? "\n" + Spacer + "\n" : "\n", blocks);
     }
 
-    public static CopyPayload BuildPayload(Snippet snippet) =>
-        snippet.IsMarkdown
-            ? new CopyPayload(snippet.Content, ToHtml(snippet.Content))
+    /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
+    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null)
+    {
+        settings ??= AppSettings.Current;
+
+        // With the HTML flavour switched off a Markdown snippet is just its source, which
+        // is exactly what a plain snippet already is — so both take the same path.
+        return snippet.IsMarkdown && settings.MarkdownToHtml
+            ? new CopyPayload(snippet.Content, ToHtml(snippet.Content, settings.MarkdownDoubleSpaced))
             : new CopyPayload(snippet.Content, null);
+    }
 
     /// <summary>
     /// The OS clipboard format name for HTML, or null where Avalonia cannot carry one.

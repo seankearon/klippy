@@ -123,7 +123,8 @@ public partial class MainWindow : Window
         var cmdMod = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
         // While an overlay is open only Esc (cancel) and Cmd/Ctrl+Enter (save) are global.
-        if (vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null)
+        if (vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
+            || vm.Settings is not null)
         {
             if (e.Key == Key.Escape)
             {
@@ -162,6 +163,10 @@ public partial class MainWindow : Window
                     return;
                 case Key.P:
                     vm.TogglePreviewCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case Key.OemComma:
+                    vm.OpenSettingsCommand.Execute(null);
                     e.Handled = true;
                     return;
             }

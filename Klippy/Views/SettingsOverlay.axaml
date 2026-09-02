@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.SettingsOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <Panel IsVisible="{Binding Settings, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border MaxWidth="460" Margin="20" VerticalAlignment="Center"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="16">
+      <ContentControl Content="{Binding Settings}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="vm:SettingsViewModel">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Settings" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextPrimaryBrush}" />
+
+              <StackPanel Spacing="8">
+                <TextBlock Classes="mono" Text="MARKDOWN" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+
+                <!-- Grid, not a horizontal StackPanel: the star column is what gives the
+                     explanation a width to wrap inside. -->
+                <Grid ColumnDefinitions="Auto,8,*">
+                  <ToggleButton Grid.Column="0" Classes="chip" Content="Rich text"
+                                VerticalAlignment="Top"
+                                IsChecked="{Binding MarkdownToHtml}" />
+                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="Copy Markdown snippets as formatted HTML too. Off copies the raw Markdown everywhere." />
+                </Grid>
+
+                <!-- Only means anything while there is HTML to space out. -->
+                <Grid ColumnDefinitions="Auto,8,*" IsEnabled="{Binding MarkdownToHtml}">
+                  <ToggleButton Grid.Column="0" Classes="chip" Content="Double spacing"
+                                VerticalAlignment="Top"
+                                IsChecked="{Binding MarkdownDoubleSpaced}" />
+                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="Blank line between paragraphs. On for helpdesk composers, off for Outlook and Word." />
+                </Grid>
+              </StackPanel>
+
+              <Border Height="1" Background="{StaticResource HairlineBrush}"
+                      IsVisible="{Binding ShowSettingsPath}" />
+
+              <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                         IsVisible="{Binding ShowSettingsPath}"
+                         Foreground="{StaticResource MutedBrush}"
+                         Text="{Binding SettingsPath}" />
+
+              <DockPanel Margin="0,4,0,0">
+                <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"
+                        Command="{Binding CloseCommand}" />
+                <TextBlock FontSize="11" Foreground="{StaticResource DangerBrush}"
+                           VerticalAlignment="Center" TextWrapping="Wrap"
+                           Text="{Binding StatusText}" />
+              </DockPanel>
+            </StackPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+  </Panel>
+</UserControl>

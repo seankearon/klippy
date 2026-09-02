@@ -224,6 +224,67 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public void SettingsOverlay_Renders_AndCapturesScreenshot()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.OpenSettingsCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-settings.png"));
+    }
+
+    [AvaloniaFact]
+    public void SettingsOverlay_ClosesOnAClickBesideIt()
+    {
+        // Unlike the editor there is no unsaved work: every toggle has already been written.
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.OpenSettingsCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        // well left of the 460-wide centred panel, so this lands on the scrim
+        var outside = new Point(8, 60);
+        window.MouseDown(outside, MouseButton.Left);
+        window.MouseUp(outside, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Settings);
+    }
+
+    [AvaloniaFact]
+    public void MobileView_HasASettingsButton_AndCapturesScreenshot()
+    {
+        // Android shows no window chrome, so the header button is the only way in.
+        var vm = NewVm();
+        var window = new Window
+        {
+            Width = 390,
+            Height = 780,
+            SystemDecorations = SystemDecorations.None,
+            Content = new MainView { DataContext = vm },
+        };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var button = window.GetVisualDescendants().OfType<Button>()
+            .Single(b => ReferenceEquals(b.Command, vm.OpenSettingsCommand));
+
+        button.Command!.Execute(button.CommandParameter);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Settings);
+
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-mobile-settings.png"));
+    }
+
+    [AvaloniaFact]
     public void EditorOverlay_SurvivesAClickOnTheScrim()
     {
         var vm = NewVm();

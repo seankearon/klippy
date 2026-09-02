@@ -11,6 +11,8 @@
   <StreamGeometry x:Key="IconChevronDown">M 6,9 L 12,15 L 18,9</StreamGeometry>
   <StreamGeometry x:Key="IconPlus">M 12,5 L 12,19 M 5,12 L 19,12</StreamGeometry>
   <StreamGeometry x:Key="IconTransfer">M 8,20 L 8,4 M 4,8 L 8,4 L 12,8 M 16,4 L 16,20 M 12,16 L 16,20 L 20,16</StreamGeometry>
+  <!-- sliders, for settings: two tracks with a knob apiece -->
+  <StreamGeometry x:Key="IconSettings">M 3,8 L 20,8 M 3,16 L 12,16 M 14,8 A 2,2 0 1 0 18,8 A 2,2 0 1 0 14,8 M 4,16 A 2,2 0 1 0 8,16 A 2,2 0 1 0 4,16</StreamGeometry>
   <!-- corner hatch for the editor dialog's resize grip -->
   <StreamGeometry x:Key="IconResizeGrip">M 21,10 L 10,21 M 21,16 L 16,21</StreamGeometry>
   <!-- stacked sheets, for a clip that holds a file selection -->

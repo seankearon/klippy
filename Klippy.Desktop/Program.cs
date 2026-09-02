@@ -25,7 +25,9 @@ sealed class Program
             return 0;
         }
 
-        var settings = AppSettings.Load();
+        // Current, not Load(): the settings overlay writes through the same instance, so a
+        // second copy here would go stale the moment a preference changed.
+        var settings = AppSettings.Current;
 
         // Built before the app, because OnFrameworkInitializationCompleted constructs the
         // view models and they need to know whether there is a history to show.
