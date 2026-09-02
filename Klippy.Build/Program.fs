@@ -19,6 +19,7 @@ open BuildLib
 let RepoFolder = findFirstParentFolderContainingFile ApplicationExeFolder "Klippy.slnx"
 
 let DesktopProject = RepoFolder +/ "Klippy.Desktop" +/ "Klippy.Desktop.csproj"
+let AndroidProject = RepoFolder +/ "Klippy.Android" +/ "Klippy.Android.csproj"
 let TestProject    = RepoFolder +/ "Klippy.Tests"   +/ "Klippy.Tests.csproj"
 let ParcelProject  = RepoFolder +/ "Klippy.Desktop" +/ "Klippy.Desktop.parcel"
 let PropsFile      = RepoFolder +/ "Directory.Build.props"
@@ -29,6 +30,10 @@ let DropFolder     = BuildDir   +/ "drop"
 
 let ReleaseBranch = "main"
 let WindowsRuntime = "win-x64"
+
+/// The only ABI worth shipping: every current phone is arm64, and the others exist for
+/// emulators. A second ABI would double the APK count for no one.
+let AndroidAbi = "android-arm64"
 
 /// Both mac architectures: Parcel merges them into one universal bundle with lipo, so a
 /// single .dmg runs natively on Apple Silicon and Intel alike.
@@ -249,7 +254,7 @@ let gh = cmd "gh"
 /// than taking everything under the drop folder keeps temp/ and any stray logs out of a
 /// published release.
 let releaseArtifacts () =
-    let installers = set [ ".exe"; ".dmg"; ".msix"; ".pkg"; ".zip"; ".deb"; ".rpm" ]
+    let installers = set [ ".exe"; ".dmg"; ".msix"; ".pkg"; ".zip"; ".deb"; ".rpm"; ".apk" ]
 
     Directory.GetFiles(DropFolder, "*", SearchOption.AllDirectories)
     |> Array.filter (fun f -> installers.Contains(Path.GetExtension(f).ToLowerInvariant()))
@@ -411,6 +416,60 @@ let buildKlippy () =
             Write.line $"Parcel produced {produced.Length} file(s) in {DropFolder}"
             for file in produced do
                 Write.line $"  {Path.GetFileName file} ({FileInfo(file).Length / 1024L} KB)")
+
+        stage "Publish Android" (fun () ->
+            // Nothing to do with Parcel: the Android SDK packages and signs the APK itself,
+            // so this is a plain publish whose output is copied into the drop folder under a
+            // release name. Runs inside the Version stage's props like every other head, so
+            // the APK carries the same version as the installers.
+            workingDir RepoFolder
+
+            let publishDir = OutDir +/ AndroidAbi
+
+            dotnet [
+                "publish"; doubleQuote AndroidProject
+                "--configuration Release"
+                $"-p:RuntimeIdentifier={AndroidAbi}"
+                "--verbosity minimal"
+                $"--output {publishDir |> doubleQuote}"
+
+                // The escape hatch for the machine where the Mono AOT workload will not
+                // resolve. Clearing RunAOTCompilation alone is not enough - the csproj turns
+                // on profiled AOT for Release and the Android SDK imports the MonoAOTCompiler
+                // SDK off the back of that, which fails at evaluation time. See build.ps1,
+                // which carries the same three flags for the same reason.
+                if hasArg "android-no-aot" then
+                    "-p:RunAOTCompilation=false"
+                    "-p:AndroidEnableProfiledAot=false"
+                    "-p:AndroidStripILAfterAOT=false"
+            ]
+
+            // The unsigned APK sits beside this one; -Signed is the installable artifact.
+            let apk =
+                Directory.GetFiles(publishDir, "*-Signed.apk", SearchOption.AllDirectories)
+                |> Array.sortByDescending (fun f -> FileInfo(f).LastWriteTimeUtc)
+                |> Array.tryHead
+
+            match apk with
+            | None ->
+                failwith
+                    $"Publish reported success but no signed APK was found under {publishDir}. \
+                      Android packaging is incremental and skips itself when an APK is already \
+                      present and newer than its inputs."
+            | Some source ->
+                let target = DropFolder +/ $"Klippy.{AndroidAbi}.{version}.apk"
+                copyFile source target
+                Write.line $"Copied {Path.GetFileName source} to {Path.GetFileName target} ({FileInfo(target).Length / 1024L / 1024L} MB)"
+
+                // Not a warning the build can act on, but one nobody should discover from a
+                // user: with no keystore in the repo the Android SDK falls back to its shared
+                // debug key, and a later properly-signed build will refuse to install over it.
+                let hasKeystore =
+                    File.ReadAllText(AndroidProject).Contains "AndroidSigningKeyStore"
+
+                if not hasKeystore then
+                    Write.line "WARNING: the APK is signed with the Android debug key (no keystore configured)."
+                    Write.line "         It installs by sideloading, but is not fit for wider distribution.")
 
         stage "Revert Generated Files" (fun () ->
             workingDir RepoFolder

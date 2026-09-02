@@ -157,7 +157,17 @@ if ($Android) {
         "-p:RuntimeIdentifier=$Abi",
         '--nologo'
     )
-    if ($NoAot) { $publishArgs += '-p:RunAOTCompilation=false' }
+    # Clearing RunAOTCompilation alone is not enough: the csproj turns on profiled AOT
+    # for Release, and Microsoft.Android.Sdk.Aot.targets imports the MonoAOTCompiler SDK
+    # off the back of that, so the build fails at evaluation time when the AOT workload
+    # pack is missing. Both flags have to go, along with the IL strip that follows AOT.
+    if ($NoAot) {
+        $publishArgs += @(
+            '-p:RunAOTCompilation=false',
+            '-p:AndroidEnableProfiledAot=false',
+            '-p:AndroidStripILAfterAOT=false'
+        )
+    }
     if ($Output) { $publishArgs += @('-o', $Output) }
 
     $startedAt = Get-Date

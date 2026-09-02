@@ -18,8 +18,8 @@
 
     What it does, in order: verifies the tree is clean and on the release branch, pulls,
     runs the tests, publishes the Windows app with NativeAOT, packs the Windows installer
-    and both macOS disk images with Parcel, tags the repo, creates the GitHub release, and
-    bumps ver.txt.
+    and both macOS disk images with Parcel, publishes the Android APK, tags the repo,
+    creates the GitHub release, and bumps ver.txt.
 
 .PARAMETER Version
     Pins the version instead of taking the next patch from ver.txt.
@@ -30,6 +30,11 @@
 
 .PARAMETER Force
     Skips the confirmation prompt. Intended for unattended use.
+
+.PARAMETER AndroidNoAot
+    Builds the APK without Mono AOT. Needed while the MonoAOTCompiler SDK will not resolve
+    on this machine, which otherwise fails the Android stage before anything is published.
+    The APK is identical bar a slower cold start, so this is a stopgap, not a setting.
 
 .EXAMPLE
     .\release.ps1
@@ -52,7 +57,10 @@ param(
     [switch] $DryRun,
 
     # Skip the confirmation prompt.
-    [switch] $Force
+    [switch] $Force,
+
+    # Build the APK without Mono AOT. See .PARAMETER AndroidNoAot above.
+    [switch] $AndroidNoAot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -145,11 +153,13 @@ if ($DryRun) {
 }
 else {
     Write-Host "    tag       : v$plannedVersion  (pushed to origin)"
-    Write-Host "    release   : public GitHub release with the Windows installer and both macOS disk images"
+    Write-Host "    release   : public GitHub release with the Windows installer, both macOS disk images and the Android APK"
     Write-Host "    signing   : Windows exe and installer signed with Azure Trusted Signing"
     Write-Host ''
     Write-Warn 'The macOS disk images are ad-hoc signed: Gatekeeper will quarantine them,'
     Write-Warn 'and users will need right-click > Open the first time.'
+    Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
+    Write-Warn 'properly-signed build will refuse to install over it.'
 }
 
 # --- confirm ---------------------------------------------------------------
@@ -173,6 +183,7 @@ $buildArgs = @('run', '--project', (Join-Path $root 'Klippy.Build'), '-c', 'Rele
 
 if (-not $DryRun) { $buildArgs += 'release' }
 if ($Version) { $buildArgs += "version:$Version" }
+if ($AndroidNoAot) { $buildArgs += 'android-no-aot' }
 
 Write-Step "Running the build$(if ($DryRun) { ' (dry run)' })"
 Write-Host "    dotnet $($buildArgs -join ' ')" -ForegroundColor DarkGray
