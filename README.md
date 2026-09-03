@@ -79,8 +79,9 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 
 ## Settings
 
-Three preferences change what a copy puts on the clipboard, all about Markdown, and two
-more say whether a copy dismisses the window. Open with the **settings** footer link
+Three preferences change what a copy puts on the clipboard, all about Markdown, two more
+say whether a copy dismisses the window, and one says where the window lands when you
+summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
 
@@ -101,9 +102,30 @@ dismiss to, so the pair is hidden there.
 | **Close on clip** (default on) | Copying from the clipboard history hides the window, so the app you are pasting into comes straight back to the front | The list stays up |
 | **Close on snippet** (default off) | Copying a snippet hides the window too | The list stays up for the next copy |
 
+One more, desktop only, says where the window lands when a key summons it. Klippy is
+resident, so by default it comes back exactly where you left it — which is worth keeping
+if it always lives in the same corner, since after a week your hand finds the search box
+without looking. Less so across a multi-monitor desk, where "where you left it" is often
+a screen you have since turned away from.
+
+| Choice | Where the window appears |
+|---|---|
+| **Where it was** (default) | Wherever it last sat — what Klippy has always done |
+| **Centre** | Centred on the screen the pointer is on |
+| **Pointer** | Hung from the mouse pointer, dropped far enough that the cursor lands on the search box, and nudged to stay fully on screen |
+
+It applies whenever Klippy comes back to you — the hotkeys, the tray icon, and the first
+appearance at launch — including when the window was left sitting behind whatever you were
+working in. It never moves a window that is already in front of you and focused, so
+switching between snippets and history with the other hotkey leaves it exactly where it is
+rather than throwing it across the desk mid-use. In `settings.json` the key is `SummonPlacement`,
+spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Remembered"`
+rather than costing you the rest of the file.
+
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
 is no OK button to forget. The Markdown three default to today's behaviour, so an upgrade
-changes nothing about how existing snippets copy.
+changes nothing about how existing snippets copy — and **Where it was** does the same for
+the window.
 
 ## Export / import
 

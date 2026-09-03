@@ -43,6 +43,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _closeAfterSnippetCopy;
 
+    /// <summary>Where the window lands when a hotkey summons it.</summary>
+    [ObservableProperty]
+    private LauncherPlacement _summonPlacement;
+
     [ObservableProperty]
     private string? _statusText;
 
@@ -61,6 +65,26 @@ public partial class SettingsViewModel : ViewModelBase
     /// </summary>
     public bool ShowCloseAfterCopy => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
+    /// <summary>
+    /// Whether to offer the placement choice. Only the desktop launcher has a window to
+    /// place; on mobile the app fills the screen, so there is nothing to move.
+    /// </summary>
+    public bool ShowSummonPlacement => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
+    /// <summary>
+    /// One bool per choice, because the row is three separate Buttons carrying
+    /// <c>Classes.selected</c> rather than one control holding a value. Nothing groups
+    /// them, so each has to be told when the pick moves off it — see
+    /// <see cref="OnSummonPlacementChanged"/>.
+    /// </summary>
+    public bool IsPlacementRemembered => SummonPlacement == LauncherPlacement.Remembered;
+
+    /// <inheritdoc cref="IsPlacementRemembered"/>
+    public bool IsPlacementCentre => SummonPlacement == LauncherPlacement.Centre;
+
+    /// <inheritdoc cref="IsPlacementRemembered"/>
+    public bool IsPlacementPointer => SummonPlacement == LauncherPlacement.Pointer;
+
     public SettingsViewModel(AppSettings settings, Action close)
     {
         _settings = settings;
@@ -70,6 +94,7 @@ public partial class SettingsViewModel : ViewModelBase
         _markdownSanitiseLinks = settings.MarkdownSanitiseLinks;
         _closeAfterClipboardCopy = settings.CloseAfterClipboardCopy;
         _closeAfterSnippetCopy = settings.CloseAfterSnippetCopy;
+        _summonPlacement = settings.ParsedSummonPlacement;
         _loaded = true;
     }
 
@@ -107,6 +132,24 @@ public partial class SettingsViewModel : ViewModelBase
         _settings.CloseAfterSnippetCopy = value;
         Save();
     }
+
+    partial void OnSummonPlacementChanged(LauncherPlacement value)
+    {
+        // Ahead of the _loaded guard: the three chips are independent controls, and the
+        // one losing the pick has to be told or it keeps its accent. That is a view
+        // concern, not a persistence one, so it happens whether or not we save.
+        OnPropertyChanged(nameof(IsPlacementRemembered));
+        OnPropertyChanged(nameof(IsPlacementCentre));
+        OnPropertyChanged(nameof(IsPlacementPointer));
+
+        if (!_loaded) return;
+        // ToString on a defined member is exactly the name PlacementPolicy.Parse reads back.
+        _settings.SummonPlacement = value.ToString();
+        Save();
+    }
+
+    [RelayCommand]
+    private void PickPlacement(LauncherPlacement placement) => SummonPlacement = placement;
 
     /// <summary>
     /// A preference that cannot be written still applies for this session — the in-memory

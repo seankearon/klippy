@@ -137,6 +137,86 @@ public class SettingsTests
         }
     }
 
+    [Fact]
+    public void PlacementPreference_DefaultsToTodaysBehaviour()
+    {
+        // An upgrade must not start moving people's windows about. Remembered is also a real
+        // choice, not just the old behaviour: a launcher that always comes back to the same
+        // corner is one you stop having to look for.
+        Assert.Equal(LauncherPlacement.Remembered, new AppSettings().ParsedSummonPlacement);
+    }
+
+    [Fact]
+    public void PlacementPreference_SurvivesASaveAndLoad()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            new AppSettings { SummonPlacement = nameof(LauncherPlacement.Pointer) }.Save(path);
+            Assert.Equal(LauncherPlacement.Pointer, AppSettings.Load(path).ParsedSummonPlacement);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void SettingsViewModel_PlacementWritesThroughAndSaves()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var settings = AppSettings.Load(path);
+            var vm = new SettingsViewModel(settings, close: () => { });
+
+            Assert.Equal(LauncherPlacement.Remembered, vm.SummonPlacement);
+            Assert.True(vm.IsPlacementRemembered);
+
+            vm.PickPlacementCommand.Execute(LauncherPlacement.Centre);
+
+            // The accent has to move off the chip that lost the pick and onto the one that
+            // took it — nothing groups the three, so both ends are manual.
+            Assert.False(vm.IsPlacementRemembered);
+            Assert.True(vm.IsPlacementCentre);
+
+            Assert.Equal(LauncherPlacement.Centre, settings.ParsedSummonPlacement);
+            Assert.Equal(LauncherPlacement.Centre, AppSettings.Load(path).ParsedSummonPlacement);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AMistypedPlacement_CostsOnlyThePlacement_NotTheWholeFile()
+    {
+        // settings.json invites hand-editing, and "Center" for "Centre" is the obvious slip
+        // in a codebase that spells things British. A throwing parse would reach Load's
+        // catch-all and hand back all-defaults — losing both hotkeys, the history limit and
+        // the exclusion list — and the next toggle would write that over the file for good.
+        var path = TempSettingsPath();
+        try
+        {
+            new AppSettings
+            {
+                Hotkey = "Ctrl+Alt+P",
+                HistoryLimit = 42,
+                SummonPlacement = "Center",
+            }.Save(path);
+
+            var loaded = AppSettings.Load(path);
+            Assert.Equal(LauncherPlacement.Remembered, loaded.ParsedSummonPlacement);
+            Assert.Equal("Ctrl+Alt+P", loaded.Hotkey);
+            Assert.Equal(42, loaded.HistoryLimit);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     // ---- what the preferences actually do ----
 
     private static MainViewModel CopyVm(AppSettings settings, out ClipHistoryStore history)

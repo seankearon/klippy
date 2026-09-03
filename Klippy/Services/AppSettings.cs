@@ -95,6 +95,17 @@ public sealed class AppSettings
     public bool CloseAfterSnippetCopy { get; set; }
 
     /// <summary>
+    /// Where the window lands when a hotkey summons it: "Remembered", "Centre" or
+    /// "Pointer". Remembered by default, and not only because an upgrade should change
+    /// nothing: a resident launcher that always comes back to the same corner becomes
+    /// muscle memory, and that is worth keeping as a choice rather than a fallback.
+    ///
+    /// A string rather than the enum itself, for the reason the hotkeys are strings — one
+    /// typo in a hand-edited file must cost this preference and nothing else.
+    /// </summary>
+    public string SummonPlacement { get; set; } = nameof(LauncherPlacement.Remembered);
+
+    /// <summary>
     /// The one instance the app reads and writes. Loaded on first touch, because the
     /// shared UI needs preferences on platforms whose head never loads them itself
     /// (Android, iOS) — and where there is no settings.json a user could edit by hand.
@@ -110,6 +121,10 @@ public sealed class AppSettings
     [JsonIgnore]
     public HotkeySpec ParsedHotkey =>
         HotkeySpec.TryParse(Hotkey, out var spec) ? spec : HotkeySpec.Default;
+
+    /// <summary>The placement, or Remembered when the value is missing or unreadable.</summary>
+    [JsonIgnore]
+    public LauncherPlacement ParsedSummonPlacement => PlacementPolicy.Parse(SummonPlacement);
 
     public static string FilePath => StorageLocations.SettingsPath;
 

@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
@@ -53,6 +54,13 @@ internal sealed class LauncherHost : IDisposable
 
         if (_lifetime.MainWindow is Klippy.Views.MainWindow main)
             main.HideRequested = () => main.Hide();
+
+        // The first appearance is a summon too. Nothing has been anywhere yet, so there is
+        // nothing for Remembered to remember, and a user who asked for Centre means it from
+        // the start. Before the framework's own Show, so it opens in place: the window is
+        // built by then but not yet shown, and Screens and Width/Height are already good.
+        if (_lifetime.MainWindow is { } startup && PlaceFor(startup) is { } at)
+            startup.Position = at;
 
         InstallTray();
 
@@ -141,11 +149,82 @@ internal sealed class LauncherHost : IDisposable
     {
         if (_lifetime.MainWindow is not { } window) return;
 
-        window.Show();
+        // Only a window that is actually coming up gets placed. Switching views with the
+        // other hotkey comes through here too, and a window already in front of you should
+        // not leap across the desk because you asked it for the history instead.
+        //
+        // "In front of you" is visible AND focused — the same test Toggle uses to decide
+        // that a second press means dismiss. A window left sitting behind another app is
+        // still being summoned, and is exactly the case the setting exists for. Minimised
+        // counts as coming up too: the restore discards whatever position it had anyway.
+        var summoning = !(window.IsVisible && window.IsActive)
+                        || window.WindowState == WindowState.Minimized;
+
+        // Ahead of the move: positioning a minimised window writes a rect that the restore
+        // throws away. Safe to do while hidden — un-minimising a hidden window does not
+        // reveal it, so there is no flash.
         if (window.WindowState == WindowState.Minimized)
             window.WindowState = WindowState.Normal;
+
+        // Computed once and assigned twice. Asking twice would re-read the cursor, and the
+        // window would jump if it had moved a pixel in between.
+        var placed = summoning ? PlaceFor(window) : null;
+
+        // Before Show, so the window appears where it belongs rather than appearing and
+        // then jumping.
+        if (placed is { } target) window.Position = target;
+
+        window.Show();
+
+        // And again after. Un-minimising a window that was also hidden only takes effect at
+        // the Show, and that restore reinstates the old position over ours; a move between
+        // monitors of different DPI likewise gets answered with a rect of Windows' choosing.
+        // Assigning the same point twice costs nothing on the summons where the first held.
+        if (placed is { } again) window.Position = again;
+
         window.Activate();
         window.Focus();
+    }
+
+    /// <summary>
+    /// Where the window should land, or null to leave it where the user left it — which is
+    /// the default, and also the answer when nothing will say where the screens are.
+    /// </summary>
+    private PixelPoint? PlaceFor(Window window)
+    {
+        var mode = _settings.ParsedSummonPlacement;
+        if (mode == LauncherPlacement.Remembered) return null;
+
+        try
+        {
+            var screens = window.Screens;
+            var cursor = CursorPosition.TryGet();
+
+            // The pointer is the best answer available to "which screen am I looking at",
+            // and a reading that lands on no screen at all is a reading to ignore.
+            var screen = (cursor is { } c ? screens.ScreenFromPoint(c) : null)
+                         ?? screens.ScreenFromWindow(window)
+                         ?? screens.Primary;
+            if (screen is null) return null;
+
+            // Width/Height, not ClientSize: before the first Show ClientSize is nonsense,
+            // and Window.HandleResized keeps Width/Height in step with every user resize.
+            // The window extends its client area over its decorations, so this is also its
+            // frame size.
+            var size = new Size(window.Width, window.Height);
+
+            // The target screen's scaling, never the window's: RenderScaling describes the
+            // monitor it is on now, not the one it is about to be on.
+            return mode == LauncherPlacement.Pointer && cursor is { } p
+                ? PlacementPolicy.AtPointer(p, screen.WorkingArea, screen.Scaling, size)
+                : PlacementPolicy.Centred(screen.WorkingArea, screen.Scaling, size);
+        }
+        catch (Exception)
+        {
+            // No windowing backend to ask: WindowBase.Screens throws rather than returning
+            // null. Showing the window where it was beats not showing it.
+            return null;
+        }
     }
 
     private void Quit()

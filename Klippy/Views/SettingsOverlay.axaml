@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Klippy.ViewModels"
+             xmlns:svc="using:Klippy.Services"
              x:Class="Klippy.Views.SettingsOverlay"
              x:DataType="vm:MainViewModel">
 
@@ -82,6 +83,41 @@
                              TextWrapping="Wrap"
                              Foreground="{StaticResource MutedBrush}"
                              Text="Copying a snippet dismisses Klippy too. Off leaves the list up for the next one." />
+                </Grid>
+              </StackPanel>
+
+              <Border Height="1" Background="{StaticResource HairlineBrush}"
+                      IsVisible="{Binding ShowSummonPlacement}" />
+
+              <StackPanel Spacing="8" IsVisible="{Binding ShowSummonPlacement}">
+                <TextBlock Classes="mono" Text="ON SUMMON" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+
+                <!-- One of three, not three switches: Buttons carrying .selected, the same
+                     chip row the tag filter uses, where picking one drops the others.
+                     CommandParameter must be x:Static - a bare string against a
+                     RelayCommand<LauncherPlacement> throws when the chip is attached, not
+                     when it is clicked, so opening Settings at all would be the crash. -->
+                <Grid ColumnDefinitions="Auto,8,*">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
+                              VerticalAlignment="Top">
+                    <Button Classes="chip" Classes.selected="{Binding IsPlacementRemembered}"
+                            Content="Where it was"
+                            Command="{Binding PickPlacementCommand}"
+                            CommandParameter="{x:Static svc:LauncherPlacement.Remembered}" />
+                    <Button Classes="chip" Classes.selected="{Binding IsPlacementCentre}"
+                            Content="Centre"
+                            Command="{Binding PickPlacementCommand}"
+                            CommandParameter="{x:Static svc:LauncherPlacement.Centre}" />
+                    <Button Classes="chip" Classes.selected="{Binding IsPlacementPointer}"
+                            Content="Pointer"
+                            Command="{Binding PickPlacementCommand}"
+                            CommandParameter="{x:Static svc:LauncherPlacement.Pointer}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                             TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="Where the hotkey puts the window." />
                 </Grid>
               </StackPanel>
 
