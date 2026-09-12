@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Klippy.Services;
 
 namespace Klippy.ViewModels;
 
@@ -43,20 +42,20 @@ public abstract partial class RowViewModel : ViewModelBase
     public virtual IReadOnlyList<string> Arguments => Array.Empty<string>();
 
     /// <summary>
-    /// Whether the row offers an Execute action: its text starts with a link, a script
-    /// this platform can run, or a macro that may yet resolve to either.
+    /// Whether the item is marked to be run rather than copied. A property of the item
+    /// itself, not of what its text happens to look like: Klippy never decides on its
+    /// own that something should be run.
     /// </summary>
-    public bool IsExecutable => ExecutionPolicy.LooksExecutable(Template);
+    public virtual bool IsExecutable => false;
 
-    private static readonly string CopyAndRunHint =
-        OperatingSystem.IsMacOS() ? "↵ copy · ⌘↵ run" : "↵ copy · Ctrl+↵ run";
+    private static readonly string RunHint =
+        OperatingSystem.IsMacOS() ? "↵ run · ⌘↵ copy" : "↵ run · Ctrl+↵ copy";
 
     /// <summary>
-    /// What the selected row's badge offers. Enter always copies; a row with something
-    /// to run says so too, which is the only place the Execute shortcut is written down
-    /// where it is needed.
+    /// What the selected row's badge offers. Enter does whatever the item is marked for;
+    /// Ctrl/⌘+Enter always copies, which is the way to get a marked item's text.
     /// </summary>
-    public string EnterHint => IsExecutable ? CopyAndRunHint : "↵ copy";
+    public string EnterHint => IsExecutable ? RunHint : "↵ copy";
 
     /// <summary>First line of the content, for the one-line ellipsized preview.</summary>
     public string Preview

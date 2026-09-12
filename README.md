@@ -21,9 +21,9 @@ The index is precomputed, lowercased words per snippet
 ([`SnippetSearch`](Klippy/Services/SnippetSearch.cs)), so a keystroke costs a linear
 scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
-**Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy,
-`Ctrl/⌘+Enter` to [run](#running-things-links-scripts-and-macros) it,
-`Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
+**Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy — or to
+[run](#running-things-links-scripts-and-macros) a snippet marked for it — `Ctrl/⌘+Enter`
+to copy one of those anyway, `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row also copies it.
@@ -48,22 +48,26 @@ label; the quick-code is deliberately not copied so codes stay unique.
 ## Running things: links, scripts and macros
 
 Some snippets are not text you want to paste — they are a link you want open, or a
-script you want run. Those rows carry a **▷** in their hover actions, and
-`Ctrl/⌘+Enter` runs the selected one where `Enter` copies it. The selected row's badge
-says which it offers: `↵ copy` on its own, or `↵ copy · Ctrl+↵ run` where there is
-something to run. Clips can be run too, so a link you copied an hour ago opens from the
-history without a round trip through the browser's address bar.
+script you want run. A snippet can be marked **Execute** in the editor (WHEN TRIGGERED →
+Execute), exactly as it can be marked Markdown, and then triggering it — `Enter`, a
+click, a tap — runs it instead of copying it. Without the marker nothing runs: Klippy
+never decides on its own that a snippet looks like a link and should therefore be
+launched.
 
-What counts as runnable is a short allow-list, checked against the first word of the
-item:
+Marked rows show a small amber `run` marker, the way Markdown ones show `md`, and their
+primary hover action becomes **▷** rather than the copy glyph. `Ctrl/⌘+Enter` always
+copies, marker or not, so a snippet you usually run can still be put on the clipboard
+when you want the text — the row's badge says both: `↵ run · Ctrl+↵ copy`.
 
-| Item starts with | Runs as |
+What a marked snippet can run is a short allow-list, checked against its first word:
+
+| Snippet starts with | Runs as |
 |---|---|
 | `http://`, `https://`, `mailto:`, or a bare `www.` | Opened in the default browser |
 | `*.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` on Windows, `pwsh -NoProfile -File` elsewhere |
 | `*.sh` | The script itself where it is executable, so its `#!` line chooses; otherwise `/bin/sh`. `bash.exe` (Git Bash, WSL) on Windows |
-| `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only**, and the row does not offer to run one anywhere else |
-| anything else | Nothing. The ▷ is simply not there, and `Ctrl/⌘+Enter` says why |
+| `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only** |
+| anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
 
 Everything after the first word is passed to the script as arguments, quotes grouping
 the words that belong together: `deploy.ps1 --env "west europe"` passes two arguments,
@@ -72,7 +76,8 @@ to be.
 
 ### Macros
 
-An item's text can carry placeholders, filled in when it is copied or run:
+A snippet's text can carry placeholders, filled in when it is copied or run — the
+marker decides which of those happens, the macros work either way:
 
 | Macro | Expands to |
 |---|---|
@@ -87,32 +92,35 @@ Typing
 ```
 
 shows `https://www.google.com/search?q=stuff` on the row — the expansion, before you
-have committed to anything — and `Enter` copies exactly that. The *last* `%P%` takes
-every argument still unused, so `? cats and dogs` searches for the phrase rather than
-throwing two thirds of it away. A placeholder with nothing to fill it expands to
-nothing: half a typed invocation never leaves `%P%` on the clipboard.
+have committed to anything — and `Enter` runs it if the snippet is marked, or copies
+exactly that text if it is not. The *last* `%P%` takes every argument still unused, so
+`? cats and dogs` searches for the phrase rather than throwing two thirds of it away. A
+placeholder with nothing to fill it expands to nothing: half a typed invocation never
+leaves `%P%` on the clipboard.
 
 A line is only read as an invocation when its first word is **exactly** somebody's
 quick-code and something follows it. Otherwise it is the ordinary search it has always
 been — a prefix match would hijack every two-word search whose first word happened to
 start with a quick-code.
 
-`Ctrl/⌘+Enter` on the same line runs it. The execution engine is handed the item as
-stored *and* the arguments — `https://www.google.com/search?q=%P%` and `stuff` — rather
-than the finished string, because only it knows where each value is about to land: a
-URL's query string gets `cats%20and%20dogs`, a script's argument list gets
-`cats and dogs`. `%C%` is read once, at that moment, and only when the item actually
-carries one: a row previews its own `%P%` expansion as you type, but Klippy never reads
-your clipboard to draw a list.
+Running hands the execution engine the snippet as stored *and* the arguments —
+`https://www.google.com/search?q=%P%` and `stuff` — rather than the finished string,
+because only it knows where each value is about to land: a URL's query string gets
+`cats%20and%20dogs`, a script's argument list gets `cats and dogs`. `%C%` is read once,
+at that moment, and only when the snippet actually carries one: a row previews its own
+`%P%` expansion as you type, but Klippy never reads your clipboard to draw a list.
 
-A `%C%` can carry the whole command — an item of just `%C%` runs whatever is on the
-clipboard, link or script path and switches alike, which is the other half of the
-clipboard history.
+A `%C%` can carry the whole command — a snippet of just `%C%`, marked Execute, runs
+whatever is on the clipboard, link or script path and switches alike, which is the other
+half of the clipboard history.
 
 ### What running something will not do
 
 Running a snippet is running code, so the edges are drawn deliberately tightly:
 
+- **Nothing runs unmarked.** The marker is stored on the snippet and defaults to off, so
+  every snippet that exists today — and every one an import brings in — goes on being
+  copied.
 - **Only the allow-list above runs.** `file:` URLs, `javascript:` and bare executable
   paths are not runnable — Execute can never become "launch whatever program this text
   names".
@@ -121,16 +129,14 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
 - **Except for `.bat`**, which `cmd.exe` re-parses after .NET has quoted it. An argument
   carrying `& | < > ^ " %` is refused with a message instead, because pretending to
   escape it would be a lie.
-- **Nothing runs on its own.** A snippet is only ever run by the ▷ button or
-  `Ctrl/⌘+Enter` on that row; copying, importing and searching never run anything.
 - `-File` rather than `-Command` for PowerShell, for the same reason: the arguments stay
   arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
   with it, since the script is one you keep in Klippy and have just asked for by name.
 
 Running something dismisses the window, as copying can: the browser or the script is
-where you are going next. Mobile has no Execute action — it has neither a shell to run
-a script in nor a launcher to dismiss to — but `%C%` and `%P%` still expand on a copy
-there.
+where you are going next. On a phone a marked link opens in the mobile browser; a marked
+script says there is no shell to run it in rather than doing nothing, and `%C%` and
+`%P%` expand on a copy there as they do everywhere.
 
 ## Markdown snippets (pasting into rich-text editors)
 
@@ -323,9 +329,9 @@ which browsers, Office and chat clients accept, but a few paint-style apps that 
 speak DIB will not see it.
 
 Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
-(opens the editor prefilled — the clip stays put), **delete**, **copy**, and — where
-what you copied was a link — **run** it
-([executing items](#running-things-links-scripts-and-macros)). Deleting a
+(opens the editor prefilled — the clip stays put), **delete**, and **copy**.
+A clip carries no [Execute marker](#running-things-links-scripts-and-macros), so the
+history always copies; save a clip as a snippet and mark that if you want to run it. Deleting a
 clip asks for no confirmation, unlike deleting a snippet: a clip is transient by nature
 and the next copy makes another. The footer's **clear history** empties everything
 except pinned clips.

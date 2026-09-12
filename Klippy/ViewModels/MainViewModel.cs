@@ -110,9 +110,9 @@ public partial class MainViewModel : ViewModelBase
     public Func<Task<string?>>? ClipboardReader { get; set; }
 
     /// <summary>
-    /// Set by the desktop view; carries out an execution plan. Null on mobile, which
-    /// offers no Execute action — so the command does nothing there rather than
-    /// pretending it could.
+    /// Set by the view; carries out an execution plan. The desktop starts processes,
+    /// mobile can only open a link — each head supplies what its platform can do, and
+    /// an item marked to run says so rather than failing quietly where nothing can.
     /// </summary>
     public Func<ExecutionPlan, Task<ExecutionResult>>? Executor { get; set; }
 
@@ -352,6 +352,18 @@ public partial class MainViewModel : ViewModelBase
             t.IsSelected = string.Equals(t.Name, tag, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The item's own action: one marked Execute runs, everything else is copied. Enter,
+    /// a click and a tap all come through here, so what an item does is a property of
+    /// the item rather than of how you reached it.
+    /// </summary>
+    [RelayCommand]
+    private Task Activate(RowViewModel? row) =>
+        row is { IsExecutable: true } ? Execute(row) : Copy(row);
+
+    [RelayCommand]
+    private Task ActivateSelected() => Activate(SelectedSnippet);
+
     [RelayCommand]
     private async Task Copy(RowViewModel? row)
     {
@@ -386,8 +398,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Runs the item instead of copying it: its link opens in the default browser, or
-    /// the script it names runs, with the same macros a copy would have resolved.
+    /// Runs the item: its link opens in the default browser, or the script it names
+    /// runs, with the same macros a copy would have resolved. Reached by triggering an
+    /// item marked Execute.
     ///
     /// The item's stored text goes to the execution engine together with the typed
     /// arguments, rather than the expansion a copy would make — only the engine knows
@@ -397,7 +410,15 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task Execute(RowViewModel? row)
     {
-        if (row is null || Executor is not { } run) return;
+        if (row is null) return;
+
+        if (Executor is not { } run)
+        {
+            // Nothing wired up to run things: say so rather than leaving Enter looking
+            // broken on an item that is marked to run.
+            ShowToast("Klippy cannot run items on this device.", isError: true);
+            return;
+        }
 
         var text = row.Template;
         var plan = ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text));

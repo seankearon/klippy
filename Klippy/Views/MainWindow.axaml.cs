@@ -185,9 +185,9 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
                 case Key.Enter:
-                    // Enter copies, Cmd/Ctrl+Enter runs — the same key, the same row, and
-                    // the modifier says which of the two you meant.
-                    vm.ExecuteSelectedCommand.Execute(null);
+                    // Enter does whatever the item is marked for; Cmd/Ctrl+Enter always
+                    // copies, which is how you get the text of an item marked to run.
+                    vm.CopySelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
             }
@@ -206,7 +206,7 @@ public partial class MainWindow : Window
             case Key.Enter:
                 if (vm.SelectedSnippet is not null)
                 {
-                    vm.CopySelectedCommand.Execute(null);
+                    vm.ActivateSelectedCommand.Execute(null);
                     e.Handled = true;
                 }
                 break;
@@ -224,7 +224,10 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Clicking a row copies it (design: copy on click) — unless the click landed on a button.</summary>
+    /// <summary>
+    /// Clicking a row triggers it — a copy, or a run where the item is marked for one —
+    /// unless the click landed on a button.
+    /// </summary>
     private void RowTapped(object? sender, TappedEventArgs e)
     {
         if (Vm is not { } vm) return;
@@ -233,7 +236,7 @@ public partial class MainWindow : Window
         if (sender is Control { DataContext: RowViewModel row })
         {
             vm.SelectedSnippet = row;
-            vm.CopyCommand.Execute(row);
+            vm.ActivateCommand.Execute(row);
         }
     }
 }

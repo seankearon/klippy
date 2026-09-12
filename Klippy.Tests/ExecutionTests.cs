@@ -172,24 +172,24 @@ public class ExecutionTests
         Assert.Equal("There is nothing to run.", Plan("%P%").Problem);
     }
 
-    // ---- what the row offers ----
+    // ---- what the editor checks before the marker goes on ----
 
     [Fact]
-    public void OnlyRunnableItemsOfferTheExecuteAction()
+    public void TextThatCouldRun_IsToldApartFromTextThatCouldNot()
     {
         Assert.True(ExecutionPolicy.LooksExecutable(Search));
         Assert.True(ExecutionPolicy.LooksExecutable("www.klippy.app"));
         Assert.True(ExecutionPolicy.LooksExecutable("/home/sam/backup.sh --now"));
 
         // A %C% is taken on trust: what it holds is not known until it is run, and
-        // reading the clipboard to decide whether to draw a button would be worse.
+        // reading the clipboard to answer a question about the editor would be worse.
         Assert.True(ExecutionPolicy.LooksExecutable("%C%"));
 
         Assert.False(ExecutionPolicy.LooksExecutable("DE44 5001 0517 5407 3249 31"));
         Assert.False(ExecutionPolicy.LooksExecutable("docker system prune -af --volumes"));
         Assert.False(ExecutionPolicy.LooksExecutable(""));
 
-        // .bat has nothing to run it on a Mac, so the row there does not pretend.
+        // .bat has nothing to run it on a Mac, so marking one there is worth a warning.
         Assert.False(ExecutionPolicy.LooksExecutable(@"C:\tools\build.bat", ExecutionPlatform.MacOS));
         Assert.True(ExecutionPolicy.LooksExecutable(@"C:\tools\build.bat", ExecutionPlatform.Windows));
     }

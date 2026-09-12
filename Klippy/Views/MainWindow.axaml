@@ -161,6 +161,11 @@
                       <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
                                   Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
                                   VerticalAlignment="Center">
+                        <!-- what Enter will do, said on the row rather than found out
+                             by pressing it -->
+                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                   Foreground="{StaticResource AccentBrush}" Text="run"
+                                   IsVisible="{Binding IsExecutable}" />
                         <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                                    Foreground="{StaticResource Muted2Brush}" Text="md"
                                    IsVisible="{Binding IsMarkdown}" />
@@ -240,25 +245,30 @@
                             </Grid>
                           </Viewbox>
                         </Button>
-                        <!-- run: only where there is something to run — a link, or a
-                             script this platform can start -->
+                        <!-- a marked row still has its text; this is how you get it -->
                         <Button Classes="icon" IsVisible="{Binding IsExecutable}"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ExecuteCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource AccentBrush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon amber"
                                 Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
                                 CommandParameter="{Binding}">
                           <Viewbox Width="12" Height="12">
                             <Grid Width="24" Height="24">
+                              <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource Muted3Brush}"
+                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                            </Grid>
+                          </Viewbox>
+                        </Button>
+                        <!-- the primary action is whatever the item is marked for, so the
+                             glyph follows the marker rather than naming a second gesture -->
+                        <Button Classes="icon amber"
+                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ActivateCommand}"
+                                CommandParameter="{Binding}">
+                          <Viewbox Width="12" Height="12">
+                            <Grid Width="24" Height="24">
                               <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
-                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                    IsVisible="{Binding !IsExecutable}" />
+                              <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource OnAccentBrush}"
+                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                    IsVisible="{Binding IsExecutable}" />
                             </Grid>
                           </Viewbox>
                         </Button>
@@ -406,18 +416,6 @@
                           <Viewbox Width="12" Height="12">
                             <Grid Width="24" Height="24">
                               <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <!-- run: only where there is something to run — a link, or a
-                             script this platform can start -->
-                        <Button Classes="icon" IsVisible="{Binding IsExecutable}"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ExecuteCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource AccentBrush}"
                                     StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
                             </Grid>
                           </Viewbox>

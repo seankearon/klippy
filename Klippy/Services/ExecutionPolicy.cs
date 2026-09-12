@@ -164,15 +164,17 @@ public static class ExecutionPolicy
     }
 
     /// <summary>
-    /// Whether an item is worth offering an Execute action for: its first word is a URL,
-    /// a script this platform can run, or a macro that might resolve to either. Cheap
-    /// enough to ask of every visible row, and it deliberately does not read the
-    /// clipboard — a <c>%C%</c> is taken on trust until the user actually runs it.
+    /// Whether text has any chance of running: its first word is a URL, a script this
+    /// platform can run, or a macro that might resolve to either. What the editor asks
+    /// while the Execute marker is being ticked, so marking something that can never run
+    /// is caught there rather than as a toast afterwards. It says nothing about whether
+    /// an item <em>should</em> run — only the marker does — and it deliberately does not
+    /// read the clipboard: a <c>%C%</c> is taken on trust until the item is actually run.
     /// </summary>
     public static bool LooksExecutable(string? text, ExecutionPlatform? platform = null)
     {
-        // Only the first word, never the whole item: this is asked of every visible row
-        // on every keystroke, and some rows are pages long.
+        // Only the first word, never the whole item: the editor asks this on every
+        // keystroke in a content box that may be pages long.
         var first = Macros.FirstArgument(text);
         if (first.Length == 0) return false;
 

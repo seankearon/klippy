@@ -16,9 +16,9 @@ using Xunit;
 namespace Klippy.Tests;
 
 /// <summary>
-/// Macros and the Execute action as the user meets them: a quick-code typed with
-/// arguments after it, a copy that puts the expansion on the clipboard, and a run that
-/// hands the item and those arguments to the execution engine.
+/// The Execute marker and the macros, as the user meets them: a snippet marked to run
+/// runs when it is triggered, everything else is copied, and a quick-code typed with
+/// arguments after it fills the %P% either way.
 /// </summary>
 public class ExecuteTests
 {
@@ -30,6 +30,7 @@ public class ExecuteTests
         Content = SearchUrl,
         Tag = "web",
         QuickCode = "?",
+        IsExecutable = true,
     };
 
     private static Snippet DockerPrune => new()
@@ -181,10 +182,10 @@ public class ExecuteTests
         Assert.Equal("Hi ", f.Copied);
     }
 
-    // ---- executing ----
+    // ---- the marker decides what triggering does ----
 
     [AvaloniaFact]
-    public async Task Executing_SendsTheItemAndItsArgumentsToTheEngine()
+    public async Task AMarkedSnippet_RunsWhenTriggered_AndIsNotCopied()
     {
         var f = NewVm();
         f.Vm.FilterText = "? stuff";
@@ -195,22 +196,48 @@ public class ExecuteTests
         Assert.Equal(SearchUrl, row.Template);
         Assert.Equal(new[] { "stuff" }, row.Arguments);
 
-        await f.Vm.ExecuteCommand.ExecuteAsync(row);
+        await f.Vm.ActivateCommand.ExecuteAsync(row);
 
         var plan = Assert.Single(f.Ran);
         Assert.Equal(ExecutionKind.Url, plan.Kind);
         Assert.Equal("https://www.google.com/search?q=stuff", plan.Target);
+        Assert.Null(f.Copied);
     }
 
     [AvaloniaFact]
-    public async Task Executing_DismissesTheLauncher_AndCountsAsUsingTheSnippet()
+    public async Task AnUnmarkedSnippet_IsCopiedWhenTriggered_AndNothingRuns()
+    {
+        // Even one whose text is a link: Klippy never decides on its own to run
+        // something, which is the whole point of the marker.
+        var f = NewVm(snippets: new Snippet { Label = "Standup", Content = "https://meet.example.com/j/882" });
+
+        await f.Vm.ActivateCommand.ExecuteAsync(f.Row("Standup"));
+
+        Assert.Empty(f.Ran);
+        Assert.Equal("https://meet.example.com/j/882", f.Copied);
+    }
+
+    [AvaloniaFact]
+    public async Task AMarkedSnippetCanStillBeCopied_WhichIsWhatCtrlEnterDoes()
+    {
+        var f = NewVm();
+        f.Vm.FilterText = "? stuff";
+
+        await f.Vm.CopySelectedCommand.ExecuteAsync(null);
+
+        Assert.Empty(f.Ran);
+        Assert.Equal("https://www.google.com/search?q=stuff", f.Copied);
+    }
+
+    [AvaloniaFact]
+    public async Task Running_DismissesTheLauncher_AndCountsAsUsingTheSnippet()
     {
         var f = NewVm();
         f.Vm.FilterText = "? stuff";
         var row = (SnippetViewModel)f.Vm.Filtered[0];
         var before = row.Model.LastUsedAt;
 
-        await f.Vm.ExecuteCommand.ExecuteAsync(row);
+        await f.Vm.ActivateSelectedCommand.ExecuteAsync(null);
 
         // Running something is a launcher gesture: the browser is where you are going.
         Assert.Equal(1, f.Closes);
@@ -218,16 +245,18 @@ public class ExecuteTests
     }
 
     [AvaloniaFact]
-    public async Task ExecutingSomethingThatIsNotRunnable_SaysSo_AndStaysPut()
+    public async Task MarkingSomethingThatCannotRun_SaysSoWhenItIsTriggered_AndStaysPut()
     {
-        var f = NewVm();
-        f.Vm.FilterText = "dp";
-        var row = f.Vm.Filtered[0];
+        var f = NewVm(snippets: new Snippet
+        {
+            Label = "Docker prune", Content = "docker system prune -af", IsExecutable = true,
+        });
 
-        await f.Vm.ExecuteCommand.ExecuteAsync(row);
+        await f.Vm.ActivateCommand.ExecuteAsync(f.Row("Docker prune"));
 
         Assert.Empty(f.Ran);
         Assert.Equal(0, f.Closes);
+        Assert.Null(f.Copied); // marked means run; it does not fall back to copying
         Assert.True(f.Vm.IsToastVisible);
         Assert.True(f.Vm.IsToastError);
         Assert.Contains("not a URL or a script", f.Vm.ToastText);
@@ -240,7 +269,7 @@ public class ExecuteTests
         f.Vm.Executor = _ => Task.FromResult(ExecutionResult.Failed("Script not found: /tmp/gone.sh"));
         f.Vm.FilterText = "? stuff";
 
-        await f.Vm.ExecuteSelectedCommand.ExecuteAsync(null);
+        await f.Vm.ActivateSelectedCommand.ExecuteAsync(null);
 
         Assert.Equal(0, f.Closes);
         Assert.True(f.Vm.IsToastError);
@@ -248,26 +277,26 @@ public class ExecuteTests
     }
 
     [AvaloniaFact]
-    public async Task WithNoExecutionEngine_NothingRuns()
+    public async Task WithNoExecutionEngine_AMarkedSnippetSaysSoRatherThanDoingNothing()
     {
-        // Mobile: no browser to hand a URL to and no shell to run a script in, so the
-        // command is inert rather than pretending.
         var f = NewVm(executable: false);
         f.Vm.FilterText = "? stuff";
 
-        await f.Vm.ExecuteCommand.ExecuteAsync(f.Vm.Filtered[0]);
+        await f.Vm.ActivateSelectedCommand.ExecuteAsync(null);
 
         Assert.Empty(f.Ran);
-        Assert.False(f.Vm.IsToastVisible);
+        Assert.Null(f.Copied);
+        Assert.True(f.Vm.IsToastError);
+        Assert.Contains("cannot run", f.Vm.ToastText);
     }
 
     [AvaloniaFact]
     public async Task TheClipboardMacroIsResolvedForTheEngineToo()
     {
         var f = NewVm(clipboard: "https://klippy.app/docs",
-            snippets: new Snippet { Label = "Open copied link", Content = "%C%" });
+            snippets: new Snippet { Label = "Open copied link", Content = "%C%", IsExecutable = true });
 
-        await f.Vm.ExecuteCommand.ExecuteAsync(f.Row("Open copied link"));
+        await f.Vm.ActivateCommand.ExecuteAsync(f.Row("Open copied link"));
 
         Assert.Equal("https://klippy.app/docs", Assert.Single(f.Ran).Target);
     }
@@ -284,16 +313,17 @@ public class ExecuteTests
         Assert.Equal(SearchUrl, f.Vm.Editor!.Content);
     }
 
-    // ---- what the row offers ----
+    // ---- what the row says ----
 
     [AvaloniaFact]
-    public void OnlyRowsWithSomethingToRun_OfferTheAction_AndSayWhichKeyRunsIt()
+    public void TheRowSaysWhatEnterWillDo()
     {
         var f = NewVm();
 
         f.Vm.FilterText = "google";
         Assert.True(f.Vm.Filtered[0].IsExecutable);
         Assert.Contains("run", f.Vm.Filtered[0].EnterHint);
+        Assert.Contains("copy", f.Vm.Filtered[0].EnterHint); // …and how to get its text
 
         f.Vm.FilterText = "docker";
         Assert.False(f.Vm.Filtered[0].IsExecutable);
@@ -301,31 +331,83 @@ public class ExecuteTests
     }
 
     [AvaloniaFact]
-    public async Task AClipCanBeRunToo_WhenWhatWasCopiedIsALink()
+    public void AClipIsNeverMarked_SoTheHistoryAlwaysCopies()
     {
+        // Clips carry no marker of their own — a link you copied is text until you save
+        // it as a snippet and mark it.
         var history = ClipHistoryStore.InMemory();
-        history.Add(new ClipEntry { Text = "docker system prune", SourceApp = "WindowsTerminal" });
         history.Add(new ClipEntry { Text = "https://github.com/seankearon/Klippy", SourceApp = "chrome" });
 
         var store = new SnippetStore(
             Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
         var vm = new MainViewModel(store, history);
-        var ran = new List<ExecutionPlan>();
-        vm.Executor = plan => { ran.Add(plan); return Task.FromResult(new ExecutionResult(true, plan.Description)); };
         vm.ShowHistory();
 
-        Assert.True(vm.Filtered[0].IsExecutable);   // newest first: the link
-        Assert.False(vm.Filtered[1].IsExecutable);  // the shell command is text to paste
+        Assert.False(vm.Filtered[0].IsExecutable);
+        Assert.Equal("↵ copy", vm.Filtered[0].EnterHint);
+    }
 
-        await vm.ExecuteCommand.ExecuteAsync(vm.Filtered[0]);
+    // ---- the editor ----
 
-        Assert.Equal("https://github.com/seankearon/Klippy", Assert.Single(ran).Target);
+    [AvaloniaFact]
+    public void TheMarkerIsEditedAndSaved_LikeTheMarkdownOne()
+    {
+        var f = NewVm();
+        f.Vm.FilterText = "docker";
+        var row = (SnippetViewModel)f.Vm.Filtered[0];
+
+        f.Vm.EditCommand.Execute(row);
+        var editor = f.Vm.Editor!;
+        Assert.False(editor.IsExecutable);
+
+        editor.Content = "https://example.com/build";
+        editor.IsExecutable = true;
+        editor.SaveCommand.Execute(null);
+
+        Assert.True(row.Model.IsExecutable);
+        Assert.True(row.IsExecutable); // the row follows the model it was given
+    }
+
+    [AvaloniaFact]
+    public void TheEditorSaysWhatTheMarkerWillMean_AndWarnsWhenNothingCouldRun()
+    {
+        var f = NewVm();
+        f.Vm.NewCommand.Execute(null);
+        var editor = f.Vm.Editor!;
+
+        editor.Content = "docker system prune -af";
+        Assert.False(editor.ExecuteHintIsWarning);
+        Assert.Contains("Copied to the clipboard", editor.ExecuteHint);
+
+        // Marked, but there is nothing here to run: better said now than as a toast later.
+        editor.IsExecutable = true;
+        Assert.True(editor.ExecuteHintIsWarning);
+        Assert.Contains("not a link or a script", editor.ExecuteHint);
+
+        editor.Content = "https://www.google.com/search?q=%P%";
+        Assert.False(editor.ExecuteHintIsWarning);
+        Assert.Contains("Opened or run", editor.ExecuteHint);
+    }
+
+    [AvaloniaFact]
+    public void TheMarkerSurvivesARoundTripThroughTheStore()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}.json");
+        var store = new SnippetStore(path, seedIfEmpty: false);
+        store.Add(new Snippet { Label = "Google search", Content = SearchUrl, IsExecutable = true });
+        store.Add(new Snippet { Label = "Docker prune", Content = "docker system prune" });
+
+        var reloaded = new SnippetStore(path, seedIfEmpty: false);
+
+        Assert.True(reloaded.Entries.First(e => e.Item.Label == "Google search").Item.IsExecutable);
+        // Absent in older files, and false is the safe reading of a missing marker.
+        Assert.False(reloaded.Entries.First(e => e.Item.Label == "Docker prune").Item.IsExecutable);
     }
 
     // ---- the keyboard ----
 
     [AvaloniaFact]
-    public void CtrlEnterRunsTheSelectedRow_WhereEnterCopiesIt()
+    public void EnterRunsAMarkedRow_AndCtrlEnterCopiesIt()
     {
         var f = NewVm();
         var window = new MainWindow { DataContext = f.Vm };
@@ -335,10 +417,34 @@ public class ExecuteTests
 
         f.Vm.FilterText = "? stuff";
 
-        window.KeyPress(Key.Enter, RawInputModifiers.Control, PhysicalKey.Enter, "\n");
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\n");
         Dispatcher.UIThread.RunJobs();
 
         Assert.Null(f.Copied); // it ran, rather than copying
         Assert.Equal("https://www.google.com/search?q=stuff", Assert.Single(f.Ran).Target);
+
+        window.KeyPress(Key.Enter, RawInputModifiers.Control, PhysicalKey.Enter, "\n");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Single(f.Ran); // still just the one run…
+        Assert.Equal("https://www.google.com/search?q=stuff", f.Copied); // …and now the text
+    }
+
+    [AvaloniaFact]
+    public void EnterCopiesAnUnmarkedRow_AsItAlwaysHas()
+    {
+        var f = NewVm();
+        var window = new MainWindow { DataContext = f.Vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        f.Attach();
+
+        f.Vm.FilterText = "docker";
+
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\n");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(f.Ran);
+        Assert.Equal("docker system prune -af --volumes", f.Copied);
     }
 }

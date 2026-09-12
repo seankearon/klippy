@@ -30,6 +30,9 @@ public partial class SnippetViewModel : RowViewModel
 
     public override IReadOnlyList<string> Arguments => _arguments;
 
+    /// <summary>Whether triggering the row runs the snippet instead of copying it.</summary>
+    public override bool IsExecutable => Model.IsExecutable;
+
     public string Tag => Model.Tag;
     public string QuickCode => Model.QuickCode;
     public bool HasQuickCode => Model.QuickCode.Length > 0;

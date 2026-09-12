@@ -180,8 +180,8 @@ public static partial class Macros
 
     /// <summary>
     /// The first argument of a line, without splitting the rest of it. Same rules as
-    /// <see cref="SplitArguments"/>, but a row asking "is there anything to run here?"
-    /// must not tokenize a whole snippet to find out.
+    /// <see cref="SplitArguments"/>, but asking "could this run at all?" must not
+    /// tokenize a whole snippet to find out.
     /// </summary>
     public static string FirstArgument(string? text)
     {
