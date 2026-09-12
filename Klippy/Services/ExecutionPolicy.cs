@@ -14,6 +14,9 @@ public enum ExecutionKind
 
     /// <summary>A script file, run by its interpreter.</summary>
     Script,
+
+    /// <summary>An application, started the way its platform starts one.</summary>
+    Application,
 }
 
 /// <summary>The platforms execution differs between. Passed in so the rules can be tested anywhere.</summary>
@@ -29,10 +32,13 @@ public sealed record ExecutionPlan
 {
     public ExecutionKind Kind { get; init; } = ExecutionKind.None;
 
-    /// <summary>The URL to open, or the path of the script to run.</summary>
+    /// <summary>The URL to open, or the path of the script or application to run.</summary>
     public string Target { get; init; } = "";
 
-    /// <summary>Arguments for a script. Always empty for a URL, which carries its own.</summary>
+    /// <summary>
+    /// Arguments for a script or an application. Always empty for a URL, which carries
+    /// its own.
+    /// </summary>
     public string[] Arguments { get; init; } = Array.Empty<string>();
 
     /// <summary>Why nothing can be run, when <see cref="Kind"/> is None. Shown to the user.</summary>
@@ -43,6 +49,7 @@ public sealed record ExecutionPlan
     {
         ExecutionKind.Url => "Opening " + Shorten(Target),
         ExecutionKind.Script => "Running " + ExecutionPolicy.FileNameOf(Target),
+        ExecutionKind.Application => "Starting " + ExecutionPolicy.ApplicationName(Target),
         _ => Problem,
     };
 
@@ -65,17 +72,21 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 /// a parameter rather than something read from the environment, so every rule below is
 /// testable on any machine. <see cref="ProcessLauncher"/> does the actual starting.
 ///
-/// Two things can be executed:
+/// Three things can be executed:
 ///
 /// <list type="bullet">
 /// <item><b>URLs</b> — http, https and mailto (and a bare <c>www.</c>, which gets an
 /// https in front of it, as a browser would). Opened in the default browser.</item>
 /// <item><b>Scripts</b> — <c>.bat</c>/<c>.cmd</c> on Windows only, <c>.ps1</c> and
 /// <c>.sh</c> everywhere, run with whatever is left on the line as arguments.</item>
+/// <item><b>Applications</b> — whatever the platform calls one: an <c>.exe</c> on
+/// Windows, an <c>.app</c> bundle on macOS, an <c>.AppImage</c> on Linux. Started with
+/// the rest of the line as arguments, as a shortcut on the desktop would.</item>
 /// </list>
 ///
-/// The allow-list is the point: an item that is neither is simply not executable, so
-/// Execute can never turn into "launch whatever program this text names".
+/// The allow-list is still the point, even now that it has applications on it: a
+/// snippet naming something that is none of the three is simply not executable, so a
+/// bare <c>docker system prune -af</c> is text however firmly it is marked to run.
 /// </summary>
 public static class ExecutionPolicy
 {
@@ -141,26 +152,49 @@ public static class ExecutionPolicy
         }
 
         var command = parts[0];
+        var rest = parts.GetRange(1, parts.Count - 1).ToArray();
 
-        if (ScriptExtension(command) is not { } extension)
-            return Nothing($"\"{Ellipsis(command)}\" is not a URL or a script Klippy can run.");
+        // Something carrying a scheme is not a path, whatever it happens to end in:
+        // file:///C:/Windows/System32/cmd.exe names an .exe without being one, and
+        // javascript: names nothing at all. Neither survived the URL allow-list above,
+        // and neither may sneak back in through the extension rules below.
+        if (HasScheme(command))
+            return Nothing($"\"{Ellipsis(command)}\" is not a URL Klippy can open.");
 
-        if (!Supports(extension, os))
-            return Nothing($"{extension} scripts only run on Windows.");
-
-        var scriptArguments = parts.GetRange(1, parts.Count - 1).ToArray();
-
-        if (IsBatch(extension) && FindUnsafeArgument(scriptArguments) is { } unsafeArgument)
-            return Nothing(
-                $"\"{Ellipsis(unsafeArgument)}\" cannot be passed to a {extension} file: " +
-                $"cmd.exe would read {CmdMetaCharacters} as commands rather than text.");
-
-        return new ExecutionPlan
+        if (ScriptExtension(command) is { } script)
         {
-            Kind = ExecutionKind.Script,
-            Target = command,
-            Arguments = scriptArguments,
-        };
+            if (!Supports(script, os))
+                return Nothing($"{script} scripts only run on Windows.");
+
+            if (IsBatch(script) && FindUnsafeArgument(rest) is { } unsafeArgument)
+                return Nothing(
+                    $"\"{Ellipsis(unsafeArgument)}\" cannot be passed to a {script} file: " +
+                    $"cmd.exe would read {CmdMetaCharacters} as commands rather than text.");
+
+            return new ExecutionPlan
+            {
+                Kind = ExecutionKind.Script,
+                Target = command,
+                Arguments = rest,
+            };
+        }
+
+        if (ApplicationExtension(command) is { } application)
+        {
+            if (HomeOf(application) is { } home && home != os)
+                return Nothing($"{application} applications only run on {NameOf(home)}.");
+
+            return new ExecutionPlan
+            {
+                Kind = ExecutionKind.Application,
+                // A bundle is a directory, so its path can arrive with the trailing
+                // separator a shell's tab-completion leaves behind.
+                Target = command.TrimEnd(PathSeparators),
+                Arguments = rest,
+            };
+        }
+
+        return Nothing($"\"{Ellipsis(command)}\" is not a URL, an application or a script Klippy can run.");
     }
 
     /// <summary>
@@ -180,8 +214,12 @@ public static class ExecutionPolicy
 
         if (Macros.IsPresent(first)) return true;
         if (AsUrl(first) is not null) return true;
+        if (HasScheme(first)) return false; // a scheme the allow-list above turned down
 
-        return ScriptExtension(first) is { } extension && Supports(extension, platform ?? CurrentPlatform);
+        var os = platform ?? CurrentPlatform;
+        if (ScriptExtension(first) is { } script) return Supports(script, os);
+
+        return ApplicationExtension(first) is { } application && Supports(application, os);
     }
 
     /// <summary>
@@ -207,8 +245,33 @@ public static class ExecutionPolicy
             _ => new LaunchCommand("xdg-open", new[] { plan.Target }),
         },
         ExecutionKind.Script => ScriptCommand(plan, platform, isExecutable),
+        ExecutionKind.Application => ApplicationCommand(plan, platform),
         _ => null,
     };
+
+    private static LaunchCommand? ApplicationCommand(ExecutionPlan plan, ExecutionPlatform platform) =>
+        ApplicationExtension(plan.Target) switch
+        {
+            // Started directly, with its arguments as arguments — no shell reads this
+            // line, so a macro's value can never become a second command. Directly also
+            // means Windows resolves a bare "notepad.exe" on PATH, as Run would.
+            ".exe" when platform == ExecutionPlatform.Windows =>
+                new LaunchCommand(plan.Target, [.. plan.Arguments]),
+
+            // A bundle is a directory rather than a program: `open` is what knows which
+            // executable inside it to start, and -a takes the bundle's own path. What
+            // follows --args reaches the application as its argv.
+            ".app" when platform == ExecutionPlatform.MacOS => plan.Arguments.Length == 0
+                ? new LaunchCommand("open", ["-a", plan.Target])
+                : new LaunchCommand("open", ["-a", plan.Target, "--args", .. plan.Arguments]),
+
+            // An AppImage is one executable file and runs itself; without the execute bit
+            // there is nothing to hand it to, and the start fails saying so.
+            ".appimage" when platform == ExecutionPlatform.Linux =>
+                new LaunchCommand(plan.Target, [.. plan.Arguments]),
+
+            _ => null,
+        };
 
     private static LaunchCommand? ScriptCommand(
         ExecutionPlan plan,
@@ -261,6 +324,49 @@ public static class ExecutionPolicy
     }
 
     /// <summary>
+    /// What each platform calls an application, and the one platform it runs on. An
+    /// <c>.exe</c> is no more startable on a Mac than a <c>.bat</c> is, so each entry
+    /// carries its home rather than being allowed everywhere.
+    /// </summary>
+    private static readonly (string Extension, ExecutionPlatform Platform)[] Applications =
+    {
+        (".exe", ExecutionPlatform.Windows),
+        (".app", ExecutionPlatform.MacOS),
+        (".appimage", ExecutionPlatform.Linux),
+    };
+
+    /// <summary>The application types Klippy starts, or null for anything else.</summary>
+    public static string? ApplicationExtension(string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return null;
+
+        // A macOS bundle is a directory, so its path may carry the trailing separator a
+        // shell's tab-completion leaves behind.
+        var name = FileNameOf(token.TrimEnd(PathSeparators));
+        int dot = name.LastIndexOf('.');
+        if (dot <= 0) return null; // ".app" on its own is a hidden file, not an application
+
+        var extension = name[dot..].ToLowerInvariant();
+        return HomeOf(extension) is null ? null : extension;
+    }
+
+    /// <summary>The platform an application extension belongs to, or null if it is not one.</summary>
+    private static ExecutionPlatform? HomeOf(string extension)
+    {
+        foreach (var (candidate, platform) in Applications)
+            if (extension == candidate) return platform;
+        return null;
+    }
+
+    /// <summary>An application as a person names it: Safari, not Safari.app.</summary>
+    internal static string ApplicationName(string path)
+    {
+        var name = FileNameOf(path.TrimEnd(PathSeparators));
+        int dot = name.LastIndexOf('.');
+        return dot > 0 ? name[..dot] : name;
+    }
+
+    /// <summary>
     /// The last segment of a path, cut at either separator. Not Path.GetFileName, which
     /// only knows the separator of the machine it is running on — a Windows path named
     /// in a snippet has to read the same when Klippy is looking at it from a Mac.
@@ -278,7 +384,9 @@ public static class ExecutionPolicy
     {
         ".bat" or ".cmd" => platform == ExecutionPlatform.Windows,
         ".ps1" or ".sh" => true,
-        _ => false,
+        // An application runs on its own platform and nowhere else; anything that is
+        // neither script nor application has no home, and so never runs anywhere.
+        _ => HomeOf(extension) == platform,
     };
 
     /// <summary>
@@ -299,6 +407,32 @@ public static class ExecutionPolicy
             ? "https://" + token
             : null;
     }
+
+    /// <summary>
+    /// Whether a word opens with a scheme — <c>file:</c>, <c>javascript:</c>, anything
+    /// the URL allow-list above already declined — rather than naming a path. A path may
+    /// carry a colon, but only ever as a Windows drive letter, so that is the one shape
+    /// let through.
+    /// </summary>
+    private static bool HasScheme(string token)
+    {
+        int colon = token.IndexOf(':');
+        if (colon <= 0 || !char.IsAsciiLetter(token[0])) return false;
+        if (colon == 1) return false; // C:\tools\build.ps1
+
+        for (int i = 1; i < colon; i++)
+            if (!char.IsAsciiLetterOrDigit(token[i]) && token[i] is not ('+' or '-' or '.'))
+                return false;
+
+        return true;
+    }
+
+    private static string NameOf(ExecutionPlatform platform) => platform switch
+    {
+        ExecutionPlatform.Windows => "Windows",
+        ExecutionPlatform.MacOS => "macOS",
+        _ => "Linux",
+    };
 
     private static ExecutionPlan UrlPlan(string token)
     {

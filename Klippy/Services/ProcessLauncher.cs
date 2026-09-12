@@ -13,8 +13,9 @@ public sealed record ExecutionResult(bool Started, string Message)
 }
 
 /// <summary>
-/// Starts what <see cref="ExecutionPolicy"/> decided on — the half of execution that
-/// touches the machine, kept apart from the rules so those stay testable.
+/// Starts what <see cref="ExecutionPolicy"/> decided on — a link, a script or an
+/// application — the half of execution that touches the machine, kept apart from the
+/// rules so those stay testable.
 ///
 /// Arguments are always handed over as a list rather than as one command line, so a
 /// macro's value is an argument and can never become a second command. The exception
@@ -31,10 +32,8 @@ public static class ProcessLauncher
         if (plan.Kind == ExecutionKind.None)
             return ExecutionResult.Failed(plan.Problem);
 
-        // A missing script deserves saying so plainly, rather than as whatever the
-        // interpreter would have complained about in a window that closes instantly.
-        if (plan.Kind == ExecutionKind.Script && !File.Exists(plan.Target))
-            return ExecutionResult.Failed($"Script not found: {plan.Target}");
+        if (Missing(plan) is { } absent)
+            return ExecutionResult.Failed(absent);
 
         if (ExecutionPolicy.Resolve(plan, ExecutionPolicy.CurrentPlatform, IsExecutable) is not { } command)
             return ExecutionResult.Failed("Klippy cannot run that on this platform.");
@@ -47,8 +46,10 @@ public static class ProcessLauncher
         foreach (var argument in command.Arguments)
             start.ArgumentList.Add(argument);
 
-        // Scripts are written expecting to run from their own folder.
-        if (plan.Kind == ExecutionKind.Script && DirectoryOf(plan.Target) is { } directory)
+        // A script is written expecting to run from its own folder, and an application
+        // started from its folder is what double-clicking one does.
+        if (plan.Kind is ExecutionKind.Script or ExecutionKind.Application
+            && DirectoryOf(plan.Target) is { } directory)
             start.WorkingDirectory = directory;
 
         try
@@ -64,6 +65,27 @@ public static class ProcessLauncher
             return ExecutionResult.Failed($"Could not run {command.FileName}: {e.Message}");
         }
     }
+
+    /// <summary>
+    /// Why the target cannot be there to start, or null if there is no reason to think
+    /// it is missing. Only asked where the answer would otherwise arrive as a console
+    /// window that closes before it can be read: an interpreter complaining about a
+    /// script it was not given, or `open` complaining about a bundle. An .exe is started
+    /// directly, so a missing one comes back as a Win32 error below — and may anyway be
+    /// a bare name for Windows to find on PATH rather than a path to look up here.
+    /// </summary>
+    private static string? Missing(ExecutionPlan plan) => plan.Kind switch
+    {
+        ExecutionKind.Script when !File.Exists(plan.Target) =>
+            $"Script not found: {plan.Target}",
+
+        // A macOS bundle is a directory, so that is what answers for it.
+        ExecutionKind.Application when ExecutionPolicy.ApplicationExtension(plan.Target) == ".app"
+                                      && !Directory.Exists(plan.Target) =>
+            $"Application not found: {plan.Target}",
+
+        _ => null,
+    };
 
     private static bool IsExecutable(string path)
     {

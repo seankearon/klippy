@@ -52,7 +52,7 @@ public partial class EditorViewModel : ViewModelBase
         !IsExecutable ? "Copied to the clipboard when triggered, as usual"
         : ExecutionPolicy.LooksExecutable(Content)
             ? $"Opened or run when triggered — {CopyKeyHint} still copies it"
-            : "This is not a link or a script Klippy can run, so triggering it will say so";
+            : "This is not a link, an application or a script Klippy can run, so triggering it will say so";
 
     public bool ExecuteHintIsWarning => IsExecutable && !ExecutionPolicy.LooksExecutable(Content);
 

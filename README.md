@@ -22,8 +22,8 @@ The index is precomputed, lowercased words per snippet
 scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy — or to
-[run](#running-things-links-scripts-and-macros) a snippet marked for it — `Ctrl/⌘+Enter`
-to copy one of those anyway, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
+[run](#running-things-links-scripts-applications-and-macros) a snippet marked for it —
+`Ctrl/⌘+Enter` to copy one of those anyway, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `Esc`
@@ -52,14 +52,14 @@ or via the Duplicate button in the edit overlay (the route on mobile: swipe → 
 Duplicate). A duplicate opens prefilled as a new snippet with " (copy)" appended to the
 label; the quick-code is deliberately not copied so codes stay unique.
 
-## Running things: links, scripts and macros
+## Running things: links, scripts, applications and macros
 
-Some snippets are not text you want to paste — they are a link you want open, or a
-script you want run. A snippet can be marked **Execute** in the editor (WHEN TRIGGERED →
-Execute), exactly as it can be marked Markdown, and then triggering it — `Enter`, a
-click, a tap — runs it instead of copying it. Without the marker nothing runs: Klippy
-never decides on its own that a snippet looks like a link and should therefore be
-launched.
+Some snippets are not text you want to paste — they are a link you want open, a script
+you want run, or an application you want started. A snippet can be marked **Execute** in
+the editor (WHEN TRIGGERED → Execute), exactly as it can be marked Markdown, and then
+triggering it — `Enter`, a click, a tap — runs it instead of copying it. Without the
+marker nothing runs: Klippy never decides on its own that a snippet looks like a link
+and should therefore be launched.
 
 Marked rows show a small amber `run` marker, the way Markdown ones show `md`, and their
 primary hover action becomes **▷** rather than the copy glyph. `Ctrl/⌘+Enter` always
@@ -74,12 +74,26 @@ What a marked snippet can run is a short allow-list, checked against its first w
 | `*.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` on Windows, `pwsh -NoProfile -File` elsewhere |
 | `*.sh` | The script itself where it is executable, so its `#!` line chooses; otherwise `/bin/sh`. `bash.exe` (Git Bash, WSL) on Windows |
 | `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only** |
+| `*.exe` | Started directly, arguments and all — **Windows only** |
+| `*.app` | `open -a`, which knows which executable inside the bundle to start — **macOS only** |
+| `*.AppImage` | The image itself, which runs itself — **Linux only** |
 | anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
 
-Everything after the first word is passed to the script as arguments, quotes grouping
-the words that belong together: `deploy.ps1 --env "west europe"` passes two arguments,
-not three. Scripts run from their own folder, which is where a script normally expects
-to be.
+The last three are what each platform calls an application, and each runs only at home:
+an `.exe` is no more startable on a Mac than a `.bat` is, and marking one there warns
+you in the editor rather than failing at the press of Enter.
+
+Everything after the first word is passed to the script or application as arguments,
+quotes grouping the words that belong together: `deploy.ps1 --env "west europe"` passes
+two arguments, not three. That is also how a path with a space in it stays one path —
+
+```
+"C:\Program Files\Klippy\Klippy.Desktop.exe" --minimised
+```
+
+— and without the quotes the first word is `C:\Program`, which names nothing. Scripts and
+applications alike run from their own folder, which is where each normally expects to be,
+and a bare `notepad.exe` is left to Windows to find on `PATH`, as Run would.
 
 ### Macros
 
@@ -118,8 +132,8 @@ at that moment, and only when the snippet actually carries one: a row previews i
 `%P%` expansion as you type, but Klippy never reads your clipboard to draw a list.
 
 A `%C%` can carry the whole command — a snippet of just `%C%`, marked Execute, runs
-whatever is on the clipboard, link or script path and switches alike, which is the other
-half of the clipboard history.
+whatever is on the clipboard, link or script or application path and switches alike,
+which is the other half of the clipboard history.
 
 ### What running something will not do
 
@@ -128,9 +142,15 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
 - **Nothing runs unmarked.** The marker is stored on the snippet and defaults to off, so
   every snippet that exists today — and every one an import brings in — goes on being
   copied.
-- **Only the allow-list above runs.** `file:` URLs, `javascript:` and bare executable
-  paths are not runnable — Execute can never become "launch whatever program this text
-  names".
+- **Only the allow-list above runs.** A snippet naming something that is neither link,
+  script nor application is not runnable however firmly it is marked, so `docker system
+  prune -af` stays text. A scheme is not a path whatever it ends in, either:
+  `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
+  refused along with `javascript:`.
+- **An application is a program, and starting one is starting a program.** That is the
+  point of the feature and also its edge: a snippet of `%C%` marked Execute will start
+  whatever application path is on the clipboard, `cmd.exe` and its switches included. The
+  marker is the gate — it is stored per snippet, defaults to off, and you put it there.
 - **Arguments are passed as arguments**, never as a command line a shell re-reads. A
   `%C%` holding `; rm -rf ~` is one argument to the script, and stays one.
 - **Except for `.bat`**, which `cmd.exe` re-parses after .NET has quoted it. An argument
@@ -140,10 +160,10 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
   with it, since the script is one you keep in Klippy and have just asked for by name.
 
-Running something dismisses the window, as copying can: the browser or the script is
-where you are going next. On a phone a marked link opens in the mobile browser; a marked
-script says there is no shell to run it in rather than doing nothing, and `%C%` and
-`%P%` expand on a copy there as they do everywhere.
+Running something dismisses the window, as copying can: the browser, the script or the
+application is where you are going next. On a phone a marked link opens in the mobile
+browser; a marked script or application says there is nothing to run it in rather than
+doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
 
 ## Markdown snippets (pasting into rich-text editors)
 
@@ -337,8 +357,9 @@ speak DIB will not see it.
 
 Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
 (opens the editor prefilled — the clip stays put), **delete**, and **copy**.
-A clip carries no [Execute marker](#running-things-links-scripts-and-macros), so the
-history always copies; save a clip as a snippet and mark that if you want to run it. Deleting a
+A clip carries no
+[Execute marker](#running-things-links-scripts-applications-and-macros), so the history
+always copies; save a clip as a snippet and mark that if you want to run it. Deleting a
 clip asks for no confirmation, unlike deleting a snippet: a clip is transient by nature
 and the next copy makes another. The footer's **clear history** empties everything
 except pinned clips.
