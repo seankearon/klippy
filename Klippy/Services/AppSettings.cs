@@ -58,6 +58,13 @@ public sealed class AppSettings
     public string[] HistoryExcludedApps { get; set; } = Array.Empty<string>();
 
     /// <summary>
+    /// How many typed command lines the MRU keeps — the lines recalled with the down
+    /// arrow. Zero turns it off and forgets the ones already recorded, which is the
+    /// answer for anyone who would rather not have a written record of what they type.
+    /// </summary>
+    public int CommandHistoryLimit { get; set; } = CommandHistory.DefaultCapacity;
+
+    /// <summary>
     /// Whether copying a Markdown snippet also puts an HTML flavour on the clipboard.
     /// Off makes a Markdown snippet copy as its raw source everywhere — what you want
     /// when the target is another Markdown editor rather than a rich-text box.

@@ -207,11 +207,13 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Down:
-                vm.MoveSelection(1);
+                // The MRU while it is open — and, from an empty search box, the key that
+                // opens it. Otherwise the list, as it has always been.
+                vm.Navigate(1);
                 e.Handled = true;
                 break;
             case Key.Up:
-                vm.MoveSelection(-1);
+                vm.Navigate(-1);
                 e.Handled = true;
                 break;
             case Key.Enter:
@@ -233,6 +235,22 @@ public partial class MainWindow : Window
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// Clicking a command in the MRU takes it as the line to work with rather than
+    /// running it: the text is already in the box (the click selected it), so this only
+    /// puts the list away and hands the keyboard back to the search box. Recalling a
+    /// command you want to edit before running it is the common case, and running one is
+    /// then the Enter it always was.
+    /// </summary>
+    private void CommandTapped(object? sender, TappedEventArgs e)
+    {
+        if (Vm is not { } vm) return;
+        vm.AcceptCommand();
+        SearchBox.Focus();
+        SearchBox.CaretIndex = SearchBox.Text?.Length ?? 0;
+        e.Handled = true;
     }
 
     /// <summary>
