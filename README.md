@@ -47,6 +47,18 @@ CONTENT field more room, and it reopens at that size. Clicking the dimmed area b
 it does nothing on purpose — leaving an edit takes `Esc` or Cancel, so a stray click
 cannot discard it.
 
+A snippet carries a single **tag**, and the editor shows the tags already in use under
+the TAG field (EXISTING TAGS) so a snippet joins one of them rather than quietly coining
+`wrk` beside `work` — a typo there costs a chip in the filter row and hides the snippet
+from the tag it belonged to. Click a tag to fill the field; click the highlighted one
+again to clear it, which is how a tagged snippet goes back to untagged without the
+keyboard. Typing still creates a new tag: a part-typed entry narrows the chips to the
+tags it could still become, and an entry that is already a tag shows the whole set again
+so the next click can move the snippet elsewhere. A long list is capped at three rows and
+scrolls, with the snippet's own tag scrolled into view. The chips sit out of the tab
+order — the TAG box is the keyboard route, and tabbing through a dozen of them to reach
+QUICK-CODE would cost more than they give.
+
 Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on desktop,
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
 Duplicate). A duplicate opens prefilled as a new snippet with " (copy)" appended to the
