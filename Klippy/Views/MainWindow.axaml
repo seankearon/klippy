@@ -198,8 +198,11 @@
                         <Border Classes="enterBadge"
                                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                          <!-- one badge rather than two, so a row that cannot be run is
+                               not left with the gap where a second one would have sat -->
                           <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
+                                     Foreground="{StaticResource AccentBrush}"
+                                     Text="{Binding EnterHint}" />
                         </Border>
                       </StackPanel>
 
@@ -233,6 +236,18 @@
                           <Viewbox Width="12" Height="12">
                             <Grid Width="24" Height="24">
                               <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
+                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                            </Grid>
+                          </Viewbox>
+                        </Button>
+                        <!-- run: only where there is something to run — a link, or a
+                             script this platform can start -->
+                        <Button Classes="icon" IsVisible="{Binding IsExecutable}"
+                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ExecuteCommand}"
+                                CommandParameter="{Binding}">
+                          <Viewbox Width="12" Height="12">
+                            <Grid Width="24" Height="24">
+                              <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource AccentBrush}"
                                     StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
                             </Grid>
                           </Viewbox>
@@ -347,8 +362,11 @@
                         <Border Classes="enterBadge"
                                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                          <!-- one badge rather than two, so a row that cannot be run is
+                               not left with the gap where a second one would have sat -->
                           <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
+                                     Foreground="{StaticResource AccentBrush}"
+                                     Text="{Binding EnterHint}" />
                         </Border>
                       </StackPanel>
 
@@ -388,6 +406,18 @@
                           <Viewbox Width="12" Height="12">
                             <Grid Width="24" Height="24">
                               <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
+                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                            </Grid>
+                          </Viewbox>
+                        </Button>
+                        <!-- run: only where there is something to run — a link, or a
+                             script this platform can start -->
+                        <Button Classes="icon" IsVisible="{Binding IsExecutable}"
+                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ExecuteCommand}"
+                                CommandParameter="{Binding}">
+                          <Viewbox Width="12" Height="12">
+                            <Grid Width="24" Height="24">
+                              <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource AccentBrush}"
                                     StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
                             </Grid>
                           </Viewbox>
@@ -488,10 +518,15 @@
         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
           <Grid Width="24" Height="24">
             <Path Data="{StaticResource IconCheck}" Stroke="{StaticResource AccentBrush}"
-                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round" />
+                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round"
+                  IsVisible="{Binding !IsToastError}" />
+            <Path Data="{StaticResource IconAlert}" Stroke="{StaticResource DangerBrush}"
+                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                  IsVisible="{Binding IsToastError}" />
           </Grid>
         </Viewbox>
-        <TextBlock Text="Copied to clipboard" FontSize="11"
+        <TextBlock Text="{Binding ToastText}" FontSize="11" MaxWidth="420"
+                   TextWrapping="Wrap"
                    Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
       </StackPanel>
     </Border>

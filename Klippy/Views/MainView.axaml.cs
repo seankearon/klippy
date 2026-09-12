@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Klippy.Services;
 using Klippy.ViewModels;
@@ -43,7 +44,12 @@ public partial class MainView : UserControl
         if (TopLevel.GetTopLevel(this) is not { } top) return;
 
         if (Vm is { } vm)
+        {
             vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(top.Clipboard, payload);
+            // %C% works on mobile because a copy can still read the clipboard; there is
+            // no Executor here, so nothing is ever run.
+            vm.ClipboardReader = () => top.Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
+        }
 
         // Keep content clear of notches/status bars and match the system bars to the theme.
         if (top.InsetsManager is { } insets)

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Klippy.Services;
@@ -42,7 +43,13 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         if (Vm is { } vm)
+        {
             vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
+            vm.ClipboardReader = () => Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
+            // Only the desktop head can open a browser or start a script, so this is
+            // where execution is wired in — the shared view model only asks for it.
+            vm.Executor = ProcessLauncher.RunAsync;
+        }
         SearchBox.Focus();
     }
 
@@ -175,6 +182,12 @@ public partial class MainWindow : Window
                     return;
                 case Key.OemComma:
                     vm.OpenSettingsCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case Key.Enter:
+                    // Enter copies, Cmd/Ctrl+Enter runs — the same key, the same row, and
+                    // the modifier says which of the two you meant.
+                    vm.ExecuteSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
             }

@@ -104,6 +104,18 @@ public sealed class SnippetStore
     public List<SnippetSearch.Entry<Snippet>> Search(string? query) => SnippetSearch.Search(_entries, query);
 
     /// <summary>
+    /// The snippet whose quick-code is exactly <paramref name="code"/>, or null. Exact
+    /// rather than prefix, because this is what turns "code argument…" into an
+    /// invocation: a prefix would hijack every ordinary two-word search whose first word
+    /// happens to start with somebody's quick-code.
+    /// </summary>
+    public Snippet? FindByQuickCode(string? code) =>
+        string.IsNullOrEmpty(code)
+            ? null
+            : _snippets.Find(s => s.QuickCode.Length > 0 &&
+                                  string.Equals(s.QuickCode, code, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Writes snippets to <paramref name="destination"/> as JSON — the same shape as the
     /// store file, so an export is also a valid backup. Returns the number written.
     /// </summary>
@@ -256,6 +268,9 @@ public sealed class SnippetStore
         yield return Make("Work email", "sam.rivera@northwind.io", "work", "we");
         yield return Make("Home address", "Lindenstraße 24, 10969 Berlin", "personal");
         yield return Make("Meeting link — standup", "https://meet.example.com/j/882-441-veo", "work", "ms");
+        // Demonstrates both halves of execution: a link to run, and a %P% to fill —
+        // "? some words" in the search box searches for them.
+        yield return Make("Google search", "https://www.google.com/search?q=%P%", "web", "?");
         yield return Make("Canned reply — out of office",
             "Hi,\nI'm out of office until Monday, Aug 31 with limited email access.\nFor urgent matters contact ops@klippy.app.",
             "work", "ooo", isMarkdown: true);

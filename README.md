@@ -22,6 +22,7 @@ The index is precomputed, lowercased words per snippet
 scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy,
+`Ctrl/⌘+Enter` to [run](#running-things-links-scripts-and-macros) it,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `Esc`
@@ -43,6 +44,93 @@ Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
 Duplicate). A duplicate opens prefilled as a new snippet with " (copy)" appended to the
 label; the quick-code is deliberately not copied so codes stay unique.
+
+## Running things: links, scripts and macros
+
+Some snippets are not text you want to paste — they are a link you want open, or a
+script you want run. Those rows carry a **▷** in their hover actions, and
+`Ctrl/⌘+Enter` runs the selected one where `Enter` copies it. The selected row's badge
+says which it offers: `↵ copy` on its own, or `↵ copy · Ctrl+↵ run` where there is
+something to run. Clips can be run too, so a link you copied an hour ago opens from the
+history without a round trip through the browser's address bar.
+
+What counts as runnable is a short allow-list, checked against the first word of the
+item:
+
+| Item starts with | Runs as |
+|---|---|
+| `http://`, `https://`, `mailto:`, or a bare `www.` | Opened in the default browser |
+| `*.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` on Windows, `pwsh -NoProfile -File` elsewhere |
+| `*.sh` | The script itself where it is executable, so its `#!` line chooses; otherwise `/bin/sh`. `bash.exe` (Git Bash, WSL) on Windows |
+| `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only**, and the row does not offer to run one anywhere else |
+| anything else | Nothing. The ▷ is simply not there, and `Ctrl/⌘+Enter` says why |
+
+Everything after the first word is passed to the script as arguments, quotes grouping
+the words that belong together: `deploy.ps1 --env "west europe"` passes two arguments,
+not three. Scripts run from their own folder, which is where a script normally expects
+to be.
+
+### Macros
+
+An item's text can carry placeholders, filled in when it is copied or run:
+
+| Macro | Expands to |
+|---|---|
+| `%P%` | A positional argument — what you typed after the quick-code |
+| `%C%` | Whatever text is on the clipboard right now |
+
+Say a snippet holds `https://www.google.com/search?q=%P%` behind the quick-code `?`.
+Typing
+
+```
+? stuff
+```
+
+shows `https://www.google.com/search?q=stuff` on the row — the expansion, before you
+have committed to anything — and `Enter` copies exactly that. The *last* `%P%` takes
+every argument still unused, so `? cats and dogs` searches for the phrase rather than
+throwing two thirds of it away. A placeholder with nothing to fill it expands to
+nothing: half a typed invocation never leaves `%P%` on the clipboard.
+
+A line is only read as an invocation when its first word is **exactly** somebody's
+quick-code and something follows it. Otherwise it is the ordinary search it has always
+been — a prefix match would hijack every two-word search whose first word happened to
+start with a quick-code.
+
+`Ctrl/⌘+Enter` on the same line runs it. The execution engine is handed the item as
+stored *and* the arguments — `https://www.google.com/search?q=%P%` and `stuff` — rather
+than the finished string, because only it knows where each value is about to land: a
+URL's query string gets `cats%20and%20dogs`, a script's argument list gets
+`cats and dogs`. `%C%` is read once, at that moment, and only when the item actually
+carries one: a row previews its own `%P%` expansion as you type, but Klippy never reads
+your clipboard to draw a list.
+
+A `%C%` can carry the whole command — an item of just `%C%` runs whatever is on the
+clipboard, link or script path and switches alike, which is the other half of the
+clipboard history.
+
+### What running something will not do
+
+Running a snippet is running code, so the edges are drawn deliberately tightly:
+
+- **Only the allow-list above runs.** `file:` URLs, `javascript:` and bare executable
+  paths are not runnable — Execute can never become "launch whatever program this text
+  names".
+- **Arguments are passed as arguments**, never as a command line a shell re-reads. A
+  `%C%` holding `; rm -rf ~` is one argument to the script, and stays one.
+- **Except for `.bat`**, which `cmd.exe` re-parses after .NET has quoted it. An argument
+  carrying `& | < > ^ " %` is refused with a message instead, because pretending to
+  escape it would be a lie.
+- **Nothing runs on its own.** A snippet is only ever run by the ▷ button or
+  `Ctrl/⌘+Enter` on that row; copying, importing and searching never run anything.
+- `-File` rather than `-Command` for PowerShell, for the same reason: the arguments stay
+  arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
+  with it, since the script is one you keep in Klippy and have just asked for by name.
+
+Running something dismisses the window, as copying can: the browser or the script is
+where you are going next. Mobile has no Execute action — it has neither a shell to run
+a script in nor a launcher to dismiss to — but `%C%` and `%P%` still expand on a copy
+there.
 
 ## Markdown snippets (pasting into rich-text editors)
 
@@ -235,7 +323,9 @@ which browsers, Office and chat clients accept, but a few paint-style apps that 
 speak DIB will not see it.
 
 Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
-(opens the editor prefilled — the clip stays put), **delete**, and **copy**. Deleting a
+(opens the editor prefilled — the clip stays put), **delete**, **copy**, and — where
+what you copied was a link — **run** it
+([executing items](#running-things-links-scripts-and-macros)). Deleting a
 clip asks for no confirmation, unlike deleting a snippet: a clip is transient by nature
 and the next copy makes another. The footer's **clear history** empties everything
 except pinned clips.
