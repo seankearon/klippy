@@ -65,11 +65,13 @@ public class ExecutionTests
     {
         Assert.Equal(ExecutionKind.Url, Plan("mailto:ops@klippy.app").Kind);
 
-        // file: and friends are programs waiting to be launched under another name; the
-        // allow-list is what keeps Execute from becoming "run whatever this text says".
+        // A scheme is not a path, however it ends: the .exe on the end of this one does
+        // not make it the application rules' business, and javascript: names nothing.
         Assert.Equal(ExecutionKind.None, Plan(@"file:///C:/Windows/System32/cmd.exe").Kind);
-        Assert.Equal(ExecutionKind.None, Plan(@"C:\Windows\System32\cmd.exe").Kind);
         Assert.Equal(ExecutionKind.None, Plan("javascript:alert(1)").Kind);
+
+        // A drive letter is the one colon a path may carry, and it stays a path.
+        Assert.Equal(ExecutionKind.Application, Plan(@"C:\Windows\System32\cmd.exe").Kind);
     }
 
     [Fact]
@@ -78,7 +80,7 @@ public class ExecutionTests
         var plan = Plan("Best regards, Sam Rivera · Klippy Support");
 
         Assert.Equal(ExecutionKind.None, plan.Kind);
-        Assert.Contains("not a URL or a script", plan.Problem);
+        Assert.Contains("not a URL, an application or a script", plan.Problem);
     }
 
     [Fact]
@@ -172,6 +174,80 @@ public class ExecutionTests
         Assert.Equal("There is nothing to run.", Plan("%P%").Problem);
     }
 
+    // ---- applications ----
+
+    [Fact]
+    public void AnApplicationPathStarts_WithTheRestOfTheLineAsArguments()
+    {
+        // The feature request's own example: a program named by its full path, quoted
+        // because "Program Files" has a space in it and is one path all the same.
+        var plan = Plan(@"""C:\Program Files\Klippy\Klippy.Desktop.exe"" --minimised");
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal(@"C:\Program Files\Klippy\Klippy.Desktop.exe", plan.Target);
+        Assert.Equal(new[] { "--minimised" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void AnApplicationTakesItsArgumentsFromTheMacrosToo()
+    {
+        var plan = Plan(@"C:\tools\editor.exe %P%", new[] { "notes from today" });
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal(new[] { "notes from today" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void EachPlatformStartsOnlyItsOwnKindOfApplication()
+    {
+        Assert.Equal(ExecutionKind.Application, Plan(@"C:\apps\klippy.exe").Kind);
+        Assert.Equal(ExecutionKind.Application,
+            Plan("/Applications/Klippy.app", platform: ExecutionPlatform.MacOS).Kind);
+        Assert.Equal(ExecutionKind.Application,
+            Plan("/opt/Klippy.AppImage", platform: ExecutionPlatform.Linux).Kind);
+
+        // An .exe is no more startable on a Mac than a .bat is, and says so the same way.
+        var onMac = Plan(@"C:\apps\klippy.exe", platform: ExecutionPlatform.MacOS);
+        Assert.Equal(ExecutionKind.None, onMac.Kind);
+        Assert.Contains(".exe applications only run on Windows", onMac.Problem);
+
+        Assert.Contains("only run on macOS",
+            Plan("/Applications/Klippy.app", platform: ExecutionPlatform.Linux).Problem);
+        Assert.Contains("only run on Linux",
+            Plan("/opt/Klippy.AppImage", platform: ExecutionPlatform.Windows).Problem);
+    }
+
+    [Fact]
+    public void ABundlesTrailingSeparatorIsTrimmed()
+    {
+        // A bundle is a directory, so its path arrives from a shell's tab-completion
+        // with the separator still on the end.
+        var plan = Plan("/Applications/Klippy.app/", platform: ExecutionPlatform.MacOS);
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("/Applications/Klippy.app", plan.Target);
+    }
+
+    [Fact]
+    public void AMacroMayCarryAWholeApplicationCommandLine()
+    {
+        var plan = Plan("%C%", clipboardText: @"C:\apps\klippy.exe --minimised");
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal(@"C:\apps\klippy.exe", plan.Target);
+        Assert.Equal(new[] { "--minimised" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void SomethingThatOnlyEndsInAnApplicationExtension_IsStillNotOne()
+    {
+        // The extension is read off the last path segment, so a folder called .app or a
+        // hidden file named for one is not an application.
+        Assert.Equal(ExecutionKind.None, Plan(".exe").Kind);
+        Assert.Equal(ExecutionKind.None, Plan("/Applications/.app", platform: ExecutionPlatform.MacOS).Kind);
+        Assert.Equal(ExecutionKind.None, Plan("klippy.exe.txt").Kind);
+    }
+
     // ---- what the editor checks before the marker goes on ----
 
     [Fact]
@@ -185,9 +261,20 @@ public class ExecutionTests
         // reading the clipboard to answer a question about the editor would be worse.
         Assert.True(ExecutionPolicy.LooksExecutable("%C%"));
 
+        // An application counts on the platform it belongs to, and nowhere else.
+        Assert.True(ExecutionPolicy.LooksExecutable(
+            @"""C:\Program Files\Klippy\Klippy.Desktop.exe""", ExecutionPlatform.Windows));
+        Assert.False(ExecutionPolicy.LooksExecutable(
+            @"C:\Program Files\Klippy\Klippy.Desktop.exe", ExecutionPlatform.MacOS));
+        Assert.True(ExecutionPolicy.LooksExecutable("/Applications/Klippy.app", ExecutionPlatform.MacOS));
+        Assert.True(ExecutionPolicy.LooksExecutable("/opt/Klippy.AppImage", ExecutionPlatform.Linux));
+
         Assert.False(ExecutionPolicy.LooksExecutable("DE44 5001 0517 5407 3249 31"));
         Assert.False(ExecutionPolicy.LooksExecutable("docker system prune -af --volumes"));
         Assert.False(ExecutionPolicy.LooksExecutable(""));
+
+        // A scheme the URL rules turned down stays turned down, .exe on the end or not.
+        Assert.False(ExecutionPolicy.LooksExecutable(@"file:///C:/Windows/System32/cmd.exe"));
 
         // .bat has nothing to run it on a Mac, so marking one there is worth a warning.
         Assert.False(ExecutionPolicy.LooksExecutable(@"C:\tools\build.bat", ExecutionPlatform.MacOS));
@@ -249,6 +336,44 @@ public class ExecutionTests
     }
 
     [Fact]
+    public void AnApplicationIsStartedDirectly_SoItsArgumentsStayArguments()
+    {
+        var plan = Plan(@"""C:\Program Files\Klippy\Klippy.Desktop.exe"" --minimised");
+
+        var windows = ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows)!;
+        Assert.Equal(@"C:\Program Files\Klippy\Klippy.Desktop.exe", windows.FileName);
+        Assert.Equal(new[] { "--minimised" }, windows.Arguments);
+        // No shell reads this line, so a macro's value can never become a second command.
+        Assert.False(windows.UseShellExecute);
+    }
+
+    [Fact]
+    public void AMacOsBundleIsHandedToOpen_WhichKnowsWhatIsInsideIt()
+    {
+        var bare = ExecutionPolicy.Resolve(
+            Plan("/Applications/Klippy.app", platform: ExecutionPlatform.MacOS), ExecutionPlatform.MacOS)!;
+        Assert.Equal("open", bare.FileName);
+        Assert.Equal(new[] { "-a", "/Applications/Klippy.app" }, bare.Arguments);
+
+        // What follows --args reaches the application as its own argv.
+        var withArguments = ExecutionPolicy.Resolve(
+            Plan("/Applications/Klippy.app --minimised", platform: ExecutionPlatform.MacOS),
+            ExecutionPlatform.MacOS)!;
+        Assert.Equal(new[] { "-a", "/Applications/Klippy.app", "--args", "--minimised" },
+            withArguments.Arguments);
+    }
+
+    [Fact]
+    public void AnAppImageRunsItself()
+    {
+        var plan = Plan("/opt/Klippy.AppImage --minimised", platform: ExecutionPlatform.Linux);
+
+        var linux = ExecutionPolicy.Resolve(plan, ExecutionPlatform.Linux)!;
+        Assert.Equal("/opt/Klippy.AppImage", linux.FileName);
+        Assert.Equal(new[] { "--minimised" }, linux.Arguments);
+    }
+
+    [Fact]
     public void NothingToRunResolvesToNoProcess()
     {
         Assert.Null(ExecutionPolicy.Resolve(Plan("just some text"), ExecutionPlatform.Windows));
@@ -261,6 +386,12 @@ public class ExecutionTests
     {
         Assert.Equal("Opening www.google.com", Plan(Search, new[] { "stuff" }).Description);
         Assert.Equal("Running deploy.ps1", Plan(@"C:\tools\deploy.ps1").Description);
+
+        // An application is named as a person names it: Klippy.Desktop, not the file.
+        Assert.Equal("Starting Klippy.Desktop",
+            Plan(@"""C:\Program Files\Klippy\Klippy.Desktop.exe""").Description);
+        Assert.Equal("Starting Klippy",
+            Plan("/Applications/Klippy.app/", platform: ExecutionPlatform.MacOS).Description);
         Assert.Equal(Plan("nope").Problem, Plan("nope").Description);
     }
 }
