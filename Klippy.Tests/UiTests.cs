@@ -10,6 +10,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Klippy.Models;
 using Klippy.Services;
 using Klippy.ViewModels;
 using Klippy.Views;
@@ -403,6 +404,86 @@ public class UiTests
 
         vm.Transfer.CloseCommand.Execute(null);
         Assert.Null(vm.Transfer);
+    }
+
+    [AvaloniaFact]
+    public void F2_OpensTheEditorOnTheSelectedSnippet()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.FilterText = "slf";
+        Assert.Null(vm.Editor);
+
+        window.KeyPress(Key.F2, RawInputModifiers.None, PhysicalKey.F2, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Editor);
+        Assert.False(vm.Editor!.IsNew);
+        Assert.Equal("Send log files", vm.Editor.Label);
+    }
+
+    [AvaloniaFact]
+    public void CtrlI_OpensTheEditorToo_ForKeyboardsWhereF2IsBrightness()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.FilterText = "slf";
+        var cmdMod = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+
+        window.KeyPress(Key.I, cmdMod, PhysicalKey.I, "i");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Editor);
+        Assert.Equal("Send log files", vm.Editor!.Label);
+    }
+
+    [AvaloniaFact]
+    public void TheEditShortcutIsIgnored_WhileAnOverlayIsOpen()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.OpenSettingsCommand.Execute(null);
+
+        window.KeyPress(Key.F2, RawInputModifiers.None, PhysicalKey.F2, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);      // the settings overlay keeps the keyboard
+        Assert.NotNull(vm.Settings);
+    }
+
+    [AvaloniaFact]
+    public void TheRowShortcutsDoNothingOnAClip_RatherThanThrowing()
+    {
+        // A clip has neither an editor nor a duplicate. Handing one to a command that
+        // takes snippets throws, which on a key press means taking the app with it.
+        var history = ClipHistoryStore.InMemory();
+        history.Add(new ClipEntry { Text = "some clip", SourceApp = "chrome" });
+
+        var vm = new MainViewModel(
+            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json")),
+            history);
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.ShowHistory();
+        Assert.IsType<ClipViewModel>(vm.SelectedSnippet);
+
+        var cmdMod = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        window.KeyPress(Key.F2, RawInputModifiers.None, PhysicalKey.F2, null);
+        window.KeyPress(Key.D, cmdMod, PhysicalKey.D, "d");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);
     }
 
     [AvaloniaFact]

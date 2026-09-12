@@ -173,7 +173,13 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
                 case Key.D:
-                    vm.DuplicateCommand.Execute(vm.SelectedSnippet);
+                    vm.DuplicateSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case Key.I:
+                    // The Mac half of the edit shortcut: F2 is a brightness key on a
+                    // laptop keyboard unless the function-key setting says otherwise.
+                    vm.EditSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
                 case Key.P:
@@ -195,6 +201,11 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
+            case Key.F2:
+                // What F2 does to the selected thing everywhere else: open it for editing.
+                vm.EditSelectedCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.Down:
                 vm.MoveSelection(1);
                 e.Handled = true;

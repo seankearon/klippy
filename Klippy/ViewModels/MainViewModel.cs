@@ -551,6 +551,23 @@ public partial class MainViewModel : ViewModelBase
     private void Edit(SnippetViewModel row) =>
         Editor = new EditorViewModel(row.Model, SaveSnippet, CloseEditor, duplicate: DuplicateFromEditor);
 
+    /// <summary>
+    /// The keyboard's way into the row actions, which belong to snippets: the selection
+    /// may be a clip, and a clip has neither an editor nor a duplicate. Handing one to a
+    /// command that only takes snippets throws, so the keyboard asks here instead.
+    /// </summary>
+    [RelayCommand]
+    private void EditSelected()
+    {
+        if (SelectedSnippet is SnippetViewModel row) Edit(row);
+    }
+
+    [RelayCommand]
+    private void DuplicateSelected()
+    {
+        if (SelectedSnippet is SnippetViewModel row) Duplicate(row);
+    }
+
     /// <summary>Opens a new-snippet editor prefilled from an existing row. Saving creates a copy.</summary>
     [RelayCommand]
     private void Duplicate(SnippetViewModel? row)
