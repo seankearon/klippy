@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase
 
     private readonly SnippetStore _store;
     private readonly ClipHistoryStore? _history;
+    private readonly CommandHistory? _commands;
     private readonly AppSettings _prefs;
     private readonly Dictionary<Guid, SnippetViewModel> _rowCache = new();
     private readonly Dictionary<Guid, ClipViewModel> _clipCache = new();
@@ -47,6 +48,12 @@ public partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<RowViewModel> Filtered { get; } = new();
     public ObservableCollection<TagChipViewModel> Tags { get; } = new();
+
+    /// <summary>
+    /// The remembered command lines currently on offer — everything, or what the typed
+    /// line could still become — newest first. Empty while the MRU is closed.
+    /// </summary>
+    public ObservableCollection<string> Commands { get; } = new();
 
     [ObservableProperty]
     private string _filterText = "";
@@ -81,6 +88,18 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isPreviewOpen;
 
+    /// <summary>Whether the recent-commands list is showing under the search box.</summary>
+    [ObservableProperty]
+    private bool _isCommandsOpen;
+
+    /// <summary>
+    /// The command being browsed, or null when the list is merely on offer. Setting it
+    /// puts that line in the search box, so the list underneath — and the preview of
+    /// what Enter would do — follows the selection.
+    /// </summary>
+    [ObservableProperty]
+    private string? _selectedCommand;
+
     [ObservableProperty]
     private string _snippetCountText = "";
 
@@ -92,12 +111,27 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>The search box says what it is searching, since the list holds two different things.</summary>
     public string SearchWatermark => IsHistoryMode
         ? "Filter clipboard history"
-        : "Filter snippets or type a quick-code";
+        : CanRecallCommands
+            ? "Filter snippets or type a quick-code · ↓ recent"
+            : "Filter snippets or type a quick-code";
 
     private string _activeTag = AllTag;
 
     /// <summary>The row a quick-code invocation is currently pointed at, if any.</summary>
     private SnippetViewModel? _invoked;
+
+    /// <summary>
+    /// What was typed when the MRU opened. Browsing writes each command into the search
+    /// box, so leaving the list without taking one has to put back what was there.
+    /// </summary>
+    private string _commandStem = "";
+
+    /// <summary>
+    /// True while this view model is writing the search box itself. Typing opens the MRU;
+    /// the MRU writing a command into the box must not count as typing, or browsing would
+    /// re-ask what the line it just wrote could become.
+    /// </summary>
+    private bool _writingFilter;
 
     /// <summary>Set by the view; writes a copy payload to the platform clipboard.</summary>
     public Func<CopyPayload, Task>? ClipboardWriter { get; set; }
@@ -157,13 +191,41 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Whether there is a clipboard history to switch to. False on mobile.</summary>
     public bool HasHistory => _history is not null;
 
-    public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store) { }
+    /// <summary>Whether typed commands are remembered and offered. Off at a limit of zero.</summary>
+    public bool HasCommandHistory => _commands is { IsEnabled: true };
+
+    /// <summary>
+    /// Whether there is actually something to recall. The search box only offers
+    /// "↓ recent" once there is — a fresh install would otherwise advertise a key that
+    /// does nothing yet.
+    /// </summary>
+    private bool CanRecallCommands => _commands is { IsEnabled: true, Count: > 0 };
+
+    // The MRU is built here rather than defaulted in the constructor below so that a
+    // caller handing in its own store — a test — never gets a file-backed one by accident.
+    public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store, null,
+        PlatformCommandHistory()) { }
+
+    /// <summary>
+    /// The command MRU where the platform has a command line to recall into, null
+    /// otherwise. Desktop only, for the reason the clipboard history is: the gesture is a
+    /// keyboard one — down and up in the search box — and a phone has neither the keys to
+    /// browse with nor the room for the list they open. Recording commands there would
+    /// write a file nothing could read back.
+    /// </summary>
+    private static CommandHistory? PlatformCommandHistory() =>
+        OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()
+            ? null
+            : new CommandHistory(capacity: AppSettings.Current.CommandHistoryLimit);
 
     /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
-    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null, AppSettings? settings = null)
+    /// <param name="commands">The command MRU, or null for none.</param>
+    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null, AppSettings? settings = null,
+        CommandHistory? commands = null)
     {
         _store = store;
         _history = history;
+        _commands = commands;
         _prefs = settings ?? AppSettings.Current;
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); IsToastVisible = false; };
@@ -188,7 +250,28 @@ public partial class MainViewModel : ViewModelBase
         // is actually doing.
         if (value.Length > 0 && _activeTag != AllTag)
             ActivateTag(AllTag);
+
+        // Typing re-asks what the line could still become. A line that completes nothing
+        // closes the MRU, which is what hands the arrow keys back to the list: an
+        // ordinary search is not a command and must not have to fight one for them.
+        if (!_writingFilter)
+        {
+            if (value.Length > 0) OpenCommands(selectFirst: false);
+            else CloseCommands(restore: false);
+        }
+
         Refresh();
+    }
+
+    /// <summary>
+    /// Writes the search box from inside the view model — recalling a command, or putting
+    /// back what browsing overwrote. Marked as ours so it does not read as typing.
+    /// </summary>
+    private void SetFilterTextInternally(string text)
+    {
+        _writingFilter = true;
+        try { FilterText = text; }
+        finally { _writingFilter = false; }
     }
 
     /// <summary>Re-runs the search and updates the visible rows, keeping row VMs (and their expanded state) stable.</summary>
@@ -337,6 +420,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void ShowMode(bool history, string tag)
     {
+        CloseCommands(restore: false); // the MRU belongs to the snippet command line
         IsHistoryMode = history;
         ActivateTag(tag);
         // A filter typed against snippets means nothing against clips, and vice versa.
@@ -367,6 +451,8 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task Copy(RowViewModel? row)
     {
+        CloseCommands(restore: false); // whatever route got here, the line has been chosen
+
         CopyPayload payload;
         if (row is SnippetViewModel snippet)
         {
@@ -385,6 +471,7 @@ public partial class MainViewModel : ViewModelBase
             await write(payload);
 
         MarkUsed(row);
+        RecordCommand();
 
         ShowToast();
         Copied?.Invoke();
@@ -412,6 +499,8 @@ public partial class MainViewModel : ViewModelBase
     {
         if (row is null) return;
 
+        CloseCommands(restore: false);
+
         if (Executor is not { } run)
         {
             // Nothing wired up to run things: say so rather than leaving Enter looking
@@ -434,6 +523,7 @@ public partial class MainViewModel : ViewModelBase
         if (!result.Started) return;
 
         MarkUsed(row);
+        RecordCommand();
         Copied?.Invoke();
 
         // Executing is a launcher gesture: the browser or the script is where you are
@@ -541,6 +631,124 @@ public partial class MainViewModel : ViewModelBase
         int index = SelectedSnippet is null ? -1 : Filtered.IndexOf(SelectedSnippet);
         index = Math.Clamp(index + delta, 0, Filtered.Count - 1);
         SelectedSnippet = Filtered[index];
+    }
+
+    // ---- the command MRU ----
+    //
+    // One pair of arrow keys, two lists that could want them. The rule is that the MRU
+    // has them only while it is open, and it is only open when it has something to say:
+    // a down arrow on an empty box, or a typed line that is the start of a command run
+    // before. Anything else leaves ↑/↓ to the snippet list, where they have always been.
+
+    /// <summary>
+    /// Down or up: the MRU while it is open, otherwise the list — and, from an empty
+    /// search box, a down arrow opens the MRU rather than stepping past the first row,
+    /// since an unfiltered list has nothing to step through that recency has not already
+    /// put at the top.
+    /// </summary>
+    public void Navigate(int delta)
+    {
+        if (IsCommandsOpen)
+        {
+            MoveCommandSelection(delta);
+            return;
+        }
+
+        if (delta > 0 && FilterText.Length == 0 && OpenCommands(selectFirst: true)) return;
+
+        MoveSelection(delta);
+    }
+
+    /// <summary>
+    /// Offers the commands the typed line could still become. Returns false when there is
+    /// nothing to offer — no MRU, the wrong list, or nothing matching — leaving the
+    /// keystroke to whatever would have had it.
+    /// </summary>
+    /// <param name="selectFirst">
+    /// Whether to land on the newest command straight away. True for the down arrow,
+    /// which is one gesture meaning "open and browse"; false while typing, where
+    /// selecting something would write it into the box the user is still typing in.
+    /// </param>
+    private bool OpenCommands(bool selectFirst)
+    {
+        // A filter typed against clips is not a command, and the history has its own
+        // kind of recall — the clips themselves.
+        if (_commands is not { IsEnabled: true } || IsHistoryMode) return false;
+
+        var matches = _commands.Match(FilterText);
+        if (matches.Count == 0)
+        {
+            CloseCommands(restore: false); // e.g. one more character ruled the last one out
+            return false;
+        }
+
+        _commandStem = FilterText;
+        Commands.Clear();
+        foreach (var command in matches) Commands.Add(command);
+
+        IsCommandsOpen = true;
+        SelectedCommand = selectFirst ? Commands[0] : null;
+        return true;
+    }
+
+    /// <summary>
+    /// Puts the MRU away. <paramref name="restore"/> puts back what was typed before
+    /// browsing started — for leaving the list empty-handed, not for taking a command
+    /// from it.
+    /// </summary>
+    private void CloseCommands(bool restore)
+    {
+        if (!IsCommandsOpen) return;
+
+        IsCommandsOpen = false;
+        SelectedCommand = null; // ahead of the restore: a null selection writes nothing
+        Commands.Clear();
+
+        if (restore && FilterText != _commandStem) SetFilterTextInternally(_commandStem);
+        _commandStem = "";
+    }
+
+    private void MoveCommandSelection(int delta)
+    {
+        int index = SelectedCommand is null ? -1 : Commands.IndexOf(SelectedCommand);
+        int next = index + delta;
+
+        // Up past the top leaves the MRU. That is the way back to the list — and to the
+        // line that was being typed — for anyone who opened it by accident.
+        if (next < 0)
+        {
+            CloseCommands(restore: true);
+            return;
+        }
+
+        SelectedCommand = Commands[Math.Min(next, Commands.Count - 1)];
+    }
+
+    /// <summary>
+    /// Takes the command being browsed as the line to work with: the text stays in the
+    /// box and the MRU closes. What a click on one does, and the second half of what
+    /// Enter does — the first being whatever the row underneath is now pointing at.
+    /// </summary>
+    public void AcceptCommand() => CloseCommands(restore: false);
+
+    partial void OnSelectedCommandChanged(string? value)
+    {
+        // Browsing shows the command in the search box, and so on the row underneath:
+        // what Enter is about to do is visible before it is pressed, exactly as it is
+        // while typing an invocation by hand.
+        if (value is not null) SetFilterTextInternally(value);
+    }
+
+    /// <summary>
+    /// Remembers the line that did this, so the next one like it can be recalled rather
+    /// than retyped. Called after the copy or the run, not before: a command is a line
+    /// that did something.
+    /// </summary>
+    private void RecordCommand()
+    {
+        if (IsHistoryMode || _commands is null) return;
+        if (_commands.Record(FilterText))
+            OnPropertyChanged(nameof(SearchWatermark)); // the box can now offer ↓ recent
     }
 
     [RelayCommand]
@@ -660,13 +868,19 @@ public partial class MainViewModel : ViewModelBase
     private void OpenSettings() =>
         Settings = new SettingsViewModel(_prefs, close: () => Settings = null);
 
-    /// <summary>Esc: close whichever overlay is open, else clear the filter. Returns false if there was nothing to do.</summary>
+    /// <summary>
+    /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns
+    /// false if there was nothing to do.
+    /// </summary>
     public bool HandleEscape()
     {
         if (Editor is not null) { Editor = null; return true; }
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
         if (Transfer is not null) { Transfer = null; return true; }
         if (Settings is not null) { Settings = null; return true; }
+        // Before the filter: leaving the MRU puts back what was being typed, and that
+        // line is usually the thing you wanted to keep.
+        if (IsCommandsOpen) { CloseCommands(restore: true); return true; }
         if (FilterText.Length > 0) { FilterText = ""; return true; }
         return false;
     }
