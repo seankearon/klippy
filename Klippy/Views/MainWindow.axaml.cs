@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Klippy.Services;
@@ -42,7 +43,13 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         if (Vm is { } vm)
+        {
             vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
+            vm.ClipboardReader = () => Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
+            // Only the desktop head can open a browser or start a script, so this is
+            // where execution is wired in — the shared view model only asks for it.
+            vm.Executor = ProcessLauncher.RunAsync;
+        }
         SearchBox.Focus();
     }
 
@@ -166,7 +173,13 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
                 case Key.D:
-                    vm.DuplicateCommand.Execute(vm.SelectedSnippet);
+                    vm.DuplicateSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case Key.I:
+                    // The Mac half of the edit shortcut: F2 is a brightness key on a
+                    // laptop keyboard unless the function-key setting says otherwise.
+                    vm.EditSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
                 case Key.P:
@@ -177,11 +190,22 @@ public partial class MainWindow : Window
                     vm.OpenSettingsCommand.Execute(null);
                     e.Handled = true;
                     return;
+                case Key.Enter:
+                    // Enter does whatever the item is marked for; Cmd/Ctrl+Enter always
+                    // copies, which is how you get the text of an item marked to run.
+                    vm.CopySelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
             }
         }
 
         switch (e.Key)
         {
+            case Key.F2:
+                // What F2 does to the selected thing everywhere else: open it for editing.
+                vm.EditSelectedCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.Down:
                 vm.MoveSelection(1);
                 e.Handled = true;
@@ -193,7 +217,7 @@ public partial class MainWindow : Window
             case Key.Enter:
                 if (vm.SelectedSnippet is not null)
                 {
-                    vm.CopySelectedCommand.Execute(null);
+                    vm.ActivateSelectedCommand.Execute(null);
                     e.Handled = true;
                 }
                 break;
@@ -211,7 +235,10 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Clicking a row copies it (design: copy on click) — unless the click landed on a button.</summary>
+    /// <summary>
+    /// Clicking a row triggers it — a copy, or a run where the item is marked for one —
+    /// unless the click landed on a button.
+    /// </summary>
     private void RowTapped(object? sender, TappedEventArgs e)
     {
         if (Vm is not { } vm) return;
@@ -220,7 +247,7 @@ public partial class MainWindow : Window
         if (sender is Control { DataContext: RowViewModel row })
         {
             vm.SelectedSnippet = row;
-            vm.CopyCommand.Execute(row);
+            vm.ActivateCommand.Execute(row);
         }
     }
 }

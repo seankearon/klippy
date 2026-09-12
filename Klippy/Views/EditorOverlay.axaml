@@ -23,7 +23,7 @@
             <DataTemplate x:DataType="vm:EditorViewModel">
               <!-- Grid, not StackPanel, so the content field is the one row that
                    takes up the height the grip adds. -->
-              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" RowSpacing="10">
                 <TextBlock Grid.Row="0" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
                            Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
 
@@ -97,16 +97,39 @@
                 <StackPanel Grid.Row="4" Spacing="4">
                   <TextBlock Classes="mono" Text="FORMAT" FontSize="10" LetterSpacing="0.8"
                              Foreground="{StaticResource MutedBrush}" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ToggleButton Classes="chip" Content="Markdown"
-                                  IsChecked="{Binding IsMarkdown}" />
+                  <!-- DockPanel, not a horizontal StackPanel: the note has to wrap into
+                       what is left beside the chip rather than run off a phone screen. -->
+                  <DockPanel>
+                    <ToggleButton DockPanel.Dock="Left" Classes="chip" Content="Markdown"
+                                  Margin="0,0,8,0" IsChecked="{Binding IsMarkdown}" />
                     <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
                                Foreground="{StaticResource MutedBrush}"
                                Text="Copy keeps formatting when pasted into a rich-text editor" />
-                  </StackPanel>
+                  </DockPanel>
                 </StackPanel>
 
-                <DockPanel Grid.Row="5" Margin="0,4,0,0">
+                <StackPanel Grid.Row="5" Spacing="4">
+                  <TextBlock Classes="mono" Text="WHEN TRIGGERED" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+                  <DockPanel>
+                    <ToggleButton DockPanel.Dock="Left" Classes="chip" Content="Execute"
+                                  Margin="0,0,8,0" IsChecked="{Binding IsExecutable}" />
+                    <!-- Two blocks rather than a converter: a marker put on something
+                         that cannot run has to read as the warning it is. -->
+                    <Panel>
+                      <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                                 IsVisible="{Binding !ExecuteHintIsWarning}"
+                                 Foreground="{StaticResource MutedBrush}"
+                                 Text="{Binding ExecuteHint}" />
+                      <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                                 IsVisible="{Binding ExecuteHintIsWarning}"
+                                 Foreground="{StaticResource DangerBrush}"
+                                 Text="{Binding ExecuteHint}" />
+                    </Panel>
+                  </DockPanel>
+                </StackPanel>
+
+                <DockPanel Grid.Row="6" Margin="0,4,0,0">
                   <Button DockPanel.Dock="Left" Classes="subtle" Content="Duplicate"
                           IsVisible="{Binding HasDuplicate}"
                           Command="{Binding DuplicateCommand}" />

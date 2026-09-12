@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Klippy.Models;
+using Klippy.Services;
 
 namespace Klippy.ViewModels;
 
@@ -23,6 +24,8 @@ public partial class EditorViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyPropertyChangedFor(nameof(ExecuteHint))]
+    [NotifyPropertyChangedFor(nameof(ExecuteHintIsWarning))]
     private string _content = "";
 
     [ObservableProperty]
@@ -34,6 +37,27 @@ public partial class EditorViewModel : ViewModelBase
     /// <summary>Marks the content as Markdown so copies carry rich formatting.</summary>
     [ObservableProperty]
     private bool _isMarkdown;
+
+    /// <summary>Marks the snippet as one to run rather than copy.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExecuteHint))]
+    [NotifyPropertyChangedFor(nameof(ExecuteHintIsWarning))]
+    private bool _isExecutable;
+
+    private static readonly string CopyKeyHint = OperatingSystem.IsMacOS() ? "⌘+Enter" : "Ctrl+Enter";
+
+    /// <summary>
+    /// What the Execute marker will mean for this snippet, said while it is being
+    /// ticked rather than as a toast after the fact — marking something to run only to
+    /// find it cannot be is the mistake worth catching here.
+    /// </summary>
+    public string ExecuteHint =>
+        !IsExecutable ? "Copied to the clipboard when triggered, as usual"
+        : ExecutionPolicy.LooksExecutable(Content)
+            ? $"Opened or run when triggered — {CopyKeyHint} still copies it"
+            : "This is not a link, an application or a script Klippy can run, so triggering it will say so";
+
+    public bool ExecuteHintIsWarning => IsExecutable && !ExecutionPolicy.LooksExecutable(Content);
 
     /// <summary>
     /// The tags already in use, offered as chips under the TAG field so a snippet joins
@@ -72,6 +96,7 @@ public partial class EditorViewModel : ViewModelBase
             _tag = existing.Tag;
             _quickCode = existing.QuickCode;
             _isMarkdown = existing.IsMarkdown;
+            _isExecutable = existing.IsExecutable;
         }
         RefreshTagSuggestions();
     }
@@ -149,6 +174,7 @@ public partial class EditorViewModel : ViewModelBase
         snippet.Tag = Tag.Trim().ToLowerInvariant();
         snippet.QuickCode = QuickCode.Trim().ToLowerInvariant();
         snippet.IsMarkdown = IsMarkdown;
+        snippet.IsExecutable = IsExecutable;
         _save(snippet, IsNew);
     }
 

@@ -21,6 +21,10 @@
   <StreamGeometry x:Key="IconPin">M 9,4 L 15,4 M 10,4 L 10,10 L 6.5,14 L 17.5,14 L 14,10 L 14,4 M 12,14 L 12,21</StreamGeometry>
   <!-- bookmark: promote a clip into a saved snippet -->
   <StreamGeometry x:Key="IconBookmark">M 6,3 L 18,3 A 1,1 0 0 1 19,4 L 19,21 L 12,16 L 5,21 L 5,4 A 1,1 0 0 1 6,3 Z</StreamGeometry>
+  <!-- play triangle: execute the item (open its link, run its script) -->
+  <StreamGeometry x:Key="IconPlay">M 7,4.5 L 19.5,12 L 7,19.5 Z</StreamGeometry>
+  <!-- circled exclamation, for a toast reporting something that went wrong -->
+  <StreamGeometry x:Key="IconAlert">M 21,12 A 9,9 0 1 0 3,12 A 9,9 0 1 0 21,12 M 12,7 L 12,13 M 12,16.5 L 12,16.6</StreamGeometry>
   <!-- copy glyph with a plus in the front sheet (duplicate) -->
   <StreamGeometry x:Key="IconDuplicate">M 11,9 L 18,9 A 2,2 0 0 1 20,11 L 20,18 A 2,2 0 0 1 18,20 L 11,20 A 2,2 0 0 1 9,18 L 9,11 A 2,2 0 0 1 11,9 Z M 5,15 L 5,5 A 2,2 0 0 1 7,3 L 17,3 M 14.5,11.5 L 14.5,17.5 M 11.5,14.5 L 17.5,14.5</StreamGeometry>
 </ResourceDictionary>
