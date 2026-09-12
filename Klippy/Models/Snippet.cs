@@ -28,6 +28,14 @@ public sealed class Snippet : ISearchable
     public bool IsMarkdown { get; set; }
 
     /// <summary>
+    /// Whether triggering this snippet runs it instead of copying it: its link opens in
+    /// the browser, or the script it names runs. Absent in older files, which read as
+    /// false — so every snippet that exists today goes on being copied, and running is
+    /// something a snippet has to be marked for.
+    /// </summary>
+    public bool IsExecutable { get; set; }
+
+    /// <summary>
     /// Where the snippet came from, e.g. "BoldDesk Aug 2026". Empty for snippets
     /// created in Klippy itself.
     /// </summary>

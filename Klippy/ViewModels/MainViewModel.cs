@@ -69,6 +69,14 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isToastVisible;
 
+    /// <summary>What the toast says. A copy is the common case, so that is the default.</summary>
+    [ObservableProperty]
+    private string _toastText = CopiedToast;
+
+    /// <summary>Whether the toast is reporting a failure rather than confirming something.</summary>
+    [ObservableProperty]
+    private bool _isToastError;
+
     /// <summary>Whether the bottom preview pane is showing. Starts closed — the list is the primary surface.</summary>
     [ObservableProperty]
     private bool _isPreviewOpen;
@@ -88,10 +96,30 @@ public partial class MainViewModel : ViewModelBase
 
     private string _activeTag = AllTag;
 
+    /// <summary>The row a quick-code invocation is currently pointed at, if any.</summary>
+    private SnippetViewModel? _invoked;
+
     /// <summary>Set by the view; writes a copy payload to the platform clipboard.</summary>
     public Func<CopyPayload, Task>? ClipboardWriter { get; set; }
 
-    /// <summary>Raised after a snippet reaches the clipboard, so the view can reset its search box.</summary>
+    /// <summary>
+    /// Set by the view; reads the clipboard's text for the <c>%C%</c> macro. Only called
+    /// when an item actually carries one, so an ordinary copy still never reads the
+    /// clipboard.
+    /// </summary>
+    public Func<Task<string?>>? ClipboardReader { get; set; }
+
+    /// <summary>
+    /// Set by the view; carries out an execution plan. The desktop starts processes,
+    /// mobile can only open a link — each head supplies what its platform can do, and
+    /// an item marked to run says so rather than failing quietly where nothing can.
+    /// </summary>
+    public Func<ExecutionPlan, Task<ExecutionResult>>? Executor { get; set; }
+
+    /// <summary>
+    /// Raised after a snippet reaches the clipboard, or is executed, so the view can
+    /// reset its search box.
+    /// </summary>
     public event Action? Copied;
 
     /// <summary>
@@ -174,6 +202,12 @@ public partial class MainViewModel : ViewModelBase
 
     private void RefreshSnippets()
     {
+        // "code argument…" invokes one snippet rather than filtering the list: the search
+        // box has become a command line, so the words after the code are arguments for
+        // its %P% placeholders and not search terms.
+        if (TryInvoke()) return;
+
+        ClearArguments();
         var results = _store.Search(FilterText);
 
         Filtered.Clear();
@@ -182,16 +216,52 @@ public partial class MainViewModel : ViewModelBase
             if (_activeTag != AllTag && !string.Equals(entry.Item.Tag, _activeTag, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (!_rowCache.TryGetValue(entry.Item.Id, out var row))
-                _rowCache[entry.Item.Id] = row = new SnippetViewModel(entry.Item);
-            Filtered.Add(row);
+            Filtered.Add(RowFor(entry.Item));
         }
 
         SnippetCountText = Filtered.Count == 1 ? "1 snippet" : $"{Filtered.Count} snippets";
     }
 
+    /// <summary>
+    /// Shows just the snippet whose quick-code was typed, carrying whatever was typed
+    /// after it. False when the line is not an invocation — no whitespace yet, or no
+    /// snippet answers to that exact code — and the ordinary search runs instead.
+    /// </summary>
+    private bool TryInvoke()
+    {
+        if (!QuickInvocation.TryParse(FilterText, out var invocation) ||
+            _store.FindByQuickCode(invocation.Code) is not { } snippet)
+            return false;
+
+        var row = RowFor(snippet);
+        if (!ReferenceEquals(_invoked, row)) ClearArguments();
+
+        _invoked = row;
+        row.SetArguments(invocation.Arguments);
+
+        Filtered.Clear();
+        Filtered.Add(row);
+        SnippetCountText = "1 snippet";
+        return true;
+    }
+
+    /// <summary>Takes the arguments back off the row that last had them.</summary>
+    private void ClearArguments()
+    {
+        _invoked?.SetArguments(Array.Empty<string>());
+        _invoked = null;
+    }
+
+    private SnippetViewModel RowFor(Snippet snippet)
+    {
+        if (!_rowCache.TryGetValue(snippet.Id, out var row))
+            _rowCache[snippet.Id] = row = new SnippetViewModel(snippet);
+        return row;
+    }
+
     private void RefreshHistory()
     {
+        ClearArguments(); // a snippet's arguments mean nothing against clips
         Filtered.Clear();
         if (_history is null) return;
 
@@ -282,27 +352,39 @@ public partial class MainViewModel : ViewModelBase
             t.IsSelected = string.Equals(t.Name, tag, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The item's own action: one marked Execute runs, everything else is copied. Enter,
+    /// a click and a tap all come through here, so what an item does is a property of
+    /// the item rather than of how you reached it.
+    /// </summary>
+    [RelayCommand]
+    private Task Activate(RowViewModel? row) =>
+        row is { IsExecutable: true } ? Execute(row) : Copy(row);
+
+    [RelayCommand]
+    private Task ActivateSelected() => Activate(SelectedSnippet);
+
     [RelayCommand]
     private async Task Copy(RowViewModel? row)
     {
-        var payload = row switch
+        CopyPayload payload;
+        if (row is SnippetViewModel snippet)
         {
-            SnippetViewModel snippet => RichTextClipboard.BuildPayload(snippet.Model),
-            // A clip keeps whatever flavours it was captured with, so pasting it back gives
-            // what the original copy would have — real files into Explorer, a picture into
-            // an image editor, formatting into a rich-text box.
-            ClipViewModel clip => BuildClipPayload(clip),
-            _ => null,
-        };
-        if (payload is null) return;
+            // Macros resolve on the way to the clipboard, so what lands there is the
+            // expansion — a half-typed invocation must never paste as "%P%".
+            var content = await ResolveMacrosAsync(snippet.Model.Content, snippet.Arguments);
+            payload = RichTextClipboard.BuildPayload(content, snippet.Model.IsMarkdown);
+        }
+        // A clip keeps whatever flavours it was captured with, so pasting it back gives
+        // what the original copy would have — real files into Explorer, a picture into
+        // an image editor, formatting into a rich-text box.
+        else if (row is ClipViewModel clip) payload = BuildClipPayload(clip);
+        else return;
 
         if (ClipboardWriter is { } write)
             await write(payload);
 
-        if (row is SnippetViewModel s) _store.MarkUsed(s.Model);
-        // Re-copying a clip promotes it back to the top, exactly as capture would — and
-        // has to say so, since Klippy's own clipboard writes are never captured.
-        else if (row is ClipViewModel c) _history?.MarkUsed(c.Model.Id);
+        MarkUsed(row);
 
         ShowToast();
         Copied?.Invoke();
@@ -313,6 +395,82 @@ public partial class MainViewModel : ViewModelBase
             ? _prefs.CloseAfterClipboardCopy
             : _prefs.CloseAfterSnippetCopy;
         if (close) CloseRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// Runs the item: its link opens in the default browser, or the script it names
+    /// runs, with the same macros a copy would have resolved. Reached by triggering an
+    /// item marked Execute.
+    ///
+    /// The item's stored text goes to the execution engine together with the typed
+    /// arguments, rather than the expansion a copy would make — only the engine knows
+    /// whether a value is about to land in a URL's query string or in a script's
+    /// argument list, and those want it escaped differently.
+    /// </summary>
+    [RelayCommand]
+    private async Task Execute(RowViewModel? row)
+    {
+        if (row is null) return;
+
+        if (Executor is not { } run)
+        {
+            // Nothing wired up to run things: say so rather than leaving Enter looking
+            // broken on an item that is marked to run.
+            ShowToast("Klippy cannot run items on this device.", isError: true);
+            return;
+        }
+
+        var text = row.Template;
+        var plan = ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text));
+
+        if (plan.Kind == ExecutionKind.None)
+        {
+            ShowToast(plan.Problem, isError: true);
+            return;
+        }
+
+        var result = await run(plan);
+        ShowToast(result.Message, isError: !result.Started);
+        if (!result.Started) return;
+
+        MarkUsed(row);
+        Copied?.Invoke();
+
+        // Executing is a launcher gesture: the browser or the script is where you are
+        // going next, so Klippy gets out of the way — the copy preferences are about
+        // staying put to copy a second thing, which does not apply here.
+        CloseRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private Task ExecuteSelected() => Execute(SelectedSnippet);
+
+    /// <summary>Fills in an item's macros, reading the clipboard only if it carries a %C%.</summary>
+    private async Task<string> ResolveMacrosAsync(string text, IReadOnlyList<string> arguments)
+    {
+        if (!Macros.IsPresent(text)) return text;
+        return Macros.Expand(text, arguments, await ReadClipboardForAsync(text));
+    }
+
+    /// <summary>
+    /// The clipboard's text when <paramref name="text"/> needs it, null otherwise — which
+    /// leaves any %C% as written rather than silently emptying it.
+    /// </summary>
+    private async Task<string?> ReadClipboardForAsync(string text)
+    {
+        if (!Macros.UsesClipboard(text) || ClipboardReader is not { } read) return null;
+
+        // An empty clipboard is an empty expansion, not a missing one.
+        return await read() ?? "";
+    }
+
+    /// <summary>Bumps recency, so what you just used ranks first next time.</summary>
+    private void MarkUsed(RowViewModel row)
+    {
+        if (row is SnippetViewModel snippet) _store.MarkUsed(snippet.Model);
+        // Re-using a clip promotes it back to the top, exactly as capture would — and has
+        // to say so, since Klippy's own clipboard writes are never captured.
+        else if (row is ClipViewModel clip) _history?.MarkUsed(clip.Model.Id);
     }
 
     private CopyPayload BuildClipPayload(ClipViewModel clip) => clip.Model.Kind switch
@@ -393,12 +551,31 @@ public partial class MainViewModel : ViewModelBase
     private void Edit(SnippetViewModel row) =>
         Editor = new EditorViewModel(row.Model, SaveSnippet, CloseEditor, duplicate: DuplicateFromEditor);
 
+    /// <summary>
+    /// The keyboard's way into the row actions, which belong to snippets: the selection
+    /// may be a clip, and a clip has neither an editor nor a duplicate. Handing one to a
+    /// command that only takes snippets throws, so the keyboard asks here instead.
+    /// </summary>
+    [RelayCommand]
+    private void EditSelected()
+    {
+        if (SelectedSnippet is SnippetViewModel row) Edit(row);
+    }
+
+    [RelayCommand]
+    private void DuplicateSelected()
+    {
+        if (SelectedSnippet is SnippetViewModel row) Duplicate(row);
+    }
+
     /// <summary>Opens a new-snippet editor prefilled from an existing row. Saving creates a copy.</summary>
     [RelayCommand]
     private void Duplicate(SnippetViewModel? row)
     {
         if (row is null) return;
-        Editor = CreateDuplicateEditor(row.Label, row.Content, row.Tag, row.IsMarkdown);
+        // The snippet as stored, not what the row is currently showing: duplicating
+        // during an invocation must copy the %P%, not the word it stands for.
+        Editor = CreateDuplicateEditor(row.Label, row.Model.Content, row.Tag, row.IsMarkdown);
     }
 
     // Branch the open editor into a duplicate, carrying over any unsaved field edits.
@@ -486,9 +663,15 @@ public partial class MainViewModel : ViewModelBase
         return false;
     }
 
-    private void ShowToast()
+    private const string CopiedToast = "Copied to clipboard";
+
+    private void ShowToast(string? text = null, bool isError = false)
     {
         _toastTimer.Stop();
+        ToastText = text is { Length: > 0 } ? text : CopiedToast;
+        IsToastError = isError;
+        // A confirmation is glanced at; something that went wrong has to be read.
+        _toastTimer.Interval = TimeSpan.FromMilliseconds(isError ? 4000 : 1500);
         IsToastVisible = true;
         _toastTimer.Start();
     }

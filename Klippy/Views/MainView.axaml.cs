@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Klippy.Services;
 using Klippy.ViewModels;
@@ -43,7 +44,13 @@ public partial class MainView : UserControl
         if (TopLevel.GetTopLevel(this) is not { } top) return;
 
         if (Vm is { } vm)
+        {
             vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(top.Clipboard, payload);
+            vm.ClipboardReader = () => top.Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
+            // A phone has a browser but no shell, so a snippet marked Execute opens its
+            // link here and says so plainly when it names a script instead.
+            vm.Executor = plan => OpenOnDeviceAsync(top, plan);
+        }
 
         // Keep content clear of notches/status bars and match the system bars to the theme.
         if (top.InsetsManager is { } insets)
@@ -55,6 +62,33 @@ public partial class MainView : UserControl
     }
 
     private void ApplySafeArea(Thickness padding) => Root.Margin = padding;
+
+    /// <summary>
+    /// Executing on a mobile device: the platform's own launcher opens a link. There is
+    /// no shell to run a script in, and saying that is better than a tap that does
+    /// nothing.
+    /// </summary>
+    private static async Task<ExecutionResult> OpenOnDeviceAsync(TopLevel top, ExecutionPlan plan)
+    {
+        if (plan.Kind != ExecutionKind.Url)
+            return ExecutionResult.Failed("Only links can be opened on this device.");
+
+        if (top.Launcher is not { } launcher || !Uri.TryCreate(plan.Target, UriKind.Absolute, out var uri))
+            return ExecutionResult.Failed($"Could not open {plan.Target}");
+
+        try
+        {
+            return await launcher.LaunchUriAsync(uri)
+                ? new ExecutionResult(true, plan.Description)
+                : ExecutionResult.Failed($"Could not open {plan.Target}");
+        }
+        catch (Exception e)
+        {
+            // Whatever the platform makes of a link it will not take, a tap must not
+            // bring the app down with it.
+            return ExecutionResult.Failed($"Could not open {plan.Target}: {e.Message}");
+        }
+    }
 
     // ---- swipe gesture ----
 
@@ -105,7 +139,8 @@ public partial class MainView : UserControl
         }
         else if (row.DataContext is SnippetViewModel snippet && Vm is { } vm)
         {
-            vm.CopyCommand.Execute(snippet); // plain tap: copy
+            // Plain tap: whatever the snippet is marked for — a copy, or a run.
+            vm.ActivateCommand.Execute(snippet);
         }
 
         _activeRow = null;

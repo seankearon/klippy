@@ -161,6 +161,11 @@
                       <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
                                   Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
                                   VerticalAlignment="Center">
+                        <!-- what Enter will do, said on the row rather than found out
+                             by pressing it -->
+                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                   Foreground="{StaticResource AccentBrush}" Text="run"
+                                   IsVisible="{Binding IsExecutable}" />
                         <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                                    Foreground="{StaticResource Muted2Brush}" Text="md"
                                    IsVisible="{Binding IsMarkdown}" />
@@ -198,8 +203,11 @@
                         <Border Classes="enterBadge"
                                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                          <!-- one badge rather than two, so a row that cannot be run is
+                               not left with the gap where a second one would have sat -->
                           <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
+                                     Foreground="{StaticResource AccentBrush}"
+                                     Text="{Binding EnterHint}" />
                         </Border>
                       </StackPanel>
 
@@ -237,13 +245,30 @@
                             </Grid>
                           </Viewbox>
                         </Button>
-                        <Button Classes="icon amber"
+                        <!-- a marked row still has its text; this is how you get it -->
+                        <Button Classes="icon" IsVisible="{Binding IsExecutable}"
                                 Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
                                 CommandParameter="{Binding}">
                           <Viewbox Width="12" Height="12">
                             <Grid Width="24" Height="24">
+                              <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource Muted3Brush}"
+                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                            </Grid>
+                          </Viewbox>
+                        </Button>
+                        <!-- the primary action is whatever the item is marked for, so the
+                             glyph follows the marker rather than naming a second gesture -->
+                        <Button Classes="icon amber"
+                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ActivateCommand}"
+                                CommandParameter="{Binding}">
+                          <Viewbox Width="12" Height="12">
+                            <Grid Width="24" Height="24">
                               <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
-                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                    IsVisible="{Binding !IsExecutable}" />
+                              <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource OnAccentBrush}"
+                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                    IsVisible="{Binding IsExecutable}" />
                             </Grid>
                           </Viewbox>
                         </Button>
@@ -347,8 +372,11 @@
                         <Border Classes="enterBadge"
                                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                          <!-- one badge rather than two, so a row that cannot be run is
+                               not left with the gap where a second one would have sat -->
                           <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
+                                     Foreground="{StaticResource AccentBrush}"
+                                     Text="{Binding EnterHint}" />
                         </Border>
                       </StackPanel>
 
@@ -488,10 +516,15 @@
         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
           <Grid Width="24" Height="24">
             <Path Data="{StaticResource IconCheck}" Stroke="{StaticResource AccentBrush}"
-                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round" />
+                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round"
+                  IsVisible="{Binding !IsToastError}" />
+            <Path Data="{StaticResource IconAlert}" Stroke="{StaticResource DangerBrush}"
+                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                  IsVisible="{Binding IsToastError}" />
           </Grid>
         </Viewbox>
-        <TextBlock Text="Copied to clipboard" FontSize="11"
+        <TextBlock Text="{Binding ToastText}" FontSize="11" MaxWidth="420"
+                   TextWrapping="Wrap"
                    Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
       </StackPanel>
     </Border>
