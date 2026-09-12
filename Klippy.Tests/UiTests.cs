@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -32,6 +33,22 @@ public class UiTests
 
     private static MainViewModel NewVm() =>
         new(new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json")));
+
+    /// <summary>The tag chips the open editor is showing, in the order they are laid out.</summary>
+    private static List<Button> TagChips(Window window, MainViewModel vm) =>
+        window.GetVisualDescendants().OfType<EditorOverlay>().Single()
+            .GetVisualDescendants().OfType<Button>()
+            .Where(b => ReferenceEquals(b.Command, vm.Editor!.SelectTagCommand))
+            .ToList();
+
+    private static void ClickCentre(Window window, Control control)
+    {
+        var point = control.TranslatePoint(
+            new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
 
     [AvaloniaFact]
     public void DesktopWindow_Renders_AndCapturesScreenshot()
@@ -446,6 +463,44 @@ public class UiTests
 
         vm.NewCommand.Execute(null);
         Assert.False(vm.Editor.HasDuplicate); // plain new editor has no duplicate either
+    }
+
+    [AvaloniaFact]
+    public void EditorOverlay_OffersTheTagsInUse_AndAClickOnOneFillsTheField()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var chips = TagChips(window, vm);
+        Assert.Equal(new[] { "banking", "dev", "personal", "work" }, chips.Select(c => (string?)c.Content));
+
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor-tags.png"));
+
+        var work = chips.Single(c => (string?)c.Content == "work");
+        ClickCentre(window, work);
+
+        Assert.Equal("work", vm.Editor!.Tag);
+        Assert.Contains("selected", TagChips(window, vm).Single(c => (string?)c.Content == "work").Classes);
+    }
+
+    [AvaloniaFact]
+    public void EditorOverlay_HidesTheTagRow_WhenNothingIsTaggedYet()
+    {
+        var store = new SnippetStore(
+            Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+        var vm = new MainViewModel(store);
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.Editor!.HasTagSuggestions);
+        Assert.Empty(TagChips(window, vm));
     }
 
     [AvaloniaFact]

@@ -367,12 +367,11 @@ public partial class MainViewModel : ViewModelBase
         // their paths are the text.
         if (row is null || row.Model.Kind == ClipKind.Image) return;
 
-        Editor = new EditorViewModel(null, SaveSnippet, CloseEditor, title: "New snippet from clip")
-        {
-            Label = row.Label,
-            Content = row.Model.Text,
-            IsMarkdown = false, // captured text is not known to be Markdown
-        };
+        var editor = NewEditor(null, title: "New snippet from clip");
+        editor.Label = row.Label;
+        editor.Content = row.Model.Text;
+        editor.IsMarkdown = false; // captured text is not known to be Markdown
+        Editor = editor;
     }
 
     [RelayCommand]
@@ -387,11 +386,19 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void New() => Editor = new EditorViewModel(null, SaveSnippet, CloseEditor);
+    private void New() => Editor = NewEditor(null);
 
     [RelayCommand]
     private void Edit(SnippetViewModel row) =>
-        Editor = new EditorViewModel(row.Model, SaveSnippet, CloseEditor, duplicate: DuplicateFromEditor);
+        Editor = NewEditor(row.Model, duplicate: DuplicateFromEditor);
+
+    /// <summary>
+    /// Builds an editor. Every editor comes through here so that all of them — new, edit,
+    /// duplicate, promote — are handed the tags already in use to offer under the TAG field.
+    /// The tags are read per open, so one added in the last edit is on offer in the next.
+    /// </summary>
+    private EditorViewModel NewEditor(Snippet? existing, Action? duplicate = null, string? title = null) =>
+        new(existing, SaveSnippet, CloseEditor, duplicate, title, _store.Tags());
 
     /// <summary>Opens a new-snippet editor prefilled from an existing row. Saving creates a copy.</summary>
     [RelayCommand]
@@ -408,15 +415,16 @@ public partial class MainViewModel : ViewModelBase
             Editor = CreateDuplicateEditor(editor.Label, editor.Content, editor.Tag, editor.IsMarkdown);
     }
 
-    private EditorViewModel CreateDuplicateEditor(string label, string content, string tag, bool isMarkdown) =>
-        new(null, SaveSnippet, CloseEditor, title: "Duplicate snippet")
-        {
-            Label = label + " (copy)",
-            Content = content,
-            Tag = tag,
-            IsMarkdown = isMarkdown,
-            // deliberately no quick-code: two snippets must not answer to the same code
-        };
+    private EditorViewModel CreateDuplicateEditor(string label, string content, string tag, bool isMarkdown)
+    {
+        var editor = NewEditor(null, title: "Duplicate snippet");
+        editor.Label = label + " (copy)";
+        editor.Content = content;
+        editor.Tag = tag;
+        editor.IsMarkdown = isMarkdown;
+        // deliberately no quick-code: two snippets must not answer to the same code
+        return editor;
+    }
 
     private void SaveSnippet(Snippet snippet, bool isNew)
     {
