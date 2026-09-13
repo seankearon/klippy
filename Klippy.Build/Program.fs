@@ -164,8 +164,11 @@ let private setting name =
 /// the app to start at all: without it rcodesign re-signs the apphost alone, the .NET
 /// runtime dylibs keep Microsoft's Team ID, and dyld refuses libhostfxr with "mapping
 /// process and mapped file have different Team IDs" - a Dock bounce and no window.
-/// Entitlements.plist beside the csproj does the rest: the hardened runtime that comes
-/// with a Developer ID signature needs the CLR allowed to JIT.
+/// Entitlements.plist does the rest: the hardened runtime that comes with a Developer ID
+/// signature needs the CLR allowed to JIT, to map executable memory and to load dylibs
+/// signed by someone else. Parcel exposes no setting for it and finds the file beside the
+/// project it is given, so writeSignedParcelProject copies it next to the generated
+/// project - see there.
 module MacSigning =
     let P12Path     = "MacSigning__P12Path"
     let P12Password = "MacSigning__P12Password"
@@ -301,7 +304,21 @@ and certificate profile of the Trusted Signing resource)."""
 
         MacSigning.addTo project
 
-        ensureFolder (Path.GetDirectoryName destination) |> ignore
+        let destinationDir = Path.GetDirectoryName destination
+        ensureFolder destinationDir |> ignore
+
+        // Parcel has no setting for entitlements: it picks up Entitlements.plist by
+        // convention, from the directory of the project file it is handed. This copy
+        // lives in _build, so the plist has to travel with it. Without it the bundles
+        // are signed with Parcel's own defaults - which carry neither
+        // disable-library-validation nor allow-unsigned-executable-memory - and under
+        // the hardened runtime that comes with a Developer ID signature the CLR dies
+        // before Main: a Dock bounce and no window.
+        let entitlements = sourceDir +/ "Entitlements.plist"
+
+        if File.Exists entitlements then
+            File.Copy(entitlements, destinationDir +/ "Entitlements.plist", true)
+
         File.WriteAllText(destination, project.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
         Write.line $"Wrote signed Parcel project to {destination}"
         destination
