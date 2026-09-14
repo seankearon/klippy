@@ -260,6 +260,14 @@ Everything else is the allow-list you already know: a script or an application K
 run on this platform, and nothing besides. A folder is the one addition — it is opened,
 not executed — so a typed `C:\work\notes.txt` is still just text that matched nothing.
 
+**Quotes come off.** Explorer's Shift+right-click → *Copy as path* wraps what it gives you
+in double quotes, whether or not the path has a space in it, so a pasted path would
+otherwise be a string starting with a quote and match nothing at all. A line wrapped in a
+pair of them is unwrapped before anything else looks at it — both quotes or neither, since
+an unmatched one is a half-finished paste and a Windows path cannot contain a quote
+anyway. A snippet marked Execute has always tolerated them, because its line goes through
+the argument splitter; this is the same courtesy on the typed route.
+
 Environment variables come in both dialects wherever you are: `%APPDATA%` as on Windows,
 `$HOME` and `${HOME}` as on macOS and Linux, plus a leading `~`. A name that does not
 resolve is left exactly as typed, so it stays a string that matches nothing rather than

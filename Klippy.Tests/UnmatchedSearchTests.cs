@@ -210,6 +210,73 @@ public class UnmatchedSearchTests
         Assert.Equal(ExecutionKind.None, Plan(@"C:\tools\go.bat", platform: Linux, probe: bat).Kind);
     }
 
+    // ---- pasted paths ----
+
+    [Fact]
+    public void AQuotedPathIsOffered_BecauseThatIsWhatCopyAsPathGivesYou()
+    {
+        // Explorer's Shift+right-click → Copy as path always wraps the path in quotes, so
+        // without this a pasted path is a string starting with a quote and matches nothing.
+        var plan = Plan("\"C:\\work\\invoices\"", probe: Probe(folders: [@"C:\work\invoices"]));
+
+        Assert.Equal(ExecutionKind.Folder, plan.Kind);
+        Assert.Equal(@"C:\work\invoices", plan.Target); // and the quotes do not reach the launcher
+    }
+
+    [Fact]
+    public void AQuotedPathWithSpacesIsStillOnePath()
+    {
+        // The case the quotes are actually for. A space is not an argument separator here:
+        // the whole line is the target.
+        var plan = Plan("\"C:\\Program Files\\tools\\go.ps1\"",
+            probe: Probe(files: [@"C:\Program Files\tools\go.ps1"]));
+
+        Assert.Equal(ExecutionKind.Script, plan.Kind);
+        Assert.Equal(@"C:\Program Files\tools\go.ps1", plan.Target);
+    }
+
+    [Fact]
+    public void QuotesComeOffBeforeAVariableIsExpanded()
+    {
+        using var _ = EnvVar("KLIPPY_TEST_DIR", @"C:\Users\sean\AppData\Roaming");
+
+        var plan = Plan("\"%KLIPPY_TEST_DIR%\\Klippy\"",
+            probe: Probe(folders: [@"C:\Users\sean\AppData\Roaming\Klippy"]));
+
+        Assert.Equal(ExecutionKind.Folder, plan.Kind);
+    }
+
+    [Fact]
+    public void AnUnmatchedQuoteIsLeftAlone()
+    {
+        // Half a paste. Guessing which end to trim would be worse than leaving it the
+        // search it still is.
+        Assert.Equal(ExecutionKind.None,
+            Plan("\"C:\\work\\invoices", probe: Probe(folders: [@"C:\work\invoices"])).Kind);
+        Assert.Equal(ExecutionKind.None,
+            Plan("C:\\work\\invoices\"", probe: Probe(folders: [@"C:\work\invoices"])).Kind);
+    }
+
+    [Theory]
+    [InlineData("\"lock\"", "lock")]                      // whatever the quotes wrap
+    [InlineData("\"https://qwe.com/a\"", "https://qwe.com/a")]
+    [InlineData("  \" C:\\work \"  ", @"C:\work")]        // trimmed inside as well as out
+    [InlineData("\"\"", "")]
+    [InlineData("\"", "\"")]                              // one quote is not a pair
+    [InlineData("say \"hello\" twice", "say \"hello\" twice")]
+    public void OnlyAWrappingPairComesOff(string typed, string expected)
+    {
+        Assert.Equal(expected, UnmatchedSearch.Unquote(typed.Trim()));
+    }
+
+    [Fact]
+    public void AQuotedMachineControlStillWorks()
+    {
+        // Falls out of unquoting the whole line rather than only a path — which is what the
+        // other route into execution already does with its first word.
+        Assert.Equal(ExecutionKind.System, Plan("\"restart\"").Kind);
+    }
+
     // ---- verification ----
 
     [Fact]

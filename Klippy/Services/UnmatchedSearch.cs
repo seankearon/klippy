@@ -51,7 +51,7 @@ public static partial class UnmatchedSearch
         ExecutionPlatform? platform = null,
         PathProbe? probe = null)
     {
-        var text = (query ?? "").Trim();
+        var text = Unquote((query ?? "").Trim());
         if (text.Length == 0) return Nothing;
 
         var os = platform ?? ExecutionPolicy.CurrentPlatform;
@@ -67,6 +67,26 @@ public static partial class UnmatchedSearch
 
         return AsPath(text, verifyPaths, os, probe ?? PathProbe.Real);
     }
+
+    /// <summary>
+    /// Takes the double quotes off a line that is wrapped in them, so a path pasted from
+    /// Explorer's <b>Copy as path</b> — which always quotes, and quotes whether or not the
+    /// path has a space in it — is a path rather than a string starting with a quote.
+    ///
+    /// Both quotes or neither: an unmatched one is a half-finished paste, and guessing at
+    /// it would be worse than leaving it as the search it still is. Nothing is lost by
+    /// taking them off, since a Windows path cannot contain a double quote at all.
+    ///
+    /// It happens before everything else rather than only for paths, because that is what
+    /// the other route into execution already does — a marked item's line goes through
+    /// <see cref="Macros.SplitArguments"/>, which unquotes its first word whatever that
+    /// word turns out to be. Two routes to the same launcher should not disagree about
+    /// what a pair of quotes means.
+    /// </summary>
+    public static string Unquote(string text) =>
+        text.Length >= 2 && text[0] == '"' && text[^1] == '"'
+            ? text[1..^1].Trim()
+            : text;
 
     /// <summary>
     /// The machine control a search names, matched as the whole line and nothing else.
