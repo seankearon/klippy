@@ -41,6 +41,10 @@ public partial class MainViewModel : ViewModelBase
     private readonly SnippetStore _store;
     private readonly ClipHistoryStore? _history;
     private readonly AppSettings _prefs;
+
+    /// <summary>What runs an unmatched search, or null where nothing can be run.</summary>
+    private readonly Action<LaunchTarget>? _launcher;
+
     private readonly Dictionary<Guid, SnippetViewModel> _rowCache = new();
     private readonly Dictionary<Guid, ClipViewModel> _clipCache = new();
     private readonly DispatcherTimer _toastTimer;
@@ -65,6 +69,17 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private SettingsViewModel? _settings;
+
+    /// <summary>
+    /// What Enter would run instead of copying, when the search matched nothing but named
+    /// something runnable. Null the rest of the time, which is nearly always.
+    /// </summary>
+    [ObservableProperty]
+    private LaunchViewModel? _launch;
+
+    /// <summary>An OS control waiting to be confirmed. Drives the confirmation overlay.</summary>
+    [ObservableProperty]
+    private LaunchViewModel? _pendingLaunch;
 
     [ObservableProperty]
     private bool _isToastVisible;
@@ -132,11 +147,19 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store) { }
 
     /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
-    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null, AppSettings? settings = null)
+    /// <param name="launcher">
+    /// Defaults to <see cref="LaunchRunner.Runner"/>, which the head sets before any view
+    /// model exists — the same arrangement as the history store above. Taken here rather
+    /// than read from the static at the point of use so a test can hand over its own
+    /// without reaching into global state that another test is also looking at.
+    /// </param>
+    public MainViewModel(SnippetStore store, ClipHistoryStore? history = null, AppSettings? settings = null,
+        Action<LaunchTarget>? launcher = null)
     {
         _store = store;
         _history = history;
         _prefs = settings ?? AppSettings.Current;
+        _launcher = launcher ?? LaunchRunner.Runner;
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); IsToastVisible = false; };
 
@@ -170,6 +193,26 @@ public partial class MainViewModel : ViewModelBase
         else RefreshSnippets();
 
         SelectedSnippet = Filtered.Count > 0 ? Filtered[0] : null;
+        UpdateLaunch();
+    }
+
+    /// <summary>
+    /// Decides whether the search that just ran should be offered as something to run.
+    ///
+    /// The first condition is the whole rule the feature rests on: a search that found an
+    /// item is a search, and only a search. "lock" stays a filter for as long as one snippet
+    /// answers to it, however little of the list is left.
+    /// </summary>
+    private void UpdateLaunch()
+    {
+        if (Filtered.Count > 0 || !_prefs.LaunchEnabled || _launcher is null)
+        {
+            Launch = null;
+            return;
+        }
+
+        var target = LaunchPolicy.Parse(FilterText, _prefs.LaunchVerifyPaths);
+        Launch = target.IsRunnable ? new LaunchViewModel(target) : null;
     }
 
     private void RefreshSnippets()
@@ -326,6 +369,55 @@ public partial class MainViewModel : ViewModelBase
         _ => new CopyPayload(clip.Model.Text, clip.Model.Html),
     };
 
+    /// <summary>
+    /// Runs the offer, or puts an OS control up for confirmation first.
+    ///
+    /// Only ever reachable while <see cref="Launch"/> is set, which is only while the search
+    /// matched nothing — so this cannot fire instead of a copy.
+    /// </summary>
+    [RelayCommand]
+    private void RunLaunch()
+    {
+        if (Launch is not { } launch) return;
+
+        if (launch.NeedsConfirmation(_prefs)) PendingLaunch = launch;
+        else Execute(launch);
+    }
+
+    /// <summary>Goes ahead with an OS control the user has confirmed.</summary>
+    [RelayCommand]
+    private void ConfirmLaunch()
+    {
+        if (PendingLaunch is not { } launch) return;
+        PendingLaunch = null;
+        Execute(launch);
+    }
+
+    [RelayCommand]
+    private void CancelLaunch() => PendingLaunch = null;
+
+    private void Execute(LaunchViewModel launch)
+    {
+        if (_launcher is not { } run) return;
+
+        launch.Error = null;
+        try
+        {
+            run(launch.Target);
+        }
+        catch (Exception ex)
+        {
+            // Shown where the offer was, and the window stays up to show it. A launcher
+            // that vanishes having done nothing is the worst of both answers.
+            launch.Error = ex.Message;
+            return;
+        }
+
+        // Whatever was launched is what the user wants to look at now, and for an OS control
+        // there is nothing left to look at here at all.
+        CloseRequested?.Invoke();
+    }
+
     /// <summary>Keeps a clip out of the history's eviction, or releases it.</summary>
     [RelayCommand]
     private void TogglePin(ClipViewModel? row)
@@ -473,13 +565,14 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenSettings() =>
-        Settings = new SettingsViewModel(_prefs, close: () => Settings = null);
+        Settings = new SettingsViewModel(_prefs, close: () => Settings = null, canLaunch: _launcher is not null);
 
     /// <summary>Esc: close whichever overlay is open, else clear the filter. Returns false if there was nothing to do.</summary>
     public bool HandleEscape()
     {
         if (Editor is not null) { Editor = null; return true; }
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
+        if (PendingLaunch is not null) { PendingLaunch = null; return true; }
         if (Transfer is not null) { Transfer = null; return true; }
         if (Settings is not null) { Settings = null; return true; }
         if (FilterText.Length > 0) { FilterText = ""; return true; }

@@ -8,138 +8,186 @@
   <Panel IsVisible="{Binding Settings, Converter={x:Static ObjectConverters.IsNotNull}}">
     <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
 
-    <Border MaxWidth="460" Margin="20" VerticalAlignment="Center"
-            Background="{StaticResource SurfaceBrush}"
-            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
-            CornerRadius="8" Padding="16">
-      <ContentControl Content="{Binding Settings}">
-        <ContentControl.ContentTemplate>
-          <DataTemplate x:DataType="vm:SettingsViewModel">
-            <StackPanel Spacing="12">
-              <TextBlock Text="Settings" FontSize="13" FontWeight="SemiBold"
-                         Foreground="{StaticResource TextPrimaryBrush}" />
+    <!-- Outside the panel rather than inside it: a ScrollViewer measures its content with
+         no height limit, so the panel is centred whole while it fits and scrolls once it
+         does not. Without this the "Done" button falls off the bottom of a short window,
+         and the list of preferences only ever grows. It covers the scrim, so it carries the
+         same handler — which is why that one has to tell a press beside the panel from one
+         inside it. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  PointerPressed="ScrimPressed">
+      <Border x:Name="Panel" MaxWidth="460" Margin="20" VerticalAlignment="Center"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+              CornerRadius="8" Padding="16">
+        <ContentControl Content="{Binding Settings}">
+          <ContentControl.ContentTemplate>
+            <DataTemplate x:DataType="vm:SettingsViewModel">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Settings" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
 
-              <StackPanel Spacing="8">
-                <TextBlock Classes="mono" Text="MARKDOWN" FontSize="10" LetterSpacing="0.8"
-                           Foreground="{StaticResource MutedBrush}" />
+                <StackPanel Spacing="8">
+                  <TextBlock Classes="mono" Text="MARKDOWN" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
 
-                <!-- Grid, not a horizontal StackPanel: the star column is what gives the
-                     explanation a width to wrap inside. -->
-                <Grid ColumnDefinitions="Auto,8,*">
-                  <ToggleButton Grid.Column="0" Classes="chip" Content="Rich text"
-                                VerticalAlignment="Top"
-                                IsChecked="{Binding MarkdownToHtml}" />
-                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="Copy Markdown snippets as formatted HTML too. Off copies the raw Markdown everywhere." />
-                </Grid>
+                  <!-- Grid, not a horizontal StackPanel: the star column is what gives the
+                       explanation a width to wrap inside. -->
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Rich text"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding MarkdownToHtml}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Copy Markdown snippets as formatted HTML too. Off copies the raw Markdown everywhere." />
+                  </Grid>
 
-                <!-- Only means anything while there is HTML to space out. -->
-                <Grid ColumnDefinitions="Auto,8,*" IsEnabled="{Binding MarkdownToHtml}">
-                  <ToggleButton Grid.Column="0" Classes="chip" Content="Double spacing"
-                                VerticalAlignment="Top"
-                                IsChecked="{Binding MarkdownDoubleSpaced}" />
-                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="Blank line between paragraphs. On for helpdesk composers, off for Outlook and Word." />
-                </Grid>
+                  <!-- Only means anything while there is HTML to space out. -->
+                  <Grid ColumnDefinitions="Auto,8,*" IsEnabled="{Binding MarkdownToHtml}">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Double spacing"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding MarkdownDoubleSpaced}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Blank line between paragraphs. On for helpdesk composers, off for Outlook and Word." />
+                  </Grid>
 
-                <!-- Plain-text flavour only, so it stays enabled whatever Rich text says. -->
-                <Grid ColumnDefinitions="Auto,8,*">
-                  <ToggleButton Grid.Column="0" Classes="chip" Content="Bare links"
-                                VerticalAlignment="Top"
-                                IsChecked="{Binding MarkdownSanitiseLinks}" />
-                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="In the plain-text copy, [text](url) becomes just the URL. For apps that paste as plain text, like Zendesk on mobile." />
-                </Grid>
+                  <!-- Plain-text flavour only, so it stays enabled whatever Rich text says. -->
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Bare links"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding MarkdownSanitiseLinks}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="In the plain-text copy, [text](url) becomes just the URL. For apps that paste as plain text, like Zendesk on mobile." />
+                  </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource HairlineBrush}"
+                        IsVisible="{Binding ShowCloseAfterCopy}" />
+
+                <StackPanel Spacing="8" IsVisible="{Binding ShowCloseAfterCopy}">
+                  <TextBlock Classes="mono" Text="AFTER COPY" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Close on clip"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding CloseAfterClipboardCopy}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Copying from the clipboard history dismisses Klippy, ready to paste." />
+                  </Grid>
+
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Close on snippet"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding CloseAfterSnippetCopy}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Copying a snippet dismisses Klippy too. Off leaves the list up for the next one." />
+                  </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource HairlineBrush}"
+                        IsVisible="{Binding ShowLaunch}" />
+
+                <StackPanel Spacing="8" IsVisible="{Binding ShowLaunch}">
+                  <TextBlock Classes="mono" Text="UNMATCHED SEARCH" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Run it"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding LaunchEnabled}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="When nothing matches, Enter opens a link or folder, runs a program, or does lock / sleep / hibernate / restart." />
+                  </Grid>
+
+                  <!-- Both only mean anything while there is something to run. -->
+                  <Grid ColumnDefinitions="Auto,8,*" IsEnabled="{Binding LaunchEnabled}">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Verify paths"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding LaunchVerifyPaths}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Only offer a path that is really there. Off offers any full path and lets the OS report the failure." />
+                  </Grid>
+
+                  <Grid ColumnDefinitions="Auto,8,*" IsEnabled="{Binding LaunchEnabled}">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Confirm OS actions"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding LaunchConfirmSystemActions}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Ask before lock, sleep, hibernate or restart. Off runs them on the Enter that offers them." />
+                  </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource HairlineBrush}"
+                        IsVisible="{Binding ShowSummonPlacement}" />
+
+                <StackPanel Spacing="8" IsVisible="{Binding ShowSummonPlacement}">
+                  <TextBlock Classes="mono" Text="ON SUMMON" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+
+                  <!-- One of three, not three switches: Buttons carrying .selected, the same
+                       chip row the tag filter uses, where picking one drops the others.
+                       CommandParameter must be x:Static - a bare string against a
+                       RelayCommand<LauncherPlacement> throws when the chip is attached, not
+                       when it is clicked, so opening Settings at all would be the crash. -->
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
+                                VerticalAlignment="Top">
+                      <Button Classes="chip" Classes.selected="{Binding IsPlacementRemembered}"
+                              Content="Where it was"
+                              Command="{Binding PickPlacementCommand}"
+                              CommandParameter="{x:Static svc:LauncherPlacement.Remembered}" />
+                      <Button Classes="chip" Classes.selected="{Binding IsPlacementCentre}"
+                              Content="Centre"
+                              Command="{Binding PickPlacementCommand}"
+                              CommandParameter="{x:Static svc:LauncherPlacement.Centre}" />
+                      <Button Classes="chip" Classes.selected="{Binding IsPlacementPointer}"
+                              Content="Pointer"
+                              Command="{Binding PickPlacementCommand}"
+                              CommandParameter="{x:Static svc:LauncherPlacement.Pointer}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Where the hotkey puts the window." />
+                  </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource HairlineBrush}"
+                        IsVisible="{Binding ShowSettingsPath}" />
+
+                <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                           IsVisible="{Binding ShowSettingsPath}"
+                           Foreground="{StaticResource MutedBrush}"
+                           Text="{Binding SettingsPath}" />
+
+                <DockPanel Margin="0,4,0,0">
+                  <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"
+                          Command="{Binding CloseCommand}" />
+                  <TextBlock FontSize="11" Foreground="{StaticResource DangerBrush}"
+                             VerticalAlignment="Center" TextWrapping="Wrap"
+                             Text="{Binding StatusText}" />
+                </DockPanel>
               </StackPanel>
-
-              <Border Height="1" Background="{StaticResource HairlineBrush}"
-                      IsVisible="{Binding ShowCloseAfterCopy}" />
-
-              <StackPanel Spacing="8" IsVisible="{Binding ShowCloseAfterCopy}">
-                <TextBlock Classes="mono" Text="AFTER COPY" FontSize="10" LetterSpacing="0.8"
-                           Foreground="{StaticResource MutedBrush}" />
-
-                <Grid ColumnDefinitions="Auto,8,*">
-                  <ToggleButton Grid.Column="0" Classes="chip" Content="Close on clip"
-                                VerticalAlignment="Top"
-                                IsChecked="{Binding CloseAfterClipboardCopy}" />
-                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="Copying from the clipboard history dismisses Klippy, ready to paste." />
-                </Grid>
-
-                <Grid ColumnDefinitions="Auto,8,*">
-                  <ToggleButton Grid.Column="0" Classes="chip" Content="Close on snippet"
-                                VerticalAlignment="Top"
-                                IsChecked="{Binding CloseAfterSnippetCopy}" />
-                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="Copying a snippet dismisses Klippy too. Off leaves the list up for the next one." />
-                </Grid>
-              </StackPanel>
-
-              <Border Height="1" Background="{StaticResource HairlineBrush}"
-                      IsVisible="{Binding ShowSummonPlacement}" />
-
-              <StackPanel Spacing="8" IsVisible="{Binding ShowSummonPlacement}">
-                <TextBlock Classes="mono" Text="ON SUMMON" FontSize="10" LetterSpacing="0.8"
-                           Foreground="{StaticResource MutedBrush}" />
-
-                <!-- One of three, not three switches: Buttons carrying .selected, the same
-                     chip row the tag filter uses, where picking one drops the others.
-                     CommandParameter must be x:Static - a bare string against a
-                     RelayCommand<LauncherPlacement> throws when the chip is attached, not
-                     when it is clicked, so opening Settings at all would be the crash. -->
-                <Grid ColumnDefinitions="Auto,8,*">
-                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6"
-                              VerticalAlignment="Top">
-                    <Button Classes="chip" Classes.selected="{Binding IsPlacementRemembered}"
-                            Content="Where it was"
-                            Command="{Binding PickPlacementCommand}"
-                            CommandParameter="{x:Static svc:LauncherPlacement.Remembered}" />
-                    <Button Classes="chip" Classes.selected="{Binding IsPlacementCentre}"
-                            Content="Centre"
-                            Command="{Binding PickPlacementCommand}"
-                            CommandParameter="{x:Static svc:LauncherPlacement.Centre}" />
-                    <Button Classes="chip" Classes.selected="{Binding IsPlacementPointer}"
-                            Content="Pointer"
-                            Command="{Binding PickPlacementCommand}"
-                            CommandParameter="{x:Static svc:LauncherPlacement.Pointer}" />
-                  </StackPanel>
-                  <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
-                             TextWrapping="Wrap"
-                             Foreground="{StaticResource MutedBrush}"
-                             Text="Where the hotkey puts the window." />
-                </Grid>
-              </StackPanel>
-
-              <Border Height="1" Background="{StaticResource HairlineBrush}"
-                      IsVisible="{Binding ShowSettingsPath}" />
-
-              <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
-                         IsVisible="{Binding ShowSettingsPath}"
-                         Foreground="{StaticResource MutedBrush}"
-                         Text="{Binding SettingsPath}" />
-
-              <DockPanel Margin="0,4,0,0">
-                <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"
-                        Command="{Binding CloseCommand}" />
-                <TextBlock FontSize="11" Foreground="{StaticResource DangerBrush}"
-                           VerticalAlignment="Center" TextWrapping="Wrap"
-                           Text="{Binding StatusText}" />
-              </DockPanel>
-            </StackPanel>
-          </DataTemplate>
-        </ContentControl.ContentTemplate>
-      </ContentControl>
-    </Border>
+            </DataTemplate>
+          </ContentControl.ContentTemplate>
+        </ContentControl>
+      </Border>
+    </ScrollViewer>
   </Panel>
 </UserControl>

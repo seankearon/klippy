@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.LaunchConfirmOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <!-- Its own overlay rather than a share of the delete one: that asks about a snippet by
+       name and this asks about the machine, and a dialog that has to word itself twice over
+       is a dialog that will eventually say the wrong thing. -->
+  <Panel IsVisible="{Binding PendingLaunch, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border MaxWidth="380" Margin="20" VerticalAlignment="Center"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="16">
+      <ContentControl Content="{Binding PendingLaunch}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="vm:LaunchViewModel">
+            <StackPanel Spacing="10">
+              <TextBlock FontSize="13" FontWeight="SemiBold"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Text="{Binding Question}" />
+              <TextBlock FontSize="12" TextWrapping="Wrap"
+                         Foreground="{StaticResource Muted3Brush}"
+                         Text="{Binding Consequence}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"
+                          Margin="0,4,0,0">
+                <Button Classes="subtle" Content="Cancel"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CancelLaunchCommand}" />
+                <Button Classes="danger" Content="{Binding Verb}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ConfirmLaunchCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+  </Panel>
+</UserControl>

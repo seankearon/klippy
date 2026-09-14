@@ -47,6 +47,18 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private LauncherPlacement _summonPlacement;
 
+    /// <summary>Whether a search that matched nothing may be run instead.</summary>
+    [ObservableProperty]
+    private bool _launchEnabled;
+
+    /// <summary>Whether a path has to exist before it is offered.</summary>
+    [ObservableProperty]
+    private bool _launchVerifyPaths;
+
+    /// <summary>Whether hibernate, sleep, lock and restart ask first.</summary>
+    [ObservableProperty]
+    private bool _launchConfirmSystemActions;
+
     [ObservableProperty]
     private string? _statusText;
 
@@ -72,6 +84,13 @@ public partial class SettingsViewModel : ViewModelBase
     public bool ShowSummonPlacement => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
     /// <summary>
+    /// Whether to offer the run-unmatched choices. Answered by the same thing that decides
+    /// whether the offer itself ever appears — the head's launcher — rather than by the
+    /// platform: toggles for behaviour that cannot happen are worse than no toggles.
+    /// </summary>
+    public bool ShowLaunch { get; }
+
+    /// <summary>
     /// One bool per choice, because the row is three separate Buttons carrying
     /// <c>Classes.selected</c> rather than one control holding a value. Nothing groups
     /// them, so each has to be told when the pick moves off it — see
@@ -85,17 +104,46 @@ public partial class SettingsViewModel : ViewModelBase
     /// <inheritdoc cref="IsPlacementRemembered"/>
     public bool IsPlacementPointer => SummonPlacement == LauncherPlacement.Pointer;
 
-    public SettingsViewModel(AppSettings settings, Action close)
+    /// <param name="canLaunch">
+    /// Whether this app can run an unmatched search at all. Passed down from the main view
+    /// model, which holds the head's launcher; false where there is none.
+    /// </param>
+    public SettingsViewModel(AppSettings settings, Action close, bool canLaunch = false)
     {
         _settings = settings;
         _close = close;
+        ShowLaunch = canLaunch;
         _markdownToHtml = settings.MarkdownToHtml;
         _markdownDoubleSpaced = settings.MarkdownDoubleSpaced;
         _markdownSanitiseLinks = settings.MarkdownSanitiseLinks;
         _closeAfterClipboardCopy = settings.CloseAfterClipboardCopy;
         _closeAfterSnippetCopy = settings.CloseAfterSnippetCopy;
         _summonPlacement = settings.ParsedSummonPlacement;
+        _launchEnabled = settings.LaunchEnabled;
+        _launchVerifyPaths = settings.LaunchVerifyPaths;
+        _launchConfirmSystemActions = settings.LaunchConfirmSystemActions;
         _loaded = true;
+    }
+
+    partial void OnLaunchEnabledChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.LaunchEnabled = value;
+        Save();
+    }
+
+    partial void OnLaunchVerifyPathsChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.LaunchVerifyPaths = value;
+        Save();
+    }
+
+    partial void OnLaunchConfirmSystemActionsChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.LaunchConfirmSystemActions = value;
+        Save();
     }
 
     partial void OnMarkdownSanitiseLinksChanged(bool value)

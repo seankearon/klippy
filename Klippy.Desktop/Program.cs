@@ -36,6 +36,10 @@ sealed class Program
         if (OperatingSystem.IsWindows())
             RichTextClipboard.NativeWriter = WindowsClipboardWriter.TryWriteAsync;
 
+        // A desktop has a shell to hand a path to and a machine to lock, so this head is the
+        // one that lets an unmatched search be run. Mobile leaves it null and never offers.
+        LaunchRunner.Runner = SystemLauncher.Run;
+
         using var history = new ClipboardHistoryService(settings);
         ClipboardHistory.Store = settings.HistoryEnabled ? history.Store : null;
 

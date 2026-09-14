@@ -132,7 +132,7 @@ public partial class MainWindow : Window
 
         // While an overlay is open only Esc (cancel) and Cmd/Ctrl+Enter (save) are global.
         if (vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
-            || vm.Settings is not null)
+            || vm.Settings is not null || vm.PendingLaunch is not null)
         {
             if (e.Key == Key.Escape)
             {
@@ -143,6 +143,14 @@ public partial class MainWindow : Window
                      && vm.Editor?.SaveCommand.CanExecute(null) == true)
             {
                 vm.Editor.SaveCommand.Execute(null);
+                e.Handled = true;
+            }
+            // The one confirmation a bare Enter answers. It is the last step of a keyboard
+            // gesture that began with typing "restart", so reaching for the mouse to finish
+            // it would be the odd thing — and the dialog it confirms is the deliberation.
+            else if (e.Key == Key.Enter && vm.PendingLaunch is not null)
+            {
+                vm.ConfirmLaunchCommand.Execute(null);
                 e.Handled = true;
             }
             return;
@@ -191,9 +199,16 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Enter:
+                // A selected row always wins: running an unmatched search is what Enter
+                // falls back to, never what it prefers.
                 if (vm.SelectedSnippet is not null)
                 {
                     vm.CopySelectedCommand.Execute(null);
+                    e.Handled = true;
+                }
+                else if (vm.Launch is not null)
+                {
+                    vm.RunLaunchCommand.Execute(null);
                     e.Handled = true;
                 }
                 break;

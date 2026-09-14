@@ -21,7 +21,9 @@ The index is precomputed, lowercased words per snippet
 ([`SnippetSearch`](Klippy/Services/SnippetSearch.cs)), so a keystroke costs a linear
 scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
-**Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy,
+**Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy — or to
+run what you typed when nothing matched (see
+[Running an unmatched search](#running-an-unmatched-search)),
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `Esc`
@@ -43,6 +45,83 @@ Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
 Duplicate). A duplicate opens prefilled as a new snippet with " (copy)" appended to the
 label; the quick-code is deliberately not copied so codes stay unique.
+
+## Running an unmatched search
+
+A search that matches nothing is usually a typo. Sometimes it is an instruction. When the
+list comes up empty and what you typed names something runnable, Klippy offers to run it —
+in a band where the first row would have been, with the same `↵` badge the rows carry.
+`Enter` runs it, and so does a click.
+
+**An item match always wins.** The offer appears only once the search has found nothing at
+all, so a snippet called "Lock the server room door" keeps `lock` a filter for as long as it
+exists. Nothing that can be copied is ever displaced by something that runs, and that rule
+is structural rather than remembered: the offer lives outside the list, and is computed from
+an empty one.
+
+| What you type | What happens |
+|---|---|
+| `%appdata%`, `$HOME`, `~/work`, `%appdata%\Klippy` | The variable expands and the folder opens |
+| `C:\work\invoices`, `\\nas\share`, `/usr/local/bin` | The folder opens in Explorer / Finder |
+| `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `C:\work\notes.txt` | The file goes to the shell — exactly what double-clicking it does |
+| `https://…`, `www.…` | The page opens |
+| `lock`, `sleep`, `hibernate`, `restart` | The OS control, after a confirmation |
+
+Paths must be **rooted** — a drive, a UNC share, a leading `/`, a `~`, or a variable that
+expands to one. A relative path would be relative to wherever Klippy happened to be started
+from, which is nobody's mental model, and without that rule every unmatched word with a dot
+in it would look like a file.
+
+Environment variables come in both dialects wherever you are: `%APPDATA%` as on Windows,
+`$HOME` and `${HOME}` as on macOS and Linux, plus a leading `~`. A name that does not
+resolve is left exactly as typed, so it stays a string that matches nothing rather than
+quietly becoming a path with a hole in the middle of it.
+
+URLs are **`https:` and `www.` only**. `http://` is left out because a launcher that
+silently sends you over plaintext is not doing you a favour, and every other scheme —
+`file:`, `shell:`, `javascript:`, `mailto:` — because this is the one place in Klippy where
+typed text reaches the shell, and "it only opens web pages" ought to be true. A bare
+`www.qwe.com` becomes `https://www.qwe.com`; a host with no dot in it (`localhost`) is not
+treated as one.
+
+A script is handed to the shell with the verb the OS would use for a double-click, **not**
+run through an interpreter: on a stock Windows box a `.ps1` opens in an editor. Klippy
+deliberately does no more than the double-click would — the extension only decides whether
+the offer says "Run" or "Open".
+
+The four OS controls are matched as the whole search and nothing else, so "restarting" and
+"please restart" stay searches. Each asks before it happens; that confirmation is one
+`Enter` away, which keeps the whole gesture on the keyboard, and can be switched off.
+
+**Desktop only.** Android and iOS have no shell to hand a path to and no machine to lock, so
+the feature is absent there rather than present and failing — the same reasoning that keeps
+the clipboard history off mobile. What each control does per platform:
+
+| Control | Windows | macOS | Linux |
+|---|---|---|---|
+| **lock** | `LockWorkStation` | `CGSession -suspend` | `loginctl lock-session` |
+| **sleep** | `SetSuspendState` | `pmset sleepnow` | `systemctl suspend` |
+| **hibernate** | `SetSuspendState(hibernate)` | not a thing on macOS — it says so rather than pretending | `systemctl hibernate` |
+| **restart** | `shutdown /r /t 0` | `osascript … System Events restart` | `systemctl reboot` |
+
+Windows carries the documented wrinkle that with hibernation enabled, asking for sleep gets
+you hibernation: `SetSuspendState` is a request and the power policy decides. Turning
+hibernation off behind your back is not Klippy's to do. **The macOS and Linux commands
+compile but have not been run**, as with the macOS hotkey — they cannot be tested from
+Windows.
+
+Deciding *what a string is* and *running it* are separate on purpose.
+[`LaunchPolicy`](Klippy/Services/LaunchPolicy.cs) is a pure function — no `Process`, nothing
+started, the filesystem reachable only through an injected probe — so the half that decides
+whether to execute something is pinned down by tests rather than trusted, exactly as
+[`CapturePolicy`](Klippy/Services/CapturePolicy.cs) is for clipboard capture. The head sets
+[`LaunchRunner.Runner`](Klippy/Services/LaunchRunner.cs) and does the actual launching in
+[`SystemLauncher`](Klippy.Desktop/SystemLauncher.cs); on mobile nothing sets it, which is
+what makes the feature absent there.
+
+Anything that fails to launch says so where the offer was, and the window stays up to be
+read — no shell handler for that file type, hibernation switched off on this machine. A
+launcher that vanishes having done nothing is the worst of both answers.
 
 ## Markdown snippets (pasting into rich-text editors)
 
@@ -80,8 +159,8 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 ## Settings
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
-say whether a copy dismisses the window, and one says where the window lands when you
-summon it. Open with the **settings** footer link
+say whether a copy dismisses the window, three govern running an unmatched search, and one
+says where the window lands when you summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
 
@@ -101,6 +180,26 @@ dismiss to, so the pair is hidden there.
 |---|---|---|
 | **Close on clip** (default on) | Copying from the clipboard history hides the window, so the app you are pasting into comes straight back to the front | The list stays up |
 | **Close on snippet** (default off) | Copying a snippet hides the window too | The list stays up for the next copy |
+
+Three more, desktop only, govern
+[running an unmatched search](#running-an-unmatched-search) — the one feature that executes
+rather than copies, which is why all three default to the cautious answer.
+
+| Toggle | On (default) | Off |
+|---|---|---|
+| **Run it** | A search that matched nothing and names something runnable is offered, and `Enter` runs it | `Enter` does nothing, as it always did on an empty list |
+| **Verify paths** | Only a path that is really there is offered | Any rooted path is offered and the OS reports the failure — for a share that is slow to answer, or a path that does not exist yet |
+| **Confirm OS actions** | Lock, sleep, hibernate and restart ask first; `Enter` again confirms | They run on the `Enter` that offered them |
+
+In `settings.json`:
+
+```json
+{
+  "LaunchEnabled": true,
+  "LaunchVerifyPaths": true,
+  "LaunchConfirmSystemActions": true
+}
+```
 
 One more, desktop only, says where the window lands when a key summons it. Klippy is
 resident, so by default it comes back exactly where you left it — which is worth keeping
@@ -123,9 +222,9 @@ spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Reme
 rather than costing you the rest of the file.
 
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
-is no OK button to forget. The Markdown three default to today's behaviour, so an upgrade
-changes nothing about how existing snippets copy — and **Where it was** does the same for
-the window.
+is no OK button to forget. The panel scrolls rather than running off the bottom of a short
+window. The Markdown three default to today's behaviour, so an upgrade changes nothing about
+how existing snippets copy — and **Where it was** does the same for the window.
 
 ## Export / import
 

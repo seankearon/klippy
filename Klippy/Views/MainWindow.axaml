@@ -119,6 +119,54 @@
         </ItemsControl>
       </Border>
 
+      <!-- Unmatched search: an offer to run what was typed, shown only once the list has
+           come up empty — so it appears exactly where the first row would have been, and
+           never while there is still something to copy. -->
+      <Border x:Name="LaunchBand" DockPanel.Dock="Top" Padding="14,10"
+              IsVisible="{Binding Launch, Converter={x:Static ObjectConverters.IsNotNull}}"
+              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+        <ContentControl Content="{Binding Launch}">
+          <ContentControl.ContentTemplate>
+            <DataTemplate x:DataType="vm:LaunchViewModel">
+              <StackPanel Spacing="6">
+                <Button Classes="previewHeader" HorizontalAlignment="Stretch"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RunLaunchCommand}">
+                  <DockPanel>
+                    <Viewbox DockPanel.Dock="Left" Width="11" Height="11"
+                             VerticalAlignment="Center" Margin="0,0,10,0">
+                      <Grid Width="24" Height="24">
+                        <Path Data="{StaticResource IconRun}" Fill="{StaticResource AccentBrush}" />
+                      </Grid>
+                    </Viewbox>
+                    <Border DockPanel.Dock="Right" Classes="enterBadge"
+                            BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                            CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                            Margin="10,0,0,0">
+                      <TextBlock Classes="mono" FontSize="10"
+                                 Foreground="{StaticResource AccentBrush}" Text="↵ run" />
+                    </Border>
+                    <TextBlock DockPanel.Dock="Left" FontSize="12" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="0,0,10,0"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Text="{Binding Verb}" />
+                    <TextBlock Classes="mono" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{StaticResource Muted3Brush}"
+                               Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </Button>
+
+                <!-- The launch failed: no handler for the file type, hibernation turned
+                     off. The window stays up precisely so this can be read. -->
+                <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap" Margin="21,0,0,0"
+                           Foreground="{StaticResource DangerBrush}"
+                           Text="{Binding Error}"
+                           IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ContentControl.ContentTemplate>
+        </ContentControl>
+      </Border>
+
       <!-- List over preview, with a draggable splitter between them. A Grid (not the
            outer DockPanel) because only a Grid can host a GridSplitter. The preview
            row's height is driven from code-behind: 0 when closed, the last dragged
@@ -498,6 +546,7 @@
 
     <views:EditorOverlay />
     <views:ConfirmOverlay />
+    <views:LaunchConfirmOverlay />
     <views:TransferOverlay />
     <views:SettingsOverlay />
   </Panel>

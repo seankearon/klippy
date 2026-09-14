@@ -257,6 +257,27 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public void SettingsOverlay_StaysOpenOnAClickInsideIt()
+    {
+        // The panel scrolls once it is taller than the window, and the ScrollViewer that
+        // allows that lies over the scrim — so the dismissal has to tell a press beside the
+        // panel from one that landed in it. Without that, flipping a toggle would close
+        // the dialog.
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.OpenSettingsCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var inside = new Point(340, 280); // the middle of the centred panel
+        window.MouseDown(inside, MouseButton.Left);
+        window.MouseUp(inside, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Settings);
+    }
+
+    [AvaloniaFact]
     public void MobileView_HasASettingsButton_AndCapturesScreenshot()
     {
         // Android shows no window chrome, so the header button is the only way in.
