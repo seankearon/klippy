@@ -23,7 +23,7 @@
             <DataTemplate x:DataType="vm:EditorViewModel">
               <!-- Grid, not StackPanel, so the content field is the one row that
                    takes up the height the grip adds. -->
-              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" RowSpacing="10">
+              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" RowSpacing="10">
                 <TextBlock Grid.Row="0" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
                            Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
 
@@ -45,34 +45,91 @@
                            Text="{Binding Content}" />
                 </Grid>
 
-                <Grid Grid.Row="3" ColumnDefinitions="*,12,*">
-                  <StackPanel Grid.Column="0" Spacing="4">
+                <Grid Grid.Row="3" ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto">
+                  <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
                     <TextBlock Classes="mono" Text="TAG" FontSize="10" LetterSpacing="0.8"
                                Foreground="{StaticResource MutedBrush}" />
                     <TextBox Classes="field mono" Watermark="e.g. work"
                              Text="{Binding Tag}" />
                   </StackPanel>
-                  <StackPanel Grid.Column="2" Spacing="4">
+                  <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
                     <TextBlock Classes="mono" Text="QUICK-CODE" FontSize="10" LetterSpacing="0.8"
                                Foreground="{StaticResource MutedBrush}" />
                     <TextBox Classes="field mono" Watermark="e.g. slf"
                              Text="{Binding QuickCode}" />
+                  </StackPanel>
+
+                  <!-- The tags already in use. Full width rather than under the TAG box alone,
+                       so a handful of them fit on one line. The margin does the spacing that
+                       the grid's would otherwise leave behind when there are no tags yet. -->
+                  <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Spacing="4"
+                              Margin="0,10,0,0" IsVisible="{Binding HasTagSuggestions}">
+                    <TextBlock Classes="mono" Text="EXISTING TAGS" FontSize="10" LetterSpacing="0.8"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <!-- Capped so a long list scrolls instead of pushing the dialog off screen. -->
+                    <ScrollViewer MaxHeight="74"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                      <ItemsControl ItemsSource="{Binding TagSuggestions}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:TagChipViewModel">
+                            <!-- Not a tab stop: the chips are a pointer shortcut for what the
+                                 TAG box above already does, and tabbing through a dozen of
+                                 them to reach QUICK-CODE would cost the keyboard more than
+                                 they give it. -->
+                            <Button Classes="chip" IsTabStop="False" Loaded="TagChipLoaded"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Content="{Binding Name}"
+                                    Command="{Binding $parent[ItemsControl].((vm:EditorViewModel)DataContext).SelectTagCommand}"
+                                    CommandParameter="{Binding}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </ScrollViewer>
                   </StackPanel>
                 </Grid>
 
                 <StackPanel Grid.Row="4" Spacing="4">
                   <TextBlock Classes="mono" Text="FORMAT" FontSize="10" LetterSpacing="0.8"
                              Foreground="{StaticResource MutedBrush}" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ToggleButton Classes="chip" Content="Markdown"
-                                  IsChecked="{Binding IsMarkdown}" />
+                  <!-- DockPanel, not a horizontal StackPanel: the note has to wrap into
+                       what is left beside the chip rather than run off a phone screen. -->
+                  <DockPanel>
+                    <ToggleButton DockPanel.Dock="Left" Classes="chip" Content="Markdown"
+                                  Margin="0,0,8,0" IsChecked="{Binding IsMarkdown}" />
                     <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
                                Foreground="{StaticResource MutedBrush}"
                                Text="Copy keeps formatting when pasted into a rich-text editor" />
-                  </StackPanel>
+                  </DockPanel>
                 </StackPanel>
 
-                <DockPanel Grid.Row="5" Margin="0,4,0,0">
+                <StackPanel Grid.Row="5" Spacing="4">
+                  <TextBlock Classes="mono" Text="WHEN TRIGGERED" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+                  <DockPanel>
+                    <ToggleButton DockPanel.Dock="Left" Classes="chip" Content="Execute"
+                                  Margin="0,0,8,0" IsChecked="{Binding IsExecutable}" />
+                    <!-- Two blocks rather than a converter: a marker put on something
+                         that cannot run has to read as the warning it is. -->
+                    <Panel>
+                      <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                                 IsVisible="{Binding !ExecuteHintIsWarning}"
+                                 Foreground="{StaticResource MutedBrush}"
+                                 Text="{Binding ExecuteHint}" />
+                      <TextBlock FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"
+                                 IsVisible="{Binding ExecuteHintIsWarning}"
+                                 Foreground="{StaticResource DangerBrush}"
+                                 Text="{Binding ExecuteHint}" />
+                    </Panel>
+                  </DockPanel>
+                </StackPanel>
+
+                <DockPanel Grid.Row="6" Margin="0,4,0,0">
                   <Button DockPanel.Dock="Left" Classes="subtle" Content="Duplicate"
                           IsVisible="{Binding HasDuplicate}"
                           Command="{Binding DuplicateCommand}" />

@@ -306,11 +306,11 @@ public class SettingsTests
 
         // On, because the offer only ever appears once the list is empty and still takes a
         // deliberate Enter...
-        Assert.True(settings.LaunchEnabled);
+        Assert.True(settings.ExecuteUnmatched);
         // ...and the two guards around it start on, because this is the one feature that
         // runs things.
-        Assert.True(settings.LaunchVerifyPaths);
-        Assert.True(settings.LaunchConfirmSystemActions);
+        Assert.True(settings.ExecuteVerifyPaths);
+        Assert.True(settings.ExecuteConfirmSystemActions);
     }
 
     [Fact]
@@ -321,15 +321,15 @@ public class SettingsTests
         {
             new AppSettings
             {
-                LaunchEnabled = false,
-                LaunchVerifyPaths = false,
-                LaunchConfirmSystemActions = false,
+                ExecuteUnmatched = false,
+                ExecuteVerifyPaths = false,
+                ExecuteConfirmSystemActions = false,
             }.Save(path);
 
             var loaded = AppSettings.Load(path);
-            Assert.False(loaded.LaunchEnabled);
-            Assert.False(loaded.LaunchVerifyPaths);
-            Assert.False(loaded.LaunchConfirmSystemActions);
+            Assert.False(loaded.ExecuteUnmatched);
+            Assert.False(loaded.ExecuteVerifyPaths);
+            Assert.False(loaded.ExecuteConfirmSystemActions);
         }
         finally
         {
@@ -346,21 +346,21 @@ public class SettingsTests
             var settings = AppSettings.Load(path);
             var vm = new SettingsViewModel(settings, close: () => { });
 
-            Assert.True(vm.LaunchEnabled);
-            Assert.True(vm.LaunchVerifyPaths);
-            Assert.True(vm.LaunchConfirmSystemActions);
+            Assert.True(vm.ExecuteUnmatched);
+            Assert.True(vm.ExecuteVerifyPaths);
+            Assert.True(vm.ExecuteConfirmSystemActions);
 
-            vm.LaunchVerifyPaths = false;
-            vm.LaunchConfirmSystemActions = false;
+            vm.ExecuteVerifyPaths = false;
+            vm.ExecuteConfirmSystemActions = false;
 
             // Has to reach the instance the main view model reads, or the very next search
             // would still be checked and the next "restart" would still ask.
-            Assert.False(settings.LaunchVerifyPaths);
-            Assert.False(settings.LaunchConfirmSystemActions);
+            Assert.False(settings.ExecuteVerifyPaths);
+            Assert.False(settings.ExecuteConfirmSystemActions);
 
             var reloaded = AppSettings.Load(path);
-            Assert.False(reloaded.LaunchVerifyPaths);
-            Assert.False(reloaded.LaunchConfirmSystemActions);
+            Assert.False(reloaded.ExecuteVerifyPaths);
+            Assert.False(reloaded.ExecuteConfirmSystemActions);
         }
         finally
         {

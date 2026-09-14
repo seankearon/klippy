@@ -2,6 +2,7 @@ using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Klippy.ViewModels;
 
 namespace Klippy.Views;
 
@@ -16,6 +17,17 @@ public partial class EditorOverlay : UserControl
     private void FirstFieldLoaded(object? sender, RoutedEventArgs e)
     {
         (sender as TextBox)?.Focus();
+    }
+
+    /// <summary>
+    /// Scrolls the snippet's own tag into view. With more tags than the capped chip area
+    /// shows, the highlighted one would otherwise sit below the fold on open — which is
+    /// the one case where the highlight has something to say.
+    /// </summary>
+    private void TagChipLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: TagChipViewModel { IsSelected: true } } chip)
+            chip.BringIntoView();
     }
 
     // ---- dialog sizing ----

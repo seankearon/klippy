@@ -50,6 +50,13 @@ public static class StorageLocations
     /// </summary>
     public static string HistoryPath => Path.Combine(Directory, "history.json");
 
+    /// <summary>
+    /// The command MRU. Always the normal directory, for the reason the settings are:
+    /// the "wipe on uninstall" choice is about snippet data, and a list of lines typed
+    /// into the search box is not that.
+    /// </summary>
+    public static string CommandsPath => Path.Combine(Directory, "commands.json");
+
     public static string? BackupExemptPath =>
         BackupExemptDirectory is { } dir ? Path.Combine(dir, FileName) : null;
 

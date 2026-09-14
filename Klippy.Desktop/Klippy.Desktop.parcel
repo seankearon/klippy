@@ -23,10 +23,13 @@
     "MacOsSettings": {
         "CreateBundle": true,
         "BundleIdentifier": "com.seankearon.klippy",
-        "SigningCredentialsType": "AdHoc"
+        "SigningCredentialsType": "AdHoc",
+        "SignDeep": true
     },
     "PublishSettings": {
-        "PublishSingleFile": "False",
-        "ExtraBuildProperties": {}
+        "PublishSingleFile": "True",
+        "ExtraBuildProperties": {
+            "DebugType": "none"
+        }
     }
 }

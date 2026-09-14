@@ -125,6 +125,17 @@ if ($missing) {
 }
 Write-Ok "code-signing configuration present ($shineEnv)"
 
+# macOS signing is optional (the build falls back to ad-hoc), but mirrored here so the
+# plan below can say which it will be. Klippy.Build is the authority and rejects a
+# partial set.
+$macSigningKeys = @(
+    'MacSigning__P12Path', 'MacSigning__P12Password',
+    'MacSigning__AppleId', 'MacSigning__TeamId', 'MacSigning__AppPassword'
+)
+$macSigningConfigured = -not ($macSigningKeys | Where-Object {
+    [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value)
+})
+
 # --- what is about to happen -----------------------------------------------
 
 # Displayed so the prompt can name a version. Klippy.Build computes this itself and is
@@ -156,9 +167,14 @@ else {
     Write-Host "    tag       : v$plannedVersion  (pushed to origin)"
     Write-Host "    release   : public GitHub release with the Windows installer, both macOS disk images and the Android APK"
     Write-Host "    signing   : Windows exe and installer signed with Azure Trusted Signing"
+    if ($macSigningConfigured) {
+        Write-Host "                macOS bundles Developer ID signed and notarized"
+    }
     Write-Host ''
-    Write-Warn 'The macOS disk images are ad-hoc signed: Gatekeeper will quarantine them,'
-    Write-Warn 'and users will need right-click > Open the first time.'
+    if (-not $macSigningConfigured) {
+        Write-Warn 'The macOS disk images are ad-hoc signed: every other Mac will show Apple''s'
+        Write-Warn '"could not verify" dialog. Add the MacSigning__* keys to shine.env to fix that.'
+    }
     Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
     Write-Warn 'properly-signed build will refuse to install over it.'
 

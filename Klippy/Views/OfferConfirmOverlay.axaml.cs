@@ -4,9 +4,9 @@ using Klippy.ViewModels;
 
 namespace Klippy.Views;
 
-public partial class LaunchConfirmOverlay : UserControl
+public partial class OfferConfirmOverlay : UserControl
 {
-    public LaunchConfirmOverlay()
+    public OfferConfirmOverlay()
     {
         InitializeComponent();
     }
@@ -15,6 +15,6 @@ public partial class LaunchConfirmOverlay : UserControl
     private void ScrimPressed(object? sender, PointerPressedEventArgs e)
     {
         if (DataContext is MainViewModel vm)
-            vm.CancelLaunchCommand.Execute(null);
+            vm.CancelOfferCommand.Execute(null);
     }
 }

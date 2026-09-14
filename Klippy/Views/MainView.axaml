@@ -188,7 +188,7 @@
                   StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round" />
           </Grid>
         </Viewbox>
-        <TextBlock Text="Copied to clipboard" FontSize="12"
+        <TextBlock Text="{Binding ToastText}" FontSize="12" MaxWidth="300" TextWrapping="Wrap"
                    Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
       </StackPanel>
     </Border>

@@ -390,8 +390,38 @@
     <Setter Property="Opacity" Value="1" />
   </Style>
 
+  <!-- ============ Recent commands (MRU) ============ -->
+  <Style Selector="ListBox.commands">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0,2" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource Muted3Brush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverRowBrush}" />
+  </Style>
+  <!-- The browsed line is also in the search box, so it is marked the way a selected row
+       is: accent text on the selected-row fill, not Fluent's blue block. -->
+  <Style Selector="ListBox.commands ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SelectedRowBrush}" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem:selected TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+  </Style>
+
   <!-- ============ Scrollbars: slim, unobtrusive ============ -->
   <Style Selector="ListBox.snips ScrollBar:vertical">
+    <Setter Property="AllowAutoHide" Value="True" />
+  </Style>
+  <Style Selector="ListBox.commands ScrollBar:vertical">
     <Setter Property="AllowAutoHide" Value="True" />
   </Style>
 </Styles>

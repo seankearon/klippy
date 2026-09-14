@@ -22,12 +22,20 @@ The index is precomputed, lowercased words per snippet
 scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy — or to
-run what you typed when nothing matched (see
-[Running an unmatched search](#running-an-unmatched-search)),
+[run](#running-things-links-scripts-applications-and-macros) a snippet marked for it, or
+[what you typed](#running-an-unmatched-search) when nothing matched at all —
+`Ctrl/⌘+Enter` to copy one of those anyway, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
-`Ctrl/⌘+,` settings, `Esc`
-clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row also copies it.
+`Ctrl/⌘+,` settings, `↓` on an empty search box opens
+[recent commands](#recent-commands-the-mru), `Esc`
+clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it, the
+same as `Enter`.
+
+> `F2` is the edit key everywhere else, and `Ctrl/⌘+I` is there for Mac keyboards, where
+> `F2` is the brightness key unless the function-key setting says otherwise. Both open
+> the editor on the selected snippet; in the clipboard history, where a clip has no
+> editor of its own, they do nothing.
 
 A **preview pane** at the bottom shows the full content of the selected snippet —
 useful for long or multi-line entries that the one-line row preview truncates. It is
@@ -41,87 +49,272 @@ CONTENT field more room, and it reopens at that size. Clicking the dimmed area b
 it does nothing on purpose — leaving an edit takes `Esc` or Cancel, so a stray click
 cannot discard it.
 
+A snippet carries a single **tag**, and the editor shows the tags already in use under
+the TAG field (EXISTING TAGS) so a snippet joins one of them rather than quietly coining
+`wrk` beside `work` — a typo there costs a chip in the filter row and hides the snippet
+from the tag it belonged to. Click a tag to fill the field; click the highlighted one
+again to clear it, which is how a tagged snippet goes back to untagged without the
+keyboard. Typing still creates a new tag: a part-typed entry narrows the chips to the
+tags it could still become, and an entry that is already a tag shows the whole set again
+so the next click can move the snippet elsewhere. A long list is capped at three rows and
+scrolls, with the snippet's own tag scrolled into view. The chips sit out of the tab
+order — the TAG box is the keyboard route, and tabbing through a dozen of them to reach
+QUICK-CODE would cost more than they give.
+
 Snippets can be **duplicated** — from a row's hover actions or `Ctrl/⌘+D` on desktop,
 or via the Duplicate button in the edit overlay (the route on mobile: swipe → Edit →
 Duplicate). A duplicate opens prefilled as a new snippet with " (copy)" appended to the
 label; the quick-code is deliberately not copied so codes stay unique.
 
+## Running things: links, scripts, applications and macros
+
+Some snippets are not text you want to paste — they are a link you want open, a script
+you want run, or an application you want started. A snippet can be marked **Execute** in
+the editor (WHEN TRIGGERED → Execute), exactly as it can be marked Markdown, and then
+triggering it — `Enter`, a click, a tap — runs it instead of copying it. Without the
+marker nothing runs: Klippy never decides on its own that a snippet looks like a link
+and should therefore be launched.
+
+Marked rows show a small amber `run` marker, the way Markdown ones show `md`, and their
+primary hover action becomes **▷** rather than the copy glyph. `Ctrl/⌘+Enter` always
+copies, marker or not, so a snippet you usually run can still be put on the clipboard
+when you want the text — the row's badge says both: `↵ run · Ctrl+↵ copy`.
+
+What a marked snippet can run is a short allow-list, checked against its first word:
+
+| Snippet starts with | Runs as |
+|---|---|
+| `http://`, `https://`, `mailto:`, or a bare `www.` | Opened in the default browser |
+| `*.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` on Windows, `pwsh -NoProfile -File` elsewhere |
+| `*.sh` | The script itself where it is executable, so its `#!` line chooses; otherwise `/bin/sh`. `bash.exe` (Git Bash, WSL) on Windows |
+| `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only** |
+| `*.exe` | Started directly, arguments and all — **Windows only** |
+| `*.app` | `open -a`, which knows which executable inside the bundle to start — **macOS only** |
+| `*.AppImage` | The image itself, which runs itself — **Linux only** |
+| anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
+
+The last three are what each platform calls an application, and each runs only at home:
+an `.exe` is no more startable on a Mac than a `.bat` is, and marking one there warns
+you in the editor rather than failing at the press of Enter.
+
+Everything after the first word is passed to the script or application as arguments,
+quotes grouping the words that belong together: `deploy.ps1 --env "west europe"` passes
+two arguments, not three. That is also how a path with a space in it stays one path —
+
+```
+"C:\Program Files\Klippy\Klippy.Desktop.exe" --minimised
+```
+
+— and without the quotes the first word is `C:\Program`, which names nothing. Scripts and
+applications alike run from their own folder, which is where each normally expects to be,
+and a bare `notepad.exe` is left to Windows to find on `PATH`, as Run would.
+
+### Macros
+
+A snippet's text can carry placeholders, filled in when it is copied or run — the
+marker decides which of those happens, the macros work either way:
+
+| Macro | Expands to |
+|---|---|
+| `%P%` | A positional argument — what you typed after the quick-code |
+| `%C%` | Whatever text is on the clipboard right now |
+
+Say a snippet holds `https://www.google.com/search?q=%P%` behind the quick-code `?`.
+Typing
+
+```
+? stuff
+```
+
+shows `https://www.google.com/search?q=stuff` on the row — the expansion, before you
+have committed to anything — and `Enter` runs it if the snippet is marked, or copies
+exactly that text if it is not. The *last* `%P%` takes every argument still unused, so
+`? cats and dogs` searches for the phrase rather than throwing two thirds of it away. A
+placeholder with nothing to fill it expands to nothing: half a typed invocation never
+leaves `%P%` on the clipboard.
+
+A line is only read as an invocation when its first word is **exactly** somebody's
+quick-code and something follows it. Otherwise it is the ordinary search it has always
+been — a prefix match would hijack every two-word search whose first word happened to
+start with a quick-code.
+
+Running hands the execution engine the snippet as stored *and* the arguments —
+`https://www.google.com/search?q=%P%` and `stuff` — rather than the finished string,
+because only it knows where each value is about to land: a URL's query string gets
+`cats%20and%20dogs`, a script's argument list gets `cats and dogs`. `%C%` is read once,
+at that moment, and only when the snippet actually carries one: a row previews its own
+`%P%` expansion as you type, but Klippy never reads your clipboard to draw a list.
+
+A `%C%` can carry the whole command — a snippet of just `%C%`, marked Execute, runs
+whatever is on the clipboard, link or script or application path and switches alike,
+which is the other half of the clipboard history.
+
+### What running something will not do
+
+Running a snippet is running code, so the edges are drawn deliberately tightly:
+
+- **Nothing runs unmarked.** The marker is stored on the snippet and defaults to off, so
+  every snippet that exists today — and every one an import brings in — goes on being
+  copied.
+- **Only the allow-list above runs.** A snippet naming something that is neither link,
+  script nor application is not runnable however firmly it is marked, so `docker system
+  prune -af` stays text. A scheme is not a path whatever it ends in, either:
+  `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
+  refused along with `javascript:`.
+- **An application is a program, and starting one is starting a program.** That is the
+  point of the feature and also its edge: a snippet of `%C%` marked Execute will start
+  whatever application path is on the clipboard, `cmd.exe` and its switches included. The
+  marker is the gate — it is stored per snippet, defaults to off, and you put it there.
+- **Arguments are passed as arguments**, never as a command line a shell re-reads. A
+  `%C%` holding `; rm -rf ~` is one argument to the script, and stays one.
+- **Except for `.bat`**, which `cmd.exe` re-parses after .NET has quoted it. An argument
+  carrying `& | < > ^ " %` is refused with a message instead, because pretending to
+  escape it would be a lie.
+- `-File` rather than `-Command` for PowerShell, for the same reason: the arguments stay
+  arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
+  with it, since the script is one you keep in Klippy and have just asked for by name.
+
+Running something dismisses the window, as copying can: the browser, the script or the
+application is where you are going next. On a phone a marked link opens in the mobile
+browser; a marked script or application says there is nothing to run it in rather than
+doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
+
 ## Running an unmatched search
 
 A search that matches nothing is usually a typo. Sometimes it is an instruction. When the
 list comes up empty and what you typed names something runnable, Klippy offers to run it —
-in a band where the first row would have been, with the same `↵` badge the rows carry.
+in a band where the first row would have been, carrying the same `↵` badge the rows do.
 `Enter` runs it, and so does a click.
 
+It is the feature above reached from the other end. A marked snippet is text you decided
+in advance was runnable; this is a line you have just typed. Either way what comes out is
+an [`ExecutionPlan`](Klippy/Services/ExecutionPolicy.cs) handed to the same
+[`ProcessLauncher`](Klippy/Services/ProcessLauncher.cs), so there is one place in Klippy
+that starts anything, and one toast that says how it went.
+
 **An item match always wins.** The offer appears only once the search has found nothing at
-all, so a snippet called "Lock the server room door" keeps `lock` a filter for as long as it
-exists. Nothing that can be copied is ever displaced by something that runs, and that rule
-is structural rather than remembered: the offer lives outside the list, and is computed from
-an empty one.
+all, so a snippet called "Lock the server room door" keeps `lock` a filter for as long as
+it exists. Nothing that can be copied is ever displaced by something that runs, and the
+rule is structural rather than remembered: the offer lives outside the list, and is only
+computed from an empty one.
 
 | What you type | What happens |
 |---|---|
 | `%appdata%`, `$HOME`, `~/work`, `%appdata%\Klippy` | The variable expands and the folder opens |
 | `C:\work\invoices`, `\\nas\share`, `/usr/local/bin` | The folder opens in Explorer / Finder |
-| `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `C:\work\notes.txt` | The file goes to the shell — exactly what double-clicking it does |
+| `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `/Applications/Safari.app` | The script or application runs, exactly as a marked snippet naming it would |
 | `https://…`, `www.…` | The page opens |
-| `lock`, `sleep`, `hibernate`, `restart` | The OS control, after a confirmation |
+| `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
 
-Paths must be **rooted** — a drive, a UNC share, a leading `/`, a `~`, or a variable that
-expands to one. A relative path would be relative to wherever Klippy happened to be started
-from, which is nobody's mental model, and without that rule every unmatched word with a dot
-in it would look like a file.
+Two things are deliberately narrower here than for a snippet you marked yourself, because
+a marked item was written on purpose and this is whatever landed in a filter box:
+
+- **Links are `https:` and a bare `www.` only.** A marked snippet may also carry `http:`
+  and `mailto:`; typed text may not. `http://` is left out because a launcher that
+  silently sends you over plaintext is not doing you a favour, and the rest of the schemes
+  were never on the list.
+- **Paths must be rooted** — a drive, a UNC share, a leading `/`, a `~`, or a variable that
+  expands to one. A relative path would resolve against wherever Klippy happened to be
+  started from, which is nobody's mental model, and without the rule every unmatched word
+  with a dot in it would look like a file.
+
+Everything else is the allow-list you already know: a script or an application Klippy can
+run on this platform, and nothing besides. A folder is the one addition — it is opened,
+not executed — so a typed `C:\work\notes.txt` is still just text that matched nothing.
 
 Environment variables come in both dialects wherever you are: `%APPDATA%` as on Windows,
 `$HOME` and `${HOME}` as on macOS and Linux, plus a leading `~`. A name that does not
 resolve is left exactly as typed, so it stays a string that matches nothing rather than
-quietly becoming a path with a hole in the middle of it.
+quietly becoming a path with a hole in the middle of it. An item's own `%C%` and `%P%` are
+left alone — those are filled when an item runs, and a search box is not an item.
 
-URLs are **`https:` and `www.` only**. `http://` is left out because a launcher that
-silently sends you over plaintext is not doing you a favour, and every other scheme —
-`file:`, `shell:`, `javascript:`, `mailto:` — because this is the one place in Klippy where
-typed text reaches the shell, and "it only opens web pages" ought to be true. A bare
-`www.qwe.com` becomes `https://www.qwe.com`; a host with no dot in it (`localhost`) is not
-treated as one.
-
-A script is handed to the shell with the verb the OS would use for a double-click, **not**
-run through an interpreter: on a stock Windows box a `.ps1` opens in an editor. Klippy
-deliberately does no more than the double-click would — the extension only decides whether
-the offer says "Run" or "Open".
-
-The four OS controls are matched as the whole search and nothing else, so "restarting" and
-"please restart" stay searches. Each asks before it happens; that confirmation is one
-`Enter` away, which keeps the whole gesture on the keyboard, and can be switched off.
-
-**Desktop only.** Android and iOS have no shell to hand a path to and no machine to lock, so
-the feature is absent there rather than present and failing — the same reasoning that keeps
-the clipboard history off mobile. What each control does per platform:
+The four machine controls are matched as the whole line and nothing else, so "restarting"
+and "please restart" stay searches. Each asks before it happens, and that confirmation is
+one `Enter` away so the whole gesture stays on the keyboard; it can be switched off. They
+are planned as ordinary processes, which is why they need no second execution path:
 
 | Control | Windows | macOS | Linux |
 |---|---|---|---|
-| **lock** | `LockWorkStation` | `CGSession -suspend` | `loginctl lock-session` |
-| **sleep** | `SetSuspendState` | `pmset sleepnow` | `systemctl suspend` |
-| **hibernate** | `SetSuspendState(hibernate)` | not a thing on macOS — it says so rather than pretending | `systemctl hibernate` |
+| **lock** | `rundll32 user32.dll,LockWorkStation` | `CGSession -suspend` | `loginctl lock-session` |
+| **sleep** | `rundll32 powrprof.dll,SetSuspendState` | `pmset sleepnow` | `systemctl suspend` |
+| **hibernate** | `shutdown /h` | not a thing on macOS — the word stays an ordinary search there | `systemctl hibernate` |
 | **restart** | `shutdown /r /t 0` | `osascript … System Events restart` | `systemctl reboot` |
 
-Windows carries the documented wrinkle that with hibernation enabled, asking for sleep gets
-you hibernation: `SetSuspendState` is a request and the power policy decides. Turning
+Windows carries the documented wrinkle that with hibernation enabled, asking for sleep
+gets you hibernation: `SetSuspendState` is a request and the power policy decides. Turning
 hibernation off behind your back is not Klippy's to do. **The macOS and Linux commands
 compile but have not been run**, as with the macOS hotkey — they cannot be tested from
 Windows.
 
-Deciding *what a string is* and *running it* are separate on purpose.
-[`LaunchPolicy`](Klippy/Services/LaunchPolicy.cs) is a pure function — no `Process`, nothing
-started, the filesystem reachable only through an injected probe — so the half that decides
-whether to execute something is pinned down by tests rather than trusted, exactly as
-[`CapturePolicy`](Klippy/Services/CapturePolicy.cs) is for clipboard capture. The head sets
-[`LaunchRunner.Runner`](Klippy/Services/LaunchRunner.cs) and does the actual launching in
-[`SystemLauncher`](Klippy.Desktop/SystemLauncher.cs); on mobile nothing sets it, which is
-what makes the feature absent there.
+Whether a typed line means anything is decided by
+[`UnmatchedSearch`](Klippy/Services/UnmatchedSearch.cs), which is pure in the way
+[`ExecutionPolicy`](Klippy/Services/ExecutionPolicy.cs) is: the platform is a parameter
+and the file system is reached through an injected probe, so the rules that decide whether
+to execute typed text are the ones the tests pin down hardest. A run that fails reports in
+the ordinary toast and leaves the window up to be read.
 
-Anything that fails to launch says so where the offer was, and the window stays up to be
-read — no shell handler for that file type, hibernation switched off on this machine. A
-launcher that vanishes having done nothing is the worst of both answers.
+**Desktop only.** The offer is a keyboard gesture in a launcher, and a phone has neither a
+shell to hand a path to nor a machine of its own to lock — the same reasoning that keeps
+the command MRU off mobile.
+
+## Recent commands (the MRU)
+
+The search box is a command line as much as a filter — a quick-code, then the arguments
+that fill its `%P%` — and a command line you have to retype is half a command line. Klippy
+remembers the lines that did something and offers them back:
+
+- **`↓` on an empty search box** opens the list at the command you used last. `↑`/`↓`
+  browse it, and each line lands in the search box as you reach it, so the row underneath
+  already shows what `Enter` will do — the expanded URL, the script with its arguments.
+  `Enter` then does what it always does: whatever the row is marked for, a copy or a run.
+- **Typing** opens it on what the line could still become. Type `?` and the
+  `? cats and dogs` you ran yesterday is there to be taken; matching is on the start of
+  the line and ignores case.
+- **`Esc`** leaves the list, putting back whatever you had typed before you started
+  browsing — and `↑` past the top does the same, which is the way back to the snippet
+  list for anyone who opened it by accident.
+- **A click** takes the line without running it, so a command can be edited before
+  `Enter` sends it.
+
+A *command* is a line that did something: whatever was in the search box at the moment a
+snippet was copied or run. Browsing to a row and pressing `Enter` with an empty box
+records nothing, because there is no line to recall. A command used again moves back to
+the top rather than being duplicated, which is what "most recently used" means, and
+`? Cats` is kept apart from `? cats` — they search for different things.
+
+One pair of arrow keys, two lists that could want them. The rule is that the MRU has them
+only while it is open, and it is only open when it has something to say: a `↓` on an empty
+box, or a typed line that starts a command run before. That is also why matching is a
+prefix of the *whole line*, rather than the word-prefix search the snippet list uses —
+anything looser would hold the list open, and the arrows with it, over ordinary searches
+that were never commands. With it closed, `↑`/`↓` are the list's, exactly as before.
+
+The MRU belongs to the snippet command line: a filter typed against the
+[clipboard history](#clipboard-history-windows) is not a command, is not recorded, and
+`↓` there steps through the clips as it always did. It is **desktop only**, for the reason
+the history is — the gesture is a keyboard one, and a phone has neither the keys to browse
+with nor the room for the list they open.
+
+### Settings
+
+In `settings.json`, beside the hotkeys:
+
+```json
+{
+  "CommandHistoryLimit": 100
+}
+```
+
+At the limit the oldest commands are dropped. **Zero turns the MRU off** and forgets what
+it has already recorded, since the file is a record of what you have been typing and that
+is a thing a person is entitled to decline.
+
+Commands live in `commands.json` beside `snippets.json`, as a plain JSON array of strings
+so the file can be read and edited by hand. Each is written as it is recorded rather than
+on a timer: a command arrives when you press `Enter`, not on every copy made anywhere on
+the system, so there is nothing to batch. A line is kept exactly as it was typed — `slf `
+is an invocation of `slf` with nothing after it yet, and trimming that space would recall
+something subtly different from what was run.
 
 ## Markdown snippets (pasting into rich-text editors)
 
@@ -195,9 +388,9 @@ In `settings.json`:
 
 ```json
 {
-  "LaunchEnabled": true,
-  "LaunchVerifyPaths": true,
-  "LaunchConfirmSystemActions": true
+  "ExecuteUnmatched": true,
+  "ExecuteVerifyPaths": true,
+  "ExecuteConfirmSystemActions": true
 }
 ```
 
@@ -334,7 +527,10 @@ which browsers, Office and chat clients accept, but a few paint-style apps that 
 speak DIB will not see it.
 
 Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
-(opens the editor prefilled — the clip stays put), **delete**, and **copy**. Deleting a
+(opens the editor prefilled — the clip stays put), **delete**, and **copy**.
+A clip carries no
+[Execute marker](#running-things-links-scripts-applications-and-macros), so the history
+always copies; save a clip as a snippet and mark that if you want to run it. Deleting a
 clip asks for no confirmation, unlike deleting a snippet: a clip is transient by nature
 and the next copy makes another. The footer's **clear history** empties everything
 except pinned clips.
