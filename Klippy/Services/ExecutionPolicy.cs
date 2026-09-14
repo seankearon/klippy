@@ -64,6 +64,13 @@ public sealed record ExecutionPlan
     /// <summary>Which machine-level action, when <see cref="Kind"/> is System.</summary>
     public SystemAction Action { get; init; } = SystemAction.None;
 
+    /// <summary>
+    /// Whether to bring the target's repository up to date before starting it. Stamped on
+    /// by the view model from the user's preference rather than decided here: it is a
+    /// choice about how to run something, not about what the text means.
+    /// </summary>
+    public bool PullFirst { get; init; }
+
     /// <summary>Why nothing can be run, when <see cref="Kind"/> is None. Shown to the user.</summary>
     public string Problem { get; init; } = "";
 
@@ -331,6 +338,23 @@ public static class ExecutionPolicy
                 _ => null,
             },
         };
+
+    /// <summary>
+    /// Whether this plan asks for its target to be brought up to date first.
+    ///
+    /// Only a script or an application: those are files kept somewhere, and somewhere is
+    /// often a checkout that has moved on since. A link has no working copy, and a folder
+    /// is being opened rather than run.
+    /// </summary>
+    public static bool PullsFirst(ExecutionPlan plan) =>
+        plan.PullFirst && plan.Kind is ExecutionKind.Script or ExecutionKind.Application;
+
+    /// <summary>
+    /// The pull itself, as a process like any other — <c>-C</c> rather than a working
+    /// directory so it is one command with its own target, and no shell reads the line.
+    /// </summary>
+    public static LaunchCommand PullCommand(string repository) =>
+        new("git", ["-C", repository, "pull"]);
 
     /// <summary>
     /// Whether a platform has the action at all. Only macOS lacks one: hibernation there

@@ -179,6 +179,44 @@ application is where you are going next. On a phone a marked link opens in the m
 browser; a marked script or application says there is nothing to run it in rather than
 doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
 
+### Pull first
+
+Scripts tend to live in a checkout, and a checkout goes stale. With **Pull first** on,
+running a script or an application runs `git pull` in its own folder and waits for it
+before starting anything — so what runs is what is in the repository, not what was on
+disk the last time you thought about it. It applies to a marked item and to an
+[unmatched search](#running-an-unmatched-search) alike, since both end at the same
+launcher.
+
+It is a *separate process*, not a prefix: `git -C <folder> pull`, started the same way
+everything else is, with its arguments as arguments. Klippy never builds a command line
+for a shell to re-read — that is the property the whole execution path is built on, and
+`git pull && …` would be the one place it was given up. It also means the pull can be
+waited for and its exit code read, which a shell prefix could not offer.
+
+- **Only a script or an application.** A link has no working copy, and a folder is being
+  opened rather than run.
+- **Only a real checkout.** The folder is walked up looking for `.git` — a directory in a
+  clone, a file in a worktree or submodule — and the nearest one wins, so a script in a
+  submodule pulls the submodule rather than its parent. Somewhere that is not a checkout
+  is left alone, silently.
+- **Only a rooted path.** A bare `notepad.exe` for Windows to find on `PATH` names no
+  folder, and must not be read as one relative to wherever Klippy is running.
+- **A failed pull does not cancel the run.** Off the network, on a conflicted branch, with
+  no git installed: the script still starts and the toast says so —
+  *Running deploy.ps1 — git pull failed (1)*. The pull is there to make what starts
+  current, not to be a gate on starting at all. A pull that works says nothing, because
+  it is what you asked for.
+- **It waits, with a limit.** Thirty seconds, then the pull is killed and the run goes
+  ahead with a note. `GIT_TERMINAL_PROMPT=0` goes with it, so a repository that wants a
+  password fails in the moment instead of hanging on a prompt no one can see.
+- The pull happens **before** the check that the target is there, so a script added in a
+  commit this checkout has not seen yet is fetched rather than refused.
+
+Off by default: it only makes sense where the things you run are kept in a checkout, it
+costs a round trip to the remote on every run, and it is a network call made on your
+behalf. In `settings.json` the key is `ExecutePullFirst`.
+
 ## Running an unmatched search
 
 A search that matches nothing is usually a typo. Sometimes it is an instruction. When the
@@ -352,8 +390,9 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 ## Settings
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
-say whether a copy dismisses the window, three govern running an unmatched search, and one
-says where the window lands when you summon it. Open with the **settings** footer link
+say whether a copy dismisses the window, one brings a script's folder up to date before it
+runs, three govern running an unmatched search, and one says where the window lands when
+you summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
 
@@ -374,6 +413,14 @@ dismiss to, so the pair is hidden there.
 | **Close on clip** (default on) | Copying from the clipboard history hides the window, so the app you are pasting into comes straight back to the front | The list stays up |
 | **Close on snippet** (default off) | Copying a snippet hides the window too | The list stays up for the next copy |
 
+One, desktop only, says whether running a script or an application
+[pulls its folder first](#pull-first) — where what you run is kept in a checkout, this is
+what keeps it current.
+
+| Toggle | On | Off (default) |
+|---|---|---|
+| **Pull first** | `git pull` runs in the script or application's own folder, and is waited for, before it starts | It starts as it is on disk |
+
 Three more, desktop only, govern
 [running an unmatched search](#running-an-unmatched-search) — the one feature that executes
 rather than copies, which is why all three default to the cautious answer.
@@ -388,6 +435,7 @@ In `settings.json`:
 
 ```json
 {
+  "ExecutePullFirst": false,
   "ExecuteUnmatched": true,
   "ExecuteVerifyPaths": true,
   "ExecuteConfirmSystemActions": true

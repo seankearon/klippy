@@ -95,6 +95,24 @@
                 </StackPanel>
 
                 <Border Height="1" Background="{StaticResource HairlineBrush}"
+                        IsVisible="{Binding ShowExecutePullFirst}" />
+
+                <StackPanel Spacing="8" IsVisible="{Binding ShowExecutePullFirst}">
+                  <TextBlock Classes="mono" Text="WHEN RUNNING" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Pull first"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding ExecutePullFirst}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Run git pull in a script or application's own folder before starting it, so what runs is what is in the repository. Skipped where it is not a checkout." />
+                  </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource HairlineBrush}"
                         IsVisible="{Binding ShowExecuteUnmatched}" />
 
                 <StackPanel Spacing="8" IsVisible="{Binding ShowExecuteUnmatched}">

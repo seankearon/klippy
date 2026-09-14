@@ -47,6 +47,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private LauncherPlacement _summonPlacement;
 
+    /// <summary>Whether running a script or an application pulls its folder first.</summary>
+    [ObservableProperty]
+    private bool _executePullFirst;
+
     /// <summary>Whether a search that matched nothing may be run instead.</summary>
     [ObservableProperty]
     private bool _executeUnmatched;
@@ -84,6 +88,12 @@ public partial class SettingsViewModel : ViewModelBase
     public bool ShowSummonPlacement => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
     /// <summary>
+    /// Whether to offer the pull-first choice. Only a desktop runs a script or an
+    /// application at all — on a phone execution is a link, and a link has no checkout.
+    /// </summary>
+    public bool ShowExecutePullFirst => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
+    /// <summary>
     /// Whether to offer the run-unmatched choices. The same answer that decides whether
     /// the offer itself ever appears: it is a keyboard gesture in a launcher, and mobile
     /// has neither a shell for a path nor a machine of its own to lock.
@@ -119,10 +129,18 @@ public partial class SettingsViewModel : ViewModelBase
         _closeAfterClipboardCopy = settings.CloseAfterClipboardCopy;
         _closeAfterSnippetCopy = settings.CloseAfterSnippetCopy;
         _summonPlacement = settings.ParsedSummonPlacement;
+        _executePullFirst = settings.ExecutePullFirst;
         _executeUnmatched = settings.ExecuteUnmatched;
         _executeVerifyPaths = settings.ExecuteVerifyPaths;
         _executeConfirmSystemActions = settings.ExecuteConfirmSystemActions;
         _loaded = true;
+    }
+
+    partial void OnExecutePullFirstChanged(bool value)
+    {
+        if (!_loaded) return;
+        _settings.ExecutePullFirst = value;
+        Save();
     }
 
     partial void OnExecuteUnmatchedChanged(bool value)

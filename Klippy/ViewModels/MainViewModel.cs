@@ -549,7 +549,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var text = row.Template;
-        var plan = ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text));
+        var plan = WithPreferences(ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text)));
 
         if (plan.Kind == ExecutionKind.None)
         {
@@ -573,6 +573,15 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private Task ExecuteSelected() => Execute(SelectedSnippet);
+
+    /// <summary>
+    /// Stamps the preferences about *how* to run onto a plan the policy has just worked
+    /// out from what to run. Read per run rather than cached, as the copy preferences are:
+    /// the Settings overlay writes through to the same instance, so a toggle applies to
+    /// the very next Enter.
+    /// </summary>
+    private ExecutionPlan WithPreferences(ExecutionPlan plan) =>
+        plan with { PullFirst = _prefs.ExecutePullFirst };
 
     /// <summary>Fills in an item's macros, reading the clipboard only if it carries a %C%.</summary>
     private async Task<string> ResolveMacrosAsync(string text, IReadOnlyList<string> arguments)
@@ -656,7 +665,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var result = await run(offer.Plan);
+        var result = await run(WithPreferences(offer.Plan));
         ShowToast(result.Message, isError: !result.Started);
         if (!result.Started) return; // the window stays up, or the message is never read
 

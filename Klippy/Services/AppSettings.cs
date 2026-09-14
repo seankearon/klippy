@@ -102,6 +102,16 @@ public sealed class AppSettings
     public bool CloseAfterSnippetCopy { get; set; }
 
     /// <summary>
+    /// Whether running a script or an application first brings its folder up to date with
+    /// <c>git pull</c>. Off by default: it only makes sense where the things you run are
+    /// kept in a checkout, it costs a round trip to the remote on every run, and it is a
+    /// network call made on your behalf — all three are things to opt into. A target that
+    /// is not in a repository is left alone either way, and a pull that fails is reported
+    /// rather than cancelling the run.
+    /// </summary>
+    public bool ExecutePullFirst { get; set; }
+
+    /// <summary>
     /// Whether a search that matched nothing may be run instead: a URL, a folder, a
     /// program, or one of the OS controls. On by default — the offer only ever appears
     /// once the list is empty, and it takes a deliberate Enter on top of that.
