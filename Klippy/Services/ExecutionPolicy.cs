@@ -17,6 +17,26 @@ public enum ExecutionKind
 
     /// <summary>An application, started the way its platform starts one.</summary>
     Application,
+
+    /// <summary>A folder, opened in the platform's file manager.</summary>
+    Folder,
+
+    /// <summary>A machine-level action: lock, sleep, hibernate or restart.</summary>
+    System,
+}
+
+/// <summary>
+/// The machine-level actions Klippy can ask for. Reached only by typing one of the four
+/// words into the search box (see <see cref="UnmatchedSearch"/>) — an item cannot be
+/// marked to restart the computer.
+/// </summary>
+public enum SystemAction
+{
+    None,
+    Lock,
+    Sleep,
+    Hibernate,
+    Restart,
 }
 
 /// <summary>The platforms execution differs between. Passed in so the rules can be tested anywhere.</summary>
@@ -41,6 +61,16 @@ public sealed record ExecutionPlan
     /// </summary>
     public string[] Arguments { get; init; } = Array.Empty<string>();
 
+    /// <summary>Which machine-level action, when <see cref="Kind"/> is System.</summary>
+    public SystemAction Action { get; init; } = SystemAction.None;
+
+    /// <summary>
+    /// Whether to bring the target's repository up to date before starting it. Stamped on
+    /// by the view model from the user's preference rather than decided here: it is a
+    /// choice about how to run something, not about what the text means.
+    /// </summary>
+    public bool PullFirst { get; init; }
+
     /// <summary>Why nothing can be run, when <see cref="Kind"/> is None. Shown to the user.</summary>
     public string Problem { get; init; } = "";
 
@@ -50,6 +80,14 @@ public sealed record ExecutionPlan
         ExecutionKind.Url => "Opening " + Shorten(Target),
         ExecutionKind.Script => "Running " + ExecutionPolicy.FileNameOf(Target),
         ExecutionKind.Application => "Starting " + ExecutionPolicy.ApplicationName(Target),
+        ExecutionKind.Folder => "Opening " + ExecutionPolicy.FolderName(Target),
+        ExecutionKind.System => Action switch
+        {
+            SystemAction.Lock => "Locking the screen",
+            SystemAction.Sleep => "Going to sleep",
+            SystemAction.Hibernate => "Hibernating",
+            _ => "Restarting",
+        },
         _ => Problem,
     };
 
@@ -246,8 +284,86 @@ public static class ExecutionPolicy
         },
         ExecutionKind.Script => ScriptCommand(plan, platform, isExecutable),
         ExecutionKind.Application => ApplicationCommand(plan, platform),
+        ExecutionKind.Folder => platform switch
+        {
+            // Explorer takes the path as its one argument; open and xdg-open are the same
+            // commands a URL uses, since to both a folder is just another thing to open.
+            ExecutionPlatform.Windows => new LaunchCommand("explorer.exe", [plan.Target]),
+            ExecutionPlatform.MacOS => new LaunchCommand("open", [plan.Target]),
+            _ => new LaunchCommand("xdg-open", [plan.Target]),
+        },
+        ExecutionKind.System => SystemCommand(plan.Action, platform),
         _ => null,
     };
+
+    /// <summary>
+    /// The machine-level actions as processes, so the one launcher starts these too
+    /// rather than growing a second path with P/Invoke down it.
+    ///
+    /// Windows carries a documented wrinkle: with hibernation enabled, SetSuspendState
+    /// hibernates whatever its first argument says. It is a request and the power policy
+    /// decides — turning hibernation off behind the user's back is not Klippy's to do.
+    /// </summary>
+    private static LaunchCommand? SystemCommand(SystemAction action, ExecutionPlatform platform) =>
+        platform switch
+        {
+            ExecutionPlatform.Windows => action switch
+            {
+                SystemAction.Lock => new LaunchCommand("rundll32.exe", ["user32.dll,LockWorkStation"]),
+                SystemAction.Sleep => new LaunchCommand("rundll32.exe", ["powrprof.dll,SetSuspendState", "0,1,0"]),
+                SystemAction.Hibernate => new LaunchCommand("shutdown.exe", ["/h"]),
+                // /t 0 skips the minute-long warning the default would put up.
+                SystemAction.Restart => new LaunchCommand("shutdown.exe", ["/r", "/t", "0"]),
+                _ => null,
+            },
+
+            ExecutionPlatform.MacOS => action switch
+            {
+                // The lock the Apple menu offers — a fast-user-switch suspend, not a
+                // display sleep that only locks if "require password" happens to be set.
+                SystemAction.Lock => new LaunchCommand(
+                    "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession", ["-suspend"]),
+                SystemAction.Sleep => new LaunchCommand("pmset", ["sleepnow"]),
+                SystemAction.Restart => new LaunchCommand(
+                    "osascript", ["-e", "tell application \"System Events\" to restart"]),
+                _ => null, // hibernate: see Supports below
+            },
+
+            _ => action switch
+            {
+                SystemAction.Lock => new LaunchCommand("loginctl", ["lock-session"]),
+                SystemAction.Sleep => new LaunchCommand("systemctl", ["suspend"]),
+                SystemAction.Hibernate => new LaunchCommand("systemctl", ["hibernate"]),
+                SystemAction.Restart => new LaunchCommand("systemctl", ["reboot"]),
+                _ => null,
+            },
+        };
+
+    /// <summary>
+    /// Whether this plan asks for its target to be brought up to date first.
+    ///
+    /// Only a script or an application: those are files kept somewhere, and somewhere is
+    /// often a checkout that has moved on since. A link has no working copy, and a folder
+    /// is being opened rather than run.
+    /// </summary>
+    public static bool PullsFirst(ExecutionPlan plan) =>
+        plan.PullFirst && plan.Kind is ExecutionKind.Script or ExecutionKind.Application;
+
+    /// <summary>
+    /// The pull itself, as a process like any other — <c>-C</c> rather than a working
+    /// directory so it is one command with its own target, and no shell reads the line.
+    /// </summary>
+    public static LaunchCommand PullCommand(string repository) =>
+        new("git", ["-C", repository, "pull"]);
+
+    /// <summary>
+    /// Whether a platform has the action at all. Only macOS lacks one: hibernation there
+    /// is a sleep <em>mode</em> (pmset hibernatemode) rather than something to ask for,
+    /// so the word is left as an ordinary search rather than offered and then refused.
+    /// </summary>
+    public static bool Supports(SystemAction action, ExecutionPlatform platform) =>
+        action != SystemAction.None
+        && !(action == SystemAction.Hibernate && platform == ExecutionPlatform.MacOS);
 
     private static LaunchCommand? ApplicationCommand(ExecutionPlan plan, ExecutionPlatform platform) =>
         ApplicationExtension(plan.Target) switch
@@ -356,6 +472,16 @@ public static class ExecutionPolicy
         foreach (var (candidate, platform) in Applications)
             if (extension == candidate) return platform;
         return null;
+    }
+
+    /// <summary>
+    /// A folder as a person names it: its last segment, or the whole path when that is
+    /// all there is (a drive root, where the last segment is empty).
+    /// </summary>
+    internal static string FolderName(string path)
+    {
+        var name = FileNameOf(path.TrimEnd(PathSeparators));
+        return name.Length > 0 ? name : path;
     }
 
     /// <summary>An application as a person names it: Safari, not Safari.app.</summary>

@@ -22,7 +22,8 @@ The index is precomputed, lowercased words per snippet
 scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy — or to
-[run](#running-things-links-scripts-applications-and-macros) a snippet marked for it —
+[run](#running-things-links-scripts-applications-and-macros) a snippet marked for it, or
+[what you typed](#running-an-unmatched-search) when nothing matched at all —
 `Ctrl/⌘+Enter` to copy one of those anyway, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
@@ -178,6 +179,149 @@ application is where you are going next. On a phone a marked link opens in the m
 browser; a marked script or application says there is nothing to run it in rather than
 doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
 
+### Pull first
+
+Scripts tend to live in a checkout, and a checkout goes stale. With **Pull first** on,
+running a script or an application runs `git pull` in its own folder and waits for it
+before starting anything — so what runs is what is in the repository, not what was on
+disk the last time you thought about it. It applies to a marked item and to an
+[unmatched search](#running-an-unmatched-search) alike, since both end at the same
+launcher.
+
+It is a *separate process*, not a prefix: `git -C <folder> pull`, started the same way
+everything else is, with its arguments as arguments. Klippy never builds a command line
+for a shell to re-read — that is the property the whole execution path is built on, and
+`git pull && …` would be the one place it was given up. It also means the pull can be
+waited for and its exit code read, which a shell prefix could not offer.
+
+- **Only a script or an application.** A link has no working copy, and a folder is being
+  opened rather than run.
+- **Only a real checkout.** The folder is walked up looking for `.git` — a directory in a
+  clone, a file in a worktree or submodule — and the nearest one wins, so a script in a
+  submodule pulls the submodule rather than its parent. Somewhere that is not a checkout
+  is left alone, silently.
+- **Only a rooted path.** A bare `notepad.exe` for Windows to find on `PATH` names no
+  folder, and must not be read as one relative to wherever Klippy is running.
+- **A failed pull does not cancel the run.** Off the network, on a conflicted branch, with
+  no git installed: the script still starts and the toast says so —
+  *Running deploy.ps1 — git pull failed (1)*. The pull is there to make what starts
+  current, not to be a gate on starting at all. A pull that works says nothing, because
+  it is what you asked for.
+- **It waits, with a limit.** Thirty seconds, then the pull is killed and the run goes
+  ahead with a note. `GIT_TERMINAL_PROMPT=0` goes with it, so a repository that wants a
+  password fails in the moment instead of hanging on a prompt no one can see.
+- The pull happens **before** the check that the target is there, so a script added in a
+  commit this checkout has not seen yet is fetched rather than refused.
+
+Off by default: it only makes sense where the things you run are kept in a checkout, it
+costs a round trip to the remote on every run, and it is a network call made on your
+behalf. In `settings.json` the key is `ExecutePullFirst`.
+
+## Running an unmatched search
+
+A search that matches nothing is usually a typo. Sometimes it is an instruction. When the
+list comes up empty and what you typed names something runnable, Klippy offers to run it —
+in a band where the first row would have been, carrying the same `↵` badge the rows do.
+`Enter` runs it, and so does a click.
+
+It is the feature above reached from the other end. A marked snippet is text you decided
+in advance was runnable; this is a line you have just typed. Either way what comes out is
+an [`ExecutionPlan`](Klippy/Services/ExecutionPolicy.cs) handed to the same
+[`ProcessLauncher`](Klippy/Services/ProcessLauncher.cs), so there is one place in Klippy
+that starts anything, and one toast that says how it went.
+
+**An item that matches beats the offer — where the line could have been a search for it.**
+A snippet called "Lock the server room door" keeps `lock` a filter for as long as it
+exists: `lock` is an ordinary word, and that snippet is a plausible answer to it.
+
+A rooted path or a link is not an ordinary word. Nobody types `D:\work\tools\` hoping to
+filter a list, so a snippet whose body merely *mentions* that folder — a path to something
+inside it, say, which matches every word of it — does not take the folder away from you.
+There the offer stands beside the matches, and `Enter` runs it.
+
+Being the line still beats mentioning it: a snippet whose text **is** the link you typed is
+what you were looking for, and keeps both the selection and the keystroke. So does one
+whose text is what the line resolved to, which is how `%APPDATA%` and the folder it expands
+to stay the same request.
+
+When the offer does stand beside a list with rows in it, it takes the selection and looks
+the part — the same accent bar, accent label and `↵` badge a selected row carries — and the
+list shows a badge on nothing, because only one of the two can have the keystroke. `↓` moves
+into the list, where `Enter` activates the row exactly as it always did, and `↑` from the
+first row comes back to the offer. It is a position in the same column of things, not a
+banner above them.
+
+In the clipboard history none of that applies and a matching clip always wins: clips are
+mostly paths and links themselves, so a line that looks like one is far more likely to be
+someone hunting for the clip they copied than an instruction.
+
+| What you type | What happens |
+|---|---|
+| `%appdata%`, `$HOME`, `~/work`, `%appdata%\Klippy` | The variable expands and the folder opens |
+| `C:\work\invoices`, `\\nas\share`, `/usr/local/bin` | The folder opens in Explorer / Finder |
+| `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `/Applications/Safari.app` | The script or application runs, exactly as a marked snippet naming it would |
+| `https://…`, `www.…` | The page opens |
+| `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
+
+Two things are deliberately narrower here than for a snippet you marked yourself, because
+a marked item was written on purpose and this is whatever landed in a filter box:
+
+- **Links are `https:` and a bare `www.` only.** A marked snippet may also carry `http:`
+  and `mailto:`; typed text may not. `http://` is left out because a launcher that
+  silently sends you over plaintext is not doing you a favour, and the rest of the schemes
+  were never on the list.
+- **Paths must be rooted** — a drive, a UNC share, a leading `/`, a `~`, or a variable that
+  expands to one. A relative path would resolve against wherever Klippy happened to be
+  started from, which is nobody's mental model, and without the rule every unmatched word
+  with a dot in it would look like a file.
+
+Everything else is the allow-list you already know: a script or an application Klippy can
+run on this platform, and nothing besides. A folder is the one addition — it is opened,
+not executed — so a typed `C:\work\notes.txt` is still just text that matched nothing.
+
+**Quotes come off.** Explorer's Shift+right-click → *Copy as path* wraps what it gives you
+in double quotes, whether or not the path has a space in it, so a pasted path would
+otherwise be a string starting with a quote and match nothing at all. A line wrapped in a
+pair of them is unwrapped before anything else looks at it — both quotes or neither, since
+an unmatched one is a half-finished paste and a Windows path cannot contain a quote
+anyway. A snippet marked Execute has always tolerated them, because its line goes through
+the argument splitter; this is the same courtesy on the typed route.
+
+Environment variables come in both dialects wherever you are: `%APPDATA%` as on Windows,
+`$HOME` and `${HOME}` as on macOS and Linux, plus a leading `~`. A name that does not
+resolve is left exactly as typed, so it stays a string that matches nothing rather than
+quietly becoming a path with a hole in the middle of it. An item's own `%C%` and `%P%` are
+left alone — those are filled when an item runs, and a search box is not an item.
+
+The four machine controls are matched as the whole line and nothing else, so "restarting"
+and "please restart" stay searches. Each asks before it happens, and that confirmation is
+one `Enter` away so the whole gesture stays on the keyboard; it can be switched off. They
+are planned as ordinary processes, which is why they need no second execution path:
+
+| Control | Windows | macOS | Linux |
+|---|---|---|---|
+| **lock** | `rundll32 user32.dll,LockWorkStation` | `CGSession -suspend` | `loginctl lock-session` |
+| **sleep** | `rundll32 powrprof.dll,SetSuspendState` | `pmset sleepnow` | `systemctl suspend` |
+| **hibernate** | `shutdown /h` | not a thing on macOS — the word stays an ordinary search there | `systemctl hibernate` |
+| **restart** | `shutdown /r /t 0` | `osascript … System Events restart` | `systemctl reboot` |
+
+Windows carries the documented wrinkle that with hibernation enabled, asking for sleep
+gets you hibernation: `SetSuspendState` is a request and the power policy decides. Turning
+hibernation off behind your back is not Klippy's to do. **The macOS and Linux commands
+compile but have not been run**, as with the macOS hotkey — they cannot be tested from
+Windows.
+
+Whether a typed line means anything is decided by
+[`UnmatchedSearch`](Klippy/Services/UnmatchedSearch.cs), which is pure in the way
+[`ExecutionPolicy`](Klippy/Services/ExecutionPolicy.cs) is: the platform is a parameter
+and the file system is reached through an injected probe, so the rules that decide whether
+to execute typed text are the ones the tests pin down hardest. A run that fails reports in
+the ordinary toast and leaves the window up to be read.
+
+**Desktop only.** The offer is a keyboard gesture in a launcher, and a phone has neither a
+shell to hand a path to nor a machine of its own to lock — the same reasoning that keeps
+the command MRU off mobile.
+
 ## Recent commands (the MRU)
 
 The search box is a command line as much as a filter — a quick-code, then the arguments
@@ -273,8 +417,9 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 ## Settings
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
-say whether a copy dismisses the window, and one says where the window lands when you
-summon it. Open with the **settings** footer link
+say whether a copy dismisses the window, one brings a script's folder up to date before it
+runs, three govern running an unmatched search, and one says where the window lands when
+you summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
 
@@ -295,6 +440,35 @@ dismiss to, so the pair is hidden there.
 | **Close on clip** (default on) | Copying from the clipboard history hides the window, so the app you are pasting into comes straight back to the front | The list stays up |
 | **Close on snippet** (default off) | Copying a snippet hides the window too | The list stays up for the next copy |
 
+One, desktop only, says whether running a script or an application
+[pulls its folder first](#pull-first) — where what you run is kept in a checkout, this is
+what keeps it current.
+
+| Toggle | On | Off (default) |
+|---|---|---|
+| **Pull first** | `git pull` runs in the script or application's own folder, and is waited for, before it starts | It starts as it is on disk |
+
+Three more, desktop only, govern
+[running an unmatched search](#running-an-unmatched-search) — the one feature that executes
+rather than copies, which is why all three default to the cautious answer.
+
+| Toggle | On (default) | Off |
+|---|---|---|
+| **Run it** | A search that matched nothing and names something runnable is offered, and `Enter` runs it | `Enter` does nothing, as it always did on an empty list |
+| **Verify paths** | Only a path that is really there is offered | Any rooted path is offered and the OS reports the failure — for a share that is slow to answer, or a path that does not exist yet |
+| **Confirm OS actions** | Lock, sleep, hibernate and restart ask first; `Enter` again confirms | They run on the `Enter` that offered them |
+
+In `settings.json`:
+
+```json
+{
+  "ExecutePullFirst": false,
+  "ExecuteUnmatched": true,
+  "ExecuteVerifyPaths": true,
+  "ExecuteConfirmSystemActions": true
+}
+```
+
 One more, desktop only, says where the window lands when a key summons it. Klippy is
 resident, so by default it comes back exactly where you left it — which is worth keeping
 if it always lives in the same corner, since after a week your hand finds the search box
@@ -307,6 +481,13 @@ a screen you have since turned away from.
 | **Centre** | Centred on the screen the pointer is on |
 | **Pointer** | Hung from the mouse pointer, dropped far enough that the cursor lands on the search box, and nudged to stay fully on screen |
 
+A summon also brings the window to the **virtual desktop you are on**. A window is assigned
+to a desktop when it becomes visible and stays there, so one left showing on another desktop
+would otherwise be found rather than summoned: the activate would take you to it instead of
+bringing it to you, which is the opposite of what a hotkey means. Klippy hides it first, and
+the show that follows lands it where you are. Nothing to configure, and nothing to pay on
+the usual path — a dismissed window is already hidden.
+
 It applies whenever Klippy comes back to you — the hotkeys, the tray icon, and the first
 appearance at launch — including when the window was left sitting behind whatever you were
 working in. It never moves a window that is already in front of you and focused, so
@@ -316,9 +497,9 @@ spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Reme
 rather than costing you the rest of the file.
 
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
-is no OK button to forget. The Markdown three default to today's behaviour, so an upgrade
-changes nothing about how existing snippets copy — and **Where it was** does the same for
-the window.
+is no OK button to forget. The panel scrolls rather than running off the bottom of a short
+window. The Markdown three default to today's behaviour, so an upgrade changes nothing about
+how existing snippets copy — and **Where it was** does the same for the window.
 
 ## Export / import
 

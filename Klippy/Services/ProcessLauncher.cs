@@ -32,11 +32,19 @@ public static class ProcessLauncher
         if (plan.Kind == ExecutionKind.None)
             return ExecutionResult.Failed(plan.Problem);
 
-        if (Missing(plan) is { } absent)
-            return ExecutionResult.Failed(absent);
-
         if (ExecutionPolicy.Resolve(plan, ExecutionPolicy.CurrentPlatform, IsExecutable) is not { } command)
             return ExecutionResult.Failed("Klippy cannot run that on this platform.");
+
+        // Before the start, and waited for: the whole point is that what runs is the
+        // version in the repository rather than the one left on disk last week.
+        //
+        // Ahead of the missing-target check below, not after it: a script added in a
+        // commit this checkout has not seen yet is exactly what a pull is for, and
+        // refusing it first would mean the pull could never fetch it.
+        var pulled = PullFirst(plan);
+
+        if (Missing(plan) is { } absent)
+            return ExecutionResult.Failed(Note(absent, pulled));
 
         var start = new ProcessStartInfo
         {
@@ -55,7 +63,7 @@ public static class ProcessLauncher
         try
         {
             using var process = Process.Start(start);
-            return new ExecutionResult(true, plan.Description);
+            return new ExecutionResult(true, Note(plan.Description, pulled));
         }
         catch (Exception e) when (e is Win32Exception or InvalidOperationException or IOException
                                       or UnauthorizedAccessException or PlatformNotSupportedException)
@@ -64,6 +72,103 @@ public static class ProcessLauncher
             // Windows — so name what could not be started rather than only why.
             return ExecutionResult.Failed($"Could not run {command.FileName}: {e.Message}");
         }
+    }
+
+    /// <summary>
+    /// A pull that worked says nothing: it is what was asked for, and the message already
+    /// names what is happening. One that did not has to say so, or a stale script runs
+    /// looking exactly like a fresh one — and a target still missing after a failed pull
+    /// is a failure whose reason is the pull.
+    /// </summary>
+    private static string Note(string message, string? pulled) =>
+        pulled is null ? message : $"{message} — {pulled}";
+
+    /// <summary>
+    /// Brings the target's repository up to date, when the plan asks for it and the target
+    /// lives in one. Returns null when there was nothing to do or it worked, and otherwise
+    /// what went wrong, in the few words the toast has room for.
+    ///
+    /// Failing does not stop the run. The pull is there to make what starts current, not
+    /// to be a gate on starting at all: a laptop off the network would otherwise be a
+    /// laptop that cannot run its own scripts.
+    /// </summary>
+    private static string? PullFirst(ExecutionPlan plan)
+    {
+        if (!ExecutionPolicy.PullsFirst(plan)) return null;
+
+        // Path.IsPathRooted, not the policy's own reading of what a path looks like: this
+        // runs on the machine it is about, so the platform's answer is the right one. A
+        // bare "notepad.exe" for Windows to find on PATH names no folder to pull in, and
+        // must not be taken as one relative to wherever Klippy happens to be running.
+        if (!Path.IsPathRooted(plan.Target)) return null;
+        if (DirectoryOf(plan.Target) is not { } directory) return null;
+        if (RepositoryOf(directory) is null) return null; // not a checkout: nothing to pull
+
+        var command = ExecutionPolicy.PullCommand(directory);
+        var start = new ProcessStartInfo
+        {
+            FileName = command.FileName,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var argument in command.Arguments)
+            start.ArgumentList.Add(argument);
+
+        // Nothing is watching a console here, so a git that stops to ask for a password
+        // would hang until the timeout below. Told not to ask, it fails in the moment and
+        // says so instead.
+        start.Environment["GIT_TERMINAL_PROMPT"] = "0";
+
+        try
+        {
+            using var git = Process.Start(start);
+            if (git is null) return "git pull could not start";
+
+            if (!git.WaitForExit(PullTimeoutMs))
+            {
+                git.Kill(entireProcessTree: true);
+                return "git pull timed out";
+            }
+
+            return git.ExitCode == 0 ? null : $"git pull failed ({git.ExitCode})";
+        }
+        catch (Exception e) when (e is Win32Exception or InvalidOperationException or IOException
+                                      or UnauthorizedAccessException or PlatformNotSupportedException
+                                      or NotSupportedException)
+        {
+            // Typically git is not installed, which is worth saying once rather than
+            // silently running the stale copy.
+            return $"git pull failed: {e.Message}";
+        }
+    }
+
+    /// <summary>How long to wait for a pull before giving up on it and running anyway.</summary>
+    private const int PullTimeoutMs = 30_000;
+
+    /// <summary>
+    /// The git working tree <paramref name="directory"/> sits in, or null if it is not in
+    /// one. Walks up, because a script normally lives in a folder of a repository rather
+    /// than at its root — <c>.git</c> is a directory in a checkout and a file in a
+    /// worktree or submodule, so either counts.
+    /// </summary>
+    public static string? RepositoryOf(string? directory)
+    {
+        try
+        {
+            for (var current = directory; !string.IsNullOrEmpty(current);
+                 current = Path.GetDirectoryName(current))
+            {
+                var git = Path.Combine(current, ".git");
+                if (Directory.Exists(git) || File.Exists(git)) return current;
+            }
+        }
+        catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException
+                                      or UnauthorizedAccessException)
+        {
+            // An unreadable parent is not a repository we can pull in either.
+        }
+
+        return null;
     }
 
     /// <summary>

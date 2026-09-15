@@ -102,6 +102,39 @@ public sealed class AppSettings
     public bool CloseAfterSnippetCopy { get; set; }
 
     /// <summary>
+    /// Whether running a script or an application first brings its folder up to date with
+    /// <c>git pull</c>. Off by default: it only makes sense where the things you run are
+    /// kept in a checkout, it costs a round trip to the remote on every run, and it is a
+    /// network call made on your behalf — all three are things to opt into. A target that
+    /// is not in a repository is left alone either way, and a pull that fails is reported
+    /// rather than cancelling the run.
+    /// </summary>
+    public bool ExecutePullFirst { get; set; }
+
+    /// <summary>
+    /// Whether a search that matched nothing may be run instead: a URL, a folder, a
+    /// program, or one of the OS controls. On by default — the offer only ever appears
+    /// once the list is empty, and it takes a deliberate Enter on top of that.
+    /// </summary>
+    public bool ExecuteUnmatched { get; set; } = true;
+
+    /// <summary>
+    /// Whether a path has to exist before it is offered. On by default: an offer to run
+    /// something should mean there is something there. Off suits a network share that is
+    /// slow to answer, or a path that only exists once something else has run — the OS
+    /// then reports the failure instead.
+    /// </summary>
+    public bool ExecuteVerifyPaths { get; set; } = true;
+
+    /// <summary>
+    /// Whether hibernate, sleep, lock and restart ask first. On by default: three of the
+    /// four interrupt everything you are doing, and a launcher is a place where people
+    /// type fast. Off makes a typed "lock" plus Enter lock the screen outright, which is
+    /// the point of the setting.
+    /// </summary>
+    public bool ExecuteConfirmSystemActions { get; set; } = true;
+
+    /// <summary>
     /// Where the window lands when a hotkey summons it: "Remembered", "Centre" or
     /// "Pointer". Remembered by default, and not only because an upgrade should change
     /// nothing: a resident launcher that always comes back to the same corner becomes

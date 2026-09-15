@@ -125,6 +125,43 @@
             </ItemsControl>
           </Border>
 
+          <!-- Unmatched search: an offer to run what was typed, shown only once the list
+               has come up empty — so it appears exactly where the first row would have
+               been, and never while there is still something to copy. -->
+          <Border x:Name="OfferBand" Classes="offer"
+                  Classes.selected="{Binding IsOfferSelected}"
+                  DockPanel.Dock="Top"
+                  IsVisible="{Binding Offer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+              <!-- The same 2px bar the list rows carry, so which of the two Enter is about
+                   to act on is answered the same way in both places. -->
+              <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
+              <Button Classes="offerRow" Command="{Binding RunOfferCommand}">
+                <DockPanel>
+                  <Viewbox DockPanel.Dock="Left" Width="11" Height="11"
+                           VerticalAlignment="Center" Margin="0,0,10,0">
+                    <Grid Width="24" Height="24">
+                      <Path Data="{StaticResource IconPlay}" Fill="{StaticResource AccentBrush}" />
+                    </Grid>
+                  </Viewbox>
+                  <Border DockPanel.Dock="Right" Classes="enterBadge"
+                          BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                          CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                          Margin="10,0,0,0">
+                    <TextBlock Classes="mono" FontSize="10"
+                               Foreground="{StaticResource AccentBrush}" Text="↵ run" />
+                  </Border>
+                  <TextBlock Classes="offerVerb" DockPanel.Dock="Left" FontSize="12"
+                             FontWeight="SemiBold" VerticalAlignment="Center"
+                             Margin="0,0,10,0" Text="{Binding Offer.Verb}" />
+                  <TextBlock Classes="offerDetail mono" FontSize="11" VerticalAlignment="Center"
+                             Text="{Binding Offer.Detail}" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+              </Button>
+            </DockPanel>
+          </Border>
+
           <!-- List over preview, with a draggable splitter between them. A Grid (not the
                outer DockPanel) because only a Grid can host a GridSplitter. The preview
                row's height is driven from code-behind: 0 when closed, the last dragged
@@ -576,6 +613,7 @@
 
     <views:EditorOverlay />
     <views:ConfirmOverlay />
+    <views:OfferConfirmOverlay />
     <views:TransferOverlay />
     <views:SettingsOverlay />
   </Panel>

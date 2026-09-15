@@ -59,6 +59,7 @@ public partial class MainViewModel : ViewModelBase
     private string _filterText = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOfferSelected))]
     private RowViewModel? _selectedSnippet;
 
     [ObservableProperty]
@@ -72,6 +73,25 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private SettingsViewModel? _settings;
+
+    /// <summary>
+    /// What Enter would run instead of copying, when the search matched nothing but named
+    /// something runnable. Null the rest of the time, which is nearly always.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOfferSelected))]
+    private OfferViewModel? _offer;
+
+    /// <summary>
+    /// Whether the offer, rather than a row, is the thing Enter will act on. Exactly one of
+    /// the two may say so — the view shows its accent bar and its ↵ badge from this, as the
+    /// list shows a row's from being selected.
+    /// </summary>
+    public bool IsOfferSelected => Offer is not null && SelectedSnippet is null;
+
+    /// <summary>A machine control waiting to be confirmed. Drives the confirmation overlay.</summary>
+    [ObservableProperty]
+    private OfferViewModel? _pendingOffer;
 
     [ObservableProperty]
     private bool _isToastVisible;
@@ -188,6 +208,14 @@ public partial class MainViewModel : ViewModelBase
 
     public string PreviewKeyHint { get; } = OperatingSystem.IsMacOS() ? "⌘P" : "Ctrl P";
 
+    /// <summary>
+    /// Whether a search that matched nothing may be offered as something to run. Desktop
+    /// only, for the reason the command MRU is: it is a keyboard gesture in a launcher,
+    /// and a phone has neither a shell to hand a path to nor a machine of its own to
+    /// lock. The Settings toggles follow this, so the two can never disagree.
+    /// </summary>
+    public bool CanExecuteUnmatched { get; } = !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
     /// <summary>Whether there is a clipboard history to switch to. False on mobile.</summary>
     public bool HasHistory => _history is not null;
 
@@ -281,6 +309,60 @@ public partial class MainViewModel : ViewModelBase
         else RefreshSnippets();
 
         SelectedSnippet = Filtered.Count > 0 ? Filtered[0] : null;
+        UpdateOffer();
+    }
+
+    /// <summary>
+    /// Decides whether the line that was just searched for should also be offered as
+    /// something to run.
+    ///
+    /// An item that matches beats the offer — but only where the line could have been
+    /// meant as a search for that item. "lock" could: a snippet called "Lock the server
+    /// room door" answers to it, and keeps it a filter. <c>D:\work\tools\</c> could not,
+    /// and a snippet whose body merely mentions that folder has not been asked for by
+    /// someone typing the folder's own path.
+    ///
+    /// An item also wins when it <em>is</em> the line — a snippet whose text is the very
+    /// link you typed was plausibly the thing you were looking for, however literal the
+    /// line. Merely mentioning it is not being it.
+    ///
+    /// The one place all of that is dropped is the clipboard history, where the clips
+    /// themselves are mostly paths and links: there a line that looks like one is far more
+    /// likely to be someone hunting for the clip they copied than an instruction, so a
+    /// matching clip wins whatever was typed.
+    /// </summary>
+    private void UpdateOffer()
+    {
+        if (!_prefs.ExecuteUnmatched || !CanExecuteUnmatched)
+        {
+            Offer = null;
+            return;
+        }
+
+        // Only a rooted path ever reaches the file system here, so an ordinary search word
+        // costs the same as it did when this ran on an empty list alone.
+        var plan = UnmatchedSearch.Plan(FilterText, _prefs.ExecuteVerifyPaths);
+        if (plan.Kind == ExecutionKind.None)
+        {
+            Offer = null;
+            return;
+        }
+
+        bool beatenByAMatch = Filtered.Count > 0
+                              && (IsHistoryMode || UnmatchedSearch.CouldBeASearch(plan) || AnItemIsTheLine(plan));
+        if (beatenByAMatch)
+        {
+            Offer = null;
+            return;
+        }
+
+        Offer = new OfferViewModel(plan);
+
+        // Standing beside a list that still has rows in it, the offer is what Enter acts
+        // on — so the selection comes off the list, since a row that is not getting the
+        // keystroke must not sit there wearing the badge that says it is. ↓ moves back in,
+        // and from there Enter activates the row as it always did.
+        if (Filtered.Count > 0) SelectedSnippet = null;
     }
 
     private void RefreshSnippets()
@@ -505,12 +587,12 @@ public partial class MainViewModel : ViewModelBase
         {
             // Nothing wired up to run things: say so rather than leaving Enter looking
             // broken on an item that is marked to run.
-            ShowToast("Klippy cannot run items on this device.", isError: true);
+            ShowToast(CannotExecuteHere, isError: true);
             return;
         }
 
         var text = row.Template;
-        var plan = ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text));
+        var plan = WithPreferences(ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text)));
 
         if (plan.Kind == ExecutionKind.None)
         {
@@ -534,6 +616,15 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private Task ExecuteSelected() => Execute(SelectedSnippet);
+
+    /// <summary>
+    /// Stamps the preferences about *how* to run onto a plan the policy has just worked
+    /// out from what to run. Read per run rather than cached, as the copy preferences are:
+    /// the Settings overlay writes through to the same instance, so a toggle applies to
+    /// the very next Enter.
+    /// </summary>
+    private ExecutionPlan WithPreferences(ExecutionPlan plan) =>
+        plan with { PullFirst = _prefs.ExecutePullFirst };
 
     /// <summary>Fills in an item's macros, reading the clipboard only if it carries a %C%.</summary>
     private async Task<string> ResolveMacrosAsync(string text, IReadOnlyList<string> arguments)
@@ -573,6 +664,80 @@ public partial class MainViewModel : ViewModelBase
         },
         _ => new CopyPayload(clip.Model.Text, clip.Model.Html),
     };
+
+    /// <summary>
+    /// Whether one of the matching rows <em>is</em> what was typed rather than merely
+    /// mentioning it — by the line as typed, or by what that line resolved to, so
+    /// <c>%APPDATA%</c> and the folder it expands to are the same request.
+    /// </summary>
+    private bool AnItemIsTheLine(ExecutionPlan plan)
+    {
+        var typed = UnmatchedSearch.Unquote(FilterText.Trim());
+
+        foreach (var row in Filtered)
+            if (Names(row.Label, typed) || Names(row.Content, typed)
+                || Names(row.Label, plan.Target) || Names(row.Content, plan.Target))
+                return true;
+
+        return false;
+    }
+
+    private static bool Names(string? text, string wanted) =>
+        wanted.Length > 0 && string.Equals(text?.Trim(), wanted, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Runs the offer, or puts a machine control up for confirmation first.
+    ///
+    /// Only ever reachable while <see cref="Offer"/> is set, which is only while the search
+    /// matched nothing — so this can never fire instead of a copy.
+    /// </summary>
+    [RelayCommand]
+    private Task RunOffer()
+    {
+        if (Offer is not { } offer) return Task.CompletedTask;
+
+        if (!offer.NeedsConfirmation(_prefs)) return Run(offer);
+
+        PendingOffer = offer;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Goes ahead with a machine control the user has confirmed.</summary>
+    [RelayCommand]
+    private Task ConfirmOffer()
+    {
+        if (PendingOffer is not { } offer) return Task.CompletedTask;
+        PendingOffer = null;
+        return Run(offer);
+    }
+
+    [RelayCommand]
+    private void CancelOffer() => PendingOffer = null;
+
+    /// <summary>
+    /// Hands the offer's plan to the same engine an item marked Execute goes through, and
+    /// reports in the same toast. The only difference is where the plan came from.
+    /// </summary>
+    private async Task Run(OfferViewModel offer)
+    {
+        CloseCommands(restore: false);
+
+        if (Executor is not { } run)
+        {
+            ShowToast(CannotExecuteHere, isError: true);
+            return;
+        }
+
+        var result = await run(WithPreferences(offer.Plan));
+        ShowToast(result.Message, isError: !result.Started);
+        if (!result.Started) return; // the window stays up, or the message is never read
+
+        RecordCommand();
+
+        // Executing is a launcher gesture: whatever just started is where the user is
+        // going next, and for a machine control there is nothing left here to look at.
+        CloseRequested?.Invoke();
+    }
 
     /// <summary>Keeps a clip out of the history's eviction, or releases it.</summary>
     [RelayCommand]
@@ -625,12 +790,20 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task CopySelected() => Copy(SelectedSnippet);
 
+    /// <summary>
+    /// Moves the selection through the list — and, where there is an offer standing above
+    /// it, on and off that too. The offer is index -1: the up arrow has to be able to get
+    /// back to it, or looking at what else matched would put the only thing Enter was going
+    /// to run permanently out of reach.
+    /// </summary>
     public void MoveSelection(int delta)
     {
         if (Filtered.Count == 0) return;
+
+        int floor = Offer is null ? 0 : -1;
         int index = SelectedSnippet is null ? -1 : Filtered.IndexOf(SelectedSnippet);
-        index = Math.Clamp(index + delta, 0, Filtered.Count - 1);
-        SelectedSnippet = Filtered[index];
+        index = Math.Clamp(index + delta, floor, Filtered.Count - 1);
+        SelectedSnippet = index < 0 ? null : Filtered[index];
     }
 
     // ---- the command MRU ----
@@ -866,7 +1039,7 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenSettings() =>
-        Settings = new SettingsViewModel(_prefs, close: () => Settings = null);
+        Settings = new SettingsViewModel(_prefs, close: () => Settings = null, canExecuteUnmatched: CanExecuteUnmatched);
 
     /// <summary>
     /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns
@@ -876,6 +1049,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (Editor is not null) { Editor = null; return true; }
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
+        if (PendingOffer is not null) { PendingOffer = null; return true; }
         if (Transfer is not null) { Transfer = null; return true; }
         if (Settings is not null) { Settings = null; return true; }
         // Before the filter: leaving the MRU puts back what was being typed, and that
@@ -886,6 +1060,8 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private const string CopiedToast = "Copied to clipboard";
+
+    private const string CannotExecuteHere = "Klippy cannot run items on this device.";
 
     private void ShowToast(string? text = null, bool isError = false)
     {

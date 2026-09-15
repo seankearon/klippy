@@ -166,6 +166,19 @@ internal sealed class LauncherHost : IDisposable
         if (window.WindowState == WindowState.Minimized)
             window.WindowState = WindowState.Normal;
 
+        // A window is assigned to a virtual desktop when it becomes visible, and stays
+        // there. One left showing on another desktop is therefore *found* rather than
+        // summoned: Activate takes you to it instead of bringing it to you, which is the
+        // opposite of what a hotkey means. Hiding it first drops that assignment, so the
+        // Show below puts it on the desktop you are actually looking at.
+        //
+        // Only while summoning, and only when it is already visible: the ordinary
+        // dismissed-and-recalled case is hidden anyway, so the path this is used on most
+        // pays nothing for it. A second press on a window that is in front and focused
+        // never reaches here — Toggle has already dismissed it.
+        if (summoning && window.IsVisible)
+            window.Hide();
+
         // Computed once and assigned twice. Asking twice would re-read the cursor, and the
         // window would jump if it had moved a pixel in between.
         var placed = summoning ? PlaceFor(window) : null;
