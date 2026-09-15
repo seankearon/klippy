@@ -59,6 +59,7 @@ public partial class MainViewModel : ViewModelBase
     private string _filterText = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOfferSelected))]
     private RowViewModel? _selectedSnippet;
 
     [ObservableProperty]
@@ -78,7 +79,15 @@ public partial class MainViewModel : ViewModelBase
     /// something runnable. Null the rest of the time, which is nearly always.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOfferSelected))]
     private OfferViewModel? _offer;
+
+    /// <summary>
+    /// Whether the offer, rather than a row, is the thing Enter will act on. Exactly one of
+    /// the two may say so — the view shows its accent bar and its ↵ badge from this, as the
+    /// list shows a row's from being selected.
+    /// </summary>
+    public bool IsOfferSelected => Offer is not null && SelectedSnippet is null;
 
     /// <summary>A machine control waiting to be confirmed. Drives the confirmation overlay.</summary>
     [ObservableProperty]
@@ -781,12 +790,20 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task CopySelected() => Copy(SelectedSnippet);
 
+    /// <summary>
+    /// Moves the selection through the list — and, where there is an offer standing above
+    /// it, on and off that too. The offer is index -1: the up arrow has to be able to get
+    /// back to it, or looking at what else matched would put the only thing Enter was going
+    /// to run permanently out of reach.
+    /// </summary>
     public void MoveSelection(int delta)
     {
         if (Filtered.Count == 0) return;
+
+        int floor = Offer is null ? 0 : -1;
         int index = SelectedSnippet is null ? -1 : Filtered.IndexOf(SelectedSnippet);
-        index = Math.Clamp(index + delta, 0, Filtered.Count - 1);
-        SelectedSnippet = Filtered[index];
+        index = Math.Clamp(index + delta, floor, Filtered.Count - 1);
+        SelectedSnippet = index < 0 ? null : Filtered[index];
     }
 
     // ---- the command MRU ----

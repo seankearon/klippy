@@ -188,6 +188,104 @@ public class OfferTests
         Assert.Empty(f.Ran); // the offer did not take the keystroke once a row had it
     }
 
+    [AvaloniaFact]
+    public void UpFromTheFirstRowComesBackToTheOffer()
+    {
+        // Reported from real use: once you looked at what else matched, the only thing
+        // Enter was going to run was out of reach — the up arrow stopped at the first row.
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+        var window = new MainWindow { DataContext = f.Vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        f.Vm.FilterText = folder.Trailing;
+        Assert.True(f.Vm.IsOfferSelected);
+
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(f.Vm.SelectedSnippet);
+        Assert.False(f.Vm.IsOfferSelected);
+
+        window.KeyPress(Key.Up, RawInputModifiers.None, PhysicalKey.ArrowUp, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(f.Vm.SelectedSnippet);
+        Assert.True(f.Vm.IsOfferSelected);
+    }
+
+    [Fact]
+    public void UpFromTheOfferStaysOnIt()
+    {
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+
+        f.Vm.FilterText = folder.Trailing;
+        f.Vm.MoveSelection(-1);
+
+        Assert.True(f.Vm.IsOfferSelected);
+    }
+
+    [Fact]
+    public void WithoutAnOffer_UpStillStopsAtTheFirstRow()
+    {
+        // The list on its own is unchanged: there is no -1 to fall off into.
+        var f = NewVm(("Send log files", "Please send us the log files"),
+            ("Second", "also mentions log files"));
+
+        f.Vm.FilterText = "log";
+        Assert.Null(f.Vm.Offer);
+
+        f.Vm.MoveSelection(-1);
+
+        Assert.Same(f.Vm.Filtered[0], f.Vm.SelectedSnippet);
+    }
+
+    [Fact]
+    public void OnlyOneOfThemEverClaimsEnter()
+    {
+        // Both wearing a ↵ badge at once was the other half of the report: whichever holds
+        // the selection says so, and the other says nothing.
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+
+        f.Vm.FilterText = folder.Trailing;
+        Assert.True(f.Vm.IsOfferSelected);   // the band's badge and bar come from this
+        Assert.Null(f.Vm.SelectedSnippet);   // and the list shows a badge on nothing
+
+        f.Vm.MoveSelection(1);
+
+        Assert.False(f.Vm.IsOfferSelected);
+        Assert.NotNull(f.Vm.SelectedSnippet);
+    }
+
+    [AvaloniaFact]
+    public void TheBandShowsItsSelectionLikeARow()
+    {
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+        var window = new MainWindow { DataContext = f.Vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var band = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "OfferBand");
+
+        // After the band is up: a collapsed Border has no children in the visual tree yet.
+        f.Vm.FilterText = folder.Trailing;
+        Dispatcher.UIThread.RunJobs();
+        var badge = band.GetVisualDescendants().OfType<Border>()
+            .First(b => b.Classes.Contains("enterBadge"));
+
+        Assert.True(band.Classes.Contains("selected"));
+        Assert.True(badge.IsVisible);
+
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(band.Classes.Contains("selected"));
+        Assert.False(badge.IsVisible); // the row below is the one wearing it now
+    }
+
     [Fact]
     public void AnItemThatIsTheLineStillWins()
     {

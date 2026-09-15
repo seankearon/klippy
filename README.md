@@ -244,9 +244,12 @@ what you were looking for, and keeps both the selection and the keystroke. So do
 whose text is what the line resolved to, which is how `%APPDATA%` and the folder it expands
 to stay the same request.
 
-When the offer does stand beside a list with rows in it, it takes the selection — nothing
-in the list should wear the `↵ copy` badge for a keystroke it is not going to get. `↓` moves
-back into the list, and from there `Enter` activates the row exactly as it always did.
+When the offer does stand beside a list with rows in it, it takes the selection and looks
+the part — the same accent bar, accent label and `↵` badge a selected row carries — and the
+list shows a badge on nothing, because only one of the two can have the keystroke. `↓` moves
+into the list, where `Enter` activates the row exactly as it always did, and `↑` from the
+first row comes back to the offer. It is a position in the same column of things, not a
+banner above them.
 
 In the clipboard history none of that applies and a matching clip always wins: clips are
 mostly paths and links themselves, so a line that looks like one is far more likely to be
@@ -477,6 +480,13 @@ a screen you have since turned away from.
 | **Where it was** (default) | Wherever it last sat — what Klippy has always done |
 | **Centre** | Centred on the screen the pointer is on |
 | **Pointer** | Hung from the mouse pointer, dropped far enough that the cursor lands on the search box, and nudged to stay fully on screen |
+
+A summon also brings the window to the **virtual desktop you are on**. A window is assigned
+to a desktop when it becomes visible and stays there, so one left showing on another desktop
+would otherwise be found rather than summoned: the activate would take you to it instead of
+bringing it to you, which is the opposite of what a hotkey means. Klippy hides it first, and
+the show that follows lands it where you are. Nothing to configure, and nothing to pay on
+the usual path — a dismissed window is already hidden.
 
 It applies whenever Klippy comes back to you — the hotkeys, the tray icon, and the first
 appearance at launch — including when the window was left sitting behind whatever you were
