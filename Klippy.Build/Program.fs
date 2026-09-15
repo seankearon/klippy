@@ -35,9 +35,16 @@ let WindowsRuntime = "win-x64"
 /// emulators. A second ABI would double the APK count for no one.
 let AndroidAbi = "android-arm64"
 
-/// Both mac architectures: Parcel merges them into one universal bundle with lipo, so a
-/// single .dmg runs natively on Apple Silicon and Intel alike.
-let MacRuntimes = [ "osx-arm64"; "osx-x64" ]
+/// Apple Silicon only. `parcel pack` does not merge architectures - `--runtimes` is a
+/// packaging matrix, one output per runtime, and the universal/lipo path is the separate
+/// opt-in `parcel step merge-mac` pipeline that `pack` never touches. Packing both RIDs
+/// therefore produced two independent DMGs sharing one PackageName-derived file name in
+/// the drop folder, so the osx-x64 one landed last and shipped: installed copies ran
+/// under Rosetta and macOS 26 warned about ending Intel support. Going arm64-only gives
+/// one native DMG. Intel Macs are dropped deliberately - Apple is retiring them, and a
+/// universal build would mean rewriting the Package stage around `parcel step` for
+/// roughly double the download.
+let MacRuntimes = [ "osx-arm64" ]
 
 // --- arguments -------------------------------------------------------------
 
