@@ -25,9 +25,11 @@ public sealed record PathProbe(Func<string, bool> DirectoryExists, Func<string, 
 /// <see cref="PathProbe"/>: the rules deciding whether to execute typed text are the ones
 /// most worth pinning down in tests.
 ///
-/// Nothing here is reached while the search still matches an item — a snippet called
-/// "lock" wins over locking the screen, because the list is what the user is looking at.
-/// <c>MainViewModel.UpdateOffer</c> is where that rule lives.
+/// An item that matches beats what this decides, but only where the line could have been
+/// meant as a search for that item — see <see cref="CouldBeASearch"/>. A snippet called
+/// "lock" keeps "lock" a filter; a snippet that merely mentions a folder does not take that
+/// folder's own path away from someone who typed it. <c>MainViewModel.UpdateOffer</c> is
+/// where that rule lives.
 ///
 /// Deliberately narrower than <see cref="ExecutionPolicy"/> is for a marked item, in two
 /// ways. URLs here are <c>https</c> and a bare <c>www.</c> only, where a marked item may
@@ -67,6 +69,20 @@ public static partial class UnmatchedSearch
 
         return AsPath(text, verifyPaths, os, probe ?? PathProbe.Real);
     }
+
+    /// <summary>
+    /// Whether what the line names could also have been meant as a search for an item.
+    ///
+    /// Only a machine control could: <c>lock</c> and <c>restart</c> are ordinary words, and
+    /// a snippet may legitimately answer to them. Everything else here had to carry a
+    /// scheme, a <c>www.</c>, or a drive, UNC or <c>/</c> root to be recognised at all —
+    /// nobody types <c>D:\work\tools\</c> hoping to filter a list, so a snippet that
+    /// happens to mention that path has not been asked for.
+    ///
+    /// The distinction the offer needs: a line that could be a search is beaten by an item
+    /// that matches it, and a line that could not is not.
+    /// </summary>
+    public static bool CouldBeASearch(ExecutionPlan plan) => plan.Kind == ExecutionKind.System;
 
     /// <summary>
     /// Takes the double quotes off a line that is wrapped in them, so a path pasted from

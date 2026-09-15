@@ -304,22 +304,56 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Decides whether the search that just ran should be offered as something to run.
+    /// Decides whether the line that was just searched for should also be offered as
+    /// something to run.
     ///
-    /// The first condition is the whole rule the feature rests on: a search that found an
-    /// item is a search, and only a search. "lock" stays a filter for as long as one snippet
-    /// answers to it, however little of the list is left.
+    /// An item that matches beats the offer — but only where the line could have been
+    /// meant as a search for that item. "lock" could: a snippet called "Lock the server
+    /// room door" answers to it, and keeps it a filter. <c>D:\work\tools\</c> could not,
+    /// and a snippet whose body merely mentions that folder has not been asked for by
+    /// someone typing the folder's own path.
+    ///
+    /// An item also wins when it <em>is</em> the line — a snippet whose text is the very
+    /// link you typed was plausibly the thing you were looking for, however literal the
+    /// line. Merely mentioning it is not being it.
+    ///
+    /// The one place all of that is dropped is the clipboard history, where the clips
+    /// themselves are mostly paths and links: there a line that looks like one is far more
+    /// likely to be someone hunting for the clip they copied than an instruction, so a
+    /// matching clip wins whatever was typed.
     /// </summary>
     private void UpdateOffer()
     {
-        if (Filtered.Count > 0 || !_prefs.ExecuteUnmatched || !CanExecuteUnmatched)
+        if (!_prefs.ExecuteUnmatched || !CanExecuteUnmatched)
         {
             Offer = null;
             return;
         }
 
+        // Only a rooted path ever reaches the file system here, so an ordinary search word
+        // costs the same as it did when this ran on an empty list alone.
         var plan = UnmatchedSearch.Plan(FilterText, _prefs.ExecuteVerifyPaths);
-        Offer = plan.Kind == ExecutionKind.None ? null : new OfferViewModel(plan);
+        if (plan.Kind == ExecutionKind.None)
+        {
+            Offer = null;
+            return;
+        }
+
+        bool beatenByAMatch = Filtered.Count > 0
+                              && (IsHistoryMode || UnmatchedSearch.CouldBeASearch(plan) || AnItemIsTheLine(plan));
+        if (beatenByAMatch)
+        {
+            Offer = null;
+            return;
+        }
+
+        Offer = new OfferViewModel(plan);
+
+        // Standing beside a list that still has rows in it, the offer is what Enter acts
+        // on — so the selection comes off the list, since a row that is not getting the
+        // keystroke must not sit there wearing the badge that says it is. ↓ moves back in,
+        // and from there Enter activates the row as it always did.
+        if (Filtered.Count > 0) SelectedSnippet = null;
     }
 
     private void RefreshSnippets()
@@ -621,6 +655,26 @@ public partial class MainViewModel : ViewModelBase
         },
         _ => new CopyPayload(clip.Model.Text, clip.Model.Html),
     };
+
+    /// <summary>
+    /// Whether one of the matching rows <em>is</em> what was typed rather than merely
+    /// mentioning it — by the line as typed, or by what that line resolved to, so
+    /// <c>%APPDATA%</c> and the folder it expands to are the same request.
+    /// </summary>
+    private bool AnItemIsTheLine(ExecutionPlan plan)
+    {
+        var typed = UnmatchedSearch.Unquote(FilterText.Trim());
+
+        foreach (var row in Filtered)
+            if (Names(row.Label, typed) || Names(row.Content, typed)
+                || Names(row.Label, plan.Target) || Names(row.Content, plan.Target))
+                return true;
+
+        return false;
+    }
+
+    private static bool Names(string? text, string wanted) =>
+        wanted.Length > 0 && string.Equals(text?.Trim(), wanted, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Runs the offer, or puts a machine control up for confirmation first.

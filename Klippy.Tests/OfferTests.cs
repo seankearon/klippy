@@ -104,6 +104,159 @@ public class OfferTests
         Assert.Equal(SystemAction.Restart, f.Vm.Offer!.Plan.Action);
     }
 
+    /// <summary>
+    /// A real folder, because the view model probes the real file system — a made-up
+    /// Windows path would simply not be there when these tests run on Linux, and the
+    /// interaction being tested is with the item list rather than with the probe.
+    /// </summary>
+    private sealed class TempFolder : IDisposable
+    {
+        public string Path { get; } =
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"klippy-folder-{Guid.NewGuid():N}");
+
+        /// <summary>As Explorer's address bar and Copy as path both give it: with the separator.</summary>
+        public string Trailing => Path + System.IO.Path.DirectorySeparatorChar;
+
+        /// <summary>A file deep inside it — the kind of path a snippet actually holds.</summary>
+        public string FileInside =>
+            System.IO.Path.Combine(Path, "tooling", "dsleditor", "bin", "DslEditor.exe");
+
+        public TempFolder() => Directory.CreateDirectory(Path);
+
+        public void Dispose()
+        {
+            try { Directory.Delete(Path, recursive: true); }
+            catch (IOException) { /* a temp folder left behind is not a failed test */ }
+        }
+    }
+
+    [Fact]
+    public void APathIsOfferedEvenWhenASnippetHappensToMentionIt()
+    {
+        // Reported from real use: a snippet whose body is a path *inside* the folder makes
+        // every word of the folder's own path match, so the offer to open it vanished.
+        // Nobody types a folder's path to filter a list, so the match is a coincidence.
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+
+        f.Vm.FilterText = folder.Trailing;
+
+        Assert.Single(f.Vm.Filtered);   // the snippet still matches, and still shows
+        Assert.NotNull(f.Vm.Offer);     // and the folder is offered anyway
+        Assert.Equal("Open folder", f.Vm.Offer!.Verb);
+    }
+
+    [Fact]
+    public void TheOfferTakesTheSelection_SoEnterActsOnWhatItSays()
+    {
+        // Standing beside rows, the offer is what Enter runs — so no row may sit there
+        // wearing the badge that says the keystroke is coming to it.
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+
+        f.Vm.FilterText = folder.Trailing;
+
+        Assert.NotNull(f.Vm.Offer);
+        Assert.Null(f.Vm.SelectedSnippet);
+    }
+
+    [AvaloniaFact]
+    public void DownMovesBackIntoTheList_AndEnterThenActivatesTheRow()
+    {
+        // The way out of the offer taking the selection: the list is one keystroke away,
+        // and once you are in it Enter means what it always did.
+        using var folder = new TempFolder();
+        var f = NewVm(("DslEditor", folder.FileInside));
+        var window = new MainWindow { DataContext = f.Vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        f.Attach();
+
+        CopyPayload? copied = null;
+        f.Vm.ClipboardWriter = payload => { copied = payload; return Task.CompletedTask; };
+
+        f.Vm.FilterText = folder.Trailing;
+        Assert.Null(f.Vm.SelectedSnippet);
+
+        window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(f.Vm.SelectedSnippet);
+
+        Enter(window);
+
+        Assert.Equal(folder.FileInside, copied?.Plain);
+        Assert.Empty(f.Ran); // the offer did not take the keystroke once a row had it
+    }
+
+    [Fact]
+    public void AnItemThatIsTheLineStillWins()
+    {
+        // The other side of it: a snippet whose text *is* the link you typed was plausibly
+        // what you were looking for. Mentioning it is not being it.
+        var f = NewVm(("Pricing page", "https://www.qwe.com/pricing"));
+
+        f.Vm.FilterText = "https://www.qwe.com/pricing";
+
+        Assert.Single(f.Vm.Filtered);
+        Assert.Null(f.Vm.Offer);
+        Assert.NotNull(f.Vm.SelectedSnippet); // and the row keeps the selection
+    }
+
+    [Fact]
+    public void AnItemThatIsWhatTheLineResolvedToWinsToo()
+    {
+        // A variable and the folder it expands to are the same request, so a snippet
+        // holding either spelling counts as the thing named.
+        using var folder = new TempFolder();
+        Environment.SetEnvironmentVariable("KLIPPY_TEST_FOLDER", folder.Path);
+        try
+        {
+            // The label is what the typed line matches on; the body is what it resolves to.
+            var f = NewVm(("Klippy test folder", folder.Path));
+
+            f.Vm.FilterText = "%KLIPPY_TEST_FOLDER%";
+
+            Assert.Single(f.Vm.Filtered);
+            Assert.Null(f.Vm.Offer);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("KLIPPY_TEST_FOLDER", null);
+        }
+    }
+
+    [Fact]
+    public void AMachineControlIsStillBeatenByAMatch()
+    {
+        // The original rule, unchanged: "lock" is an ordinary word, and a snippet that
+        // answers to it was plausibly what was being looked for.
+        var f = NewVm(("Lock the server room door", "Ask reception for the code"));
+
+        f.Vm.FilterText = "lock";
+
+        Assert.Single(f.Vm.Filtered);
+        Assert.Null(f.Vm.Offer);
+        Assert.NotNull(f.Vm.SelectedSnippet);
+    }
+
+    [Fact]
+    public void InTheClipboardHistory_AMatchingClipAlwaysWins()
+    {
+        // Clips are mostly paths and links, so a line that looks like one is far more
+        // likely to be someone hunting for the clip they copied than an instruction.
+        using var folder = new TempFolder();
+        var history = ClipHistoryStore.InMemory();
+        history.Add(new ClipEntry { Text = folder.FileInside, SourceApp = "explorer" });
+
+        var vm = new MainViewModel(NewStore(), history, new AppSettings());
+        vm.ShowHistory();
+
+        vm.FilterText = folder.Trailing;
+
+        Assert.Single(vm.Filtered);
+        Assert.Null(vm.Offer);
+    }
+
     [Fact]
     public void AnEmptySearchNeverOffersAnything()
     {

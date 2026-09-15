@@ -230,11 +230,27 @@ an [`ExecutionPlan`](Klippy/Services/ExecutionPolicy.cs) handed to the same
 [`ProcessLauncher`](Klippy/Services/ProcessLauncher.cs), so there is one place in Klippy
 that starts anything, and one toast that says how it went.
 
-**An item match always wins.** The offer appears only once the search has found nothing at
-all, so a snippet called "Lock the server room door" keeps `lock` a filter for as long as
-it exists. Nothing that can be copied is ever displaced by something that runs, and the
-rule is structural rather than remembered: the offer lives outside the list, and is only
-computed from an empty one.
+**An item that matches beats the offer — where the line could have been a search for it.**
+A snippet called "Lock the server room door" keeps `lock` a filter for as long as it
+exists: `lock` is an ordinary word, and that snippet is a plausible answer to it.
+
+A rooted path or a link is not an ordinary word. Nobody types `D:\work\tools\` hoping to
+filter a list, so a snippet whose body merely *mentions* that folder — a path to something
+inside it, say, which matches every word of it — does not take the folder away from you.
+There the offer stands beside the matches, and `Enter` runs it.
+
+Being the line still beats mentioning it: a snippet whose text **is** the link you typed is
+what you were looking for, and keeps both the selection and the keystroke. So does one
+whose text is what the line resolved to, which is how `%APPDATA%` and the folder it expands
+to stay the same request.
+
+When the offer does stand beside a list with rows in it, it takes the selection — nothing
+in the list should wear the `↵ copy` badge for a keystroke it is not going to get. `↓` moves
+back into the list, and from there `Enter` activates the row exactly as it always did.
+
+In the clipboard history none of that applies and a matching clip always wins: clips are
+mostly paths and links themselves, so a line that looks like one is far more likely to be
+someone hunting for the clip they copied than an instruction.
 
 | What you type | What happens |
 |---|---|
