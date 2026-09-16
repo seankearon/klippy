@@ -106,9 +106,12 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 
 /// <summary>
 /// Decides what an item's text means when the user picks Execute, and which process
-/// would carry that out. Pure: no file system, no processes, no Win32 — the platform is
-/// a parameter rather than something read from the environment, so every rule below is
-/// testable on any machine. <see cref="ProcessLauncher"/> does the actual starting.
+/// would carry that out. Pure: no file system, no processes, no Win32 — the platform and
+/// the environment are both parameters, so every rule below is testable on any machine by
+/// describing one. The environment differs from the platform in its default: left out, it
+/// is the machine Klippy is running on, because the alternative is a caller who forgets it
+/// silently getting a path with percent signs in it. <see cref="ProcessLauncher"/> does the
+/// actual starting.
 ///
 /// Three things can be executed:
 ///
@@ -124,7 +127,9 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 ///
 /// The allow-list is still the point, even now that it has applications on it: a
 /// snippet naming something that is none of the three is simply not executable, so a
-/// bare <c>docker system prune -af</c> is text however firmly it is marked to run.
+/// bare <c>docker system prune -af</c> is text however firmly it is marked to run. It is
+/// read off the first word once that word's variables have resolved — a variable may say
+/// where a program lives, and it still has to be one of the three when it gets there.
 /// </summary>
 public static class ExecutionPolicy
 {
@@ -137,10 +142,23 @@ public static class ExecutionPolicy
     /// arguments by the C runtime's rules, which cmd.exe does not honour, so an argument
     /// carrying one of these could start a second command inside a .bat run. Refusing is
     /// the honest answer; pretending to escape it would not be.
+    ///
+    /// Judged on the argument as it was typed, before anything resolves: a variable's own
+    /// value can carry an ampersand, and the argument this is here to refuse is the one
+    /// the user wrote.
     /// </summary>
     private const string CmdMetaCharacters = "&|<>^\"%";
 
     private static readonly char[] CmdMetaCharacterSet = CmdMetaCharacters.ToCharArray();
+
+    /// <summary>
+    /// The same characters as they matter in a <c>.bat</c> file's own path, which rides
+    /// the line cmd.exe re-reads just as its arguments do. Narrower by one: a percent sign
+    /// there can only make cmd read the wrong path, and "Script not found" names that
+    /// better than a lecture about command syntax would. The rest still split the line in
+    /// two — .NET quotes only what carries a space, and cmd strips the quotes it does add.
+    /// </summary>
+    private static readonly char[] CmdPathMetaCharacterSet = "&|<>^\"".ToCharArray();
 
     public static ExecutionPlatform CurrentPlatform =>
         OperatingSystem.IsWindows() ? ExecutionPlatform.Windows
@@ -149,17 +167,30 @@ public static class ExecutionPolicy
 
     /// <summary>
     /// Works out what running <paramref name="text"/> would mean, filling its macros
-    /// from <paramref name="arguments"/> and <paramref name="clipboardText"/> first.
-    /// Never throws: anything it cannot run comes back as
+    /// from <paramref name="arguments"/> and <paramref name="clipboardText"/> first. A
+    /// path may name itself the way it does everywhere else on the machine —
+    /// <c>%LOCALAPPDATA%\…</c>, <c>$HOME/…</c>, <c>~/…</c>; see
+    /// <see cref="EnvironmentProbe"/>. Only the first word, so an argument's percent
+    /// signs are still the user's own. Never throws: anything it cannot run comes back as
     /// <see cref="ExecutionKind.None"/> with a <see cref="ExecutionPlan.Problem"/>.
     /// </summary>
+    /// <param name="environment">
+    /// The environment the first word is resolved against, described by the caller so a
+    /// test need not arrange a real one. Null is the machine Klippy is running on — not
+    /// "leave the variables alone", so a caller that forgets it gets the right answer
+    /// rather than a path with percent signs in it. Unlike <see cref="Resolve"/>'s
+    /// execute bit, whose null default is to ask nothing, this default does read the
+    /// machine; a test that means to stay portable has to pass one.
+    /// </param>
     public static ExecutionPlan Plan(
         string? text,
         IReadOnlyList<string>? arguments = null,
         string? clipboardText = null,
-        ExecutionPlatform? platform = null)
+        ExecutionPlatform? platform = null,
+        EnvironmentProbe? environment = null)
     {
         var os = platform ?? CurrentPlatform;
+        var machine = environment ?? EnvironmentProbe.Real;
         var tokens = Macros.SplitArguments(text);
         if (tokens.Length == 0) return Nothing("There is nothing to run.");
 
@@ -169,6 +200,30 @@ public static class ExecutionPolicy
         // encoding that would turn its own slashes into %2F.
         if (AsUrl(tokens[0]) is not null)
             return UrlPlan(Macros.Expand(tokens[0], arguments, clipboardText, Uri.EscapeDataString));
+
+        // A path names itself here the way it does everywhere else on the machine.
+        // Windows will not do it for us: CreateProcess takes a file name rather than a
+        // command line, so a %LOCALAPPDATA% in one is a folder with percent signs in its
+        // name and the start fails on a path that plainly exists. Only cmd.exe ever
+        // looked inside a name, and nothing here goes through cmd. The typed route has
+        // always resolved these before deciding anything; two routes to the same launcher
+        // should not disagree about what a variable means any more than about what a pair
+        // of quotes means.
+        //
+        // After the URL above, or a percent-encoded query string is read as a name.
+        // Before the macros below, because a macro's value is data rather than more text
+        // to read — the same reason it can never become a second command. And the first
+        // word only: an argument keeps its percent signs, so the .bat refusal further down
+        // still refuses them, and a child process inherits the environment anyway.
+        //
+        // It buys one thing and not another. A clipboard value is never read for variable
+        // names, which is the direction that matters: a path like C:\100%discount%off\x.exe
+        // keeps its middle. The other direction is open — a variable whose *value* spells
+        // %P% has it filled in below like any other, since by then it is one string. That
+        // needs someone to have put a Klippy macro in an environment variable, and anyone
+        // who can do that can set PATH.
+        var typed = tokens[0];
+        tokens[0] = machine.Expand(typed);
 
         var parts = new List<string>(Macros.ExpandAll(tokens, arguments, clipboardText));
         if (parts.Count == 0 || parts[0].Length == 0) return Nothing("There is nothing to run.");
@@ -180,8 +235,10 @@ public static class ExecutionPolicy
         // A macro can otherwise hand back a whole command line — "%C%" with a script path
         // and its switches sitting on the clipboard. Split that apart again so its first
         // word is the command and the rest are arguments, as if it had been typed. Only
-        // when a macro produced it: a quoted path is one path however many spaces it has.
-        if (Macros.IsPresent(tokens[0]) && ContainsWhitespace(parts[0]))
+        // when a macro produced it: a quoted path is one path however many spaces it has,
+        // and so is one that came from a variable — "C:\Users\John Smith" is a folder
+        // whose name has a space in it, not two words somebody typed.
+        if (MacroBroughtAWholeLine(tokens, typed, arguments, clipboardText))
         {
             var head = Macros.SplitArguments(parts[0]);
             parts.RemoveAt(0);
@@ -199,10 +256,28 @@ public static class ExecutionPolicy
         if (HasScheme(command))
             return Nothing($"\"{Ellipsis(command)}\" is not a URL Klippy can open.");
 
+        // A double quote inside the path would decide what starts, behind the allow-list's
+        // back. The extension is read off the last segment, while Windows takes the whole
+        // string as a command line and stops the program name at the quote — so
+        // C:\x\payload.scr"y.exe passes as an .exe and starts the .scr. Nothing legitimate
+        // is lost: a Windows path cannot contain a double quote at all, which is the same
+        // fact that lets UnmatchedSearch.Unquote strip a pasted pair with no ambiguity.
+        if (command.Contains('"'))
+            return Nothing($"\"{Ellipsis(command)}\" is not a path Klippy can run: paths carry no quotes.");
+
         if (ScriptExtension(command) is { } script)
         {
             if (!Supports(script, os))
                 return Nothing($"{script} scripts only run on Windows.");
+
+            // The path rides the same line cmd.exe re-reads, so an ampersand in a folder's
+            // name starts a second command exactly as one in an argument would. Refusing
+            // is the same honest answer, and it matters more now that a variable can
+            // supply the path rather than only the person who typed it.
+            if (IsBatch(script) && command.IndexOfAny(CmdPathMetaCharacterSet) >= 0)
+                return Nothing(
+                    $"\"{Ellipsis(command)}\" cannot be run as a {script} file: " +
+                    "cmd.exe would read &|<>^\" in its path as commands rather than text.");
 
             if (IsBatch(script) && FindUnsafeArgument(rest) is { } unsafeArgument)
                 return Nothing(
@@ -237,13 +312,17 @@ public static class ExecutionPolicy
 
     /// <summary>
     /// Whether text has any chance of running: its first word is a URL, a script this
-    /// platform can run, or a macro that might resolve to either. What the editor asks
+    /// platform can run, or a macro that might resolve to either — a variable in it
+    /// resolved first, since that is the word <see cref="Plan"/> will judge. What the editor asks
     /// while the Execute marker is being ticked, so marking something that can never run
     /// is caught there rather than as a toast afterwards. It says nothing about whether
     /// an item <em>should</em> run — only the marker does — and it deliberately does not
     /// read the clipboard: a <c>%C%</c> is taken on trust until the item is actually run.
     /// </summary>
-    public static bool LooksExecutable(string? text, ExecutionPlatform? platform = null)
+    public static bool LooksExecutable(
+        string? text,
+        ExecutionPlatform? platform = null,
+        EnvironmentProbe? environment = null)
     {
         // Only the first word, never the whole item: the editor asks this on every
         // keystroke in a content box that may be pages long.
@@ -251,6 +330,15 @@ public static class ExecutionPolicy
         if (first.Length == 0) return false;
 
         if (Macros.IsPresent(first)) return true;
+        if (AsUrl(first) is not null) return true;
+
+        // The word Plan will actually judge, not the word before its variables resolve:
+        // the warning beside the marker is there to be read while the marker is being
+        // ticked, and a hint that disagrees with Enter is worse than none. It still only
+        // ever looks at the first word, so a .bat whose *arguments* Plan will refuse
+        // reaches Enter looking fine — that gap is older than the variables and unchanged
+        // by them.
+        first = (environment ?? EnvironmentProbe.Real).Expand(first);
         if (AsUrl(first) is not null) return true;
         if (HasScheme(first)) return false; // a scheme the allow-list above turned down
 
@@ -585,6 +673,28 @@ public static class ExecutionPolicy
         foreach (var c in text)
             if (char.IsWhiteSpace(c)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// Whether the first word's macro filled in something with a space in it — the shape
+    /// that means a whole command line arrived through a <c>%C%</c> and has to be read
+    /// back apart.
+    ///
+    /// Asked of the word as it was written rather than after its variables have resolved.
+    /// A <c>%ProgramFiles%</c> puts a space in the first word without anything having been
+    /// handed back, and cutting the line there would leave <c>C:\Program</c> as the
+    /// command — the very mistake the quoting rule exists to avoid. Expanded through the
+    /// whole line rather than that one word, so the last <c>%P%</c> still takes exactly
+    /// the arguments the others leave over.
+    /// </summary>
+    private static bool MacroBroughtAWholeLine(
+        string[] tokens, string typed, IReadOnlyList<string>? arguments, string? clipboardText)
+    {
+        if (!Macros.IsPresent(typed)) return false;
+
+        var written = (string[])tokens.Clone();
+        written[0] = typed;
+        return ContainsWhitespace(Macros.ExpandAll(written, arguments, clipboardText)[0]);
     }
 
     /// <summary>Keeps a whole snippet out of a one-line message.</summary>

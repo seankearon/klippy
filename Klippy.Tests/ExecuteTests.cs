@@ -205,6 +205,39 @@ public class ExecuteTests
     }
 
     [AvaloniaFact]
+    public async Task AMarkedSnippetsVariablesAreResolvedOnTheWayToTheLauncher()
+    {
+        // ExecutionTests proves the rule against an environment it describes. This proves
+        // the view model actually reaches it — the bug was never in the rule, it was that
+        // nothing on this route ever asked.
+        //
+        // One of the two tests that set a real variable — OfferTests.cs does the same with
+        // KLIPPY_TEST_FOLDER — because the whole point is that MainViewModel is left
+        // reading the real machine. The distinctive name is the only thing keeping a
+        // process-wide setting out of every other test running beside it.
+        const string Variable = "KLIPPY_TEST_HOME";
+        var previous = Environment.GetEnvironmentVariable(Variable);
+        Environment.SetEnvironmentVariable(Variable, @"C:\klippy-test");
+        try
+        {
+            var f = NewVm(snippets: new Snippet
+            {
+                Label = "Go",
+                Content = $"%{Variable}%\\tools\\go.ps1",
+                IsExecutable = true,
+            });
+
+            await f.Vm.ActivateCommand.ExecuteAsync(f.Row("Go"));
+
+            Assert.Equal(@"C:\klippy-test\tools\go.ps1", Assert.Single(f.Ran).Target);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Variable, previous);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task AnUnmarkedSnippet_IsCopiedWhenTriggered_AndNothingRuns()
     {
         // Even one whose text is a link: Klippy never decides on its own to run
