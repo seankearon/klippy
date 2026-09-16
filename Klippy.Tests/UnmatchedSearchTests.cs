@@ -30,9 +30,26 @@ public class UnmatchedSearchTests
     /// <summary>Nothing exists, so only the kinds that need no disk can come back.</summary>
     private static readonly PathProbe Empty = Probe();
 
+    /// <summary>
+    /// An environment described rather than set. SetEnvironmentVariable is process-wide and
+    /// xunit runs test classes in parallel, so a variable named "C" set for one assertion is
+    /// a variable every other test in the run can see.
+    /// </summary>
+    private static readonly Dictionary<string, string> Variables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["KLIPPY_TEST_DIR"] = @"C:\Users\sean\AppData\Roaming",
+        ["KLIPPY_UNIX_DIR"] = "/Users/sean/Library",
+        ["C"] = @"C:\somewhere",
+    };
+
+    private static readonly EnvironmentProbe Machine = new(
+        name => Variables.TryGetValue(name, out var value) ? value : null,
+        () => "/home/sean");
+
     private static ExecutionPlan Plan(string query, bool verifyPaths = true,
-        ExecutionPlatform platform = Windows, PathProbe? probe = null) =>
-        UnmatchedSearch.Plan(query, verifyPaths, platform, probe ?? Empty);
+        ExecutionPlatform platform = Windows, PathProbe? probe = null,
+        EnvironmentProbe? environment = null) =>
+        UnmatchedSearch.Plan(query, verifyPaths, platform, probe ?? Empty, environment ?? Machine);
 
     // ---- nothing to run ----
 
@@ -238,8 +255,6 @@ public class UnmatchedSearchTests
     [Fact]
     public void QuotesComeOffBeforeAVariableIsExpanded()
     {
-        using var _ = EnvVar("KLIPPY_TEST_DIR", @"C:\Users\sean\AppData\Roaming");
-
         var plan = Plan("\"%KLIPPY_TEST_DIR%\\Klippy\"",
             probe: Probe(folders: [@"C:\Users\sean\AppData\Roaming\Klippy"]));
 
@@ -316,8 +331,6 @@ public class UnmatchedSearchTests
     [Fact]
     public void WindowsStyleVariablesExpand()
     {
-        using var _ = EnvVar("KLIPPY_TEST_DIR", @"C:\Users\sean\AppData\Roaming");
-
         var plan = Plan("%KLIPPY_TEST_DIR%", probe: Probe(folders: [@"C:\Users\sean\AppData\Roaming"]));
 
         Assert.Equal(ExecutionKind.Folder, plan.Kind);
@@ -327,20 +340,16 @@ public class UnmatchedSearchTests
     [Fact]
     public void AVariableMayBeJustTheStartOfThePath()
     {
-        using var _ = EnvVar("KLIPPY_TEST_DIR", @"C:\Users\sean\AppData\Roaming");
-
         Assert.Equal(ExecutionKind.Folder,
             Plan(@"%KLIPPY_TEST_DIR%\Klippy",
                 probe: Probe(folders: [@"C:\Users\sean\AppData\Roaming\Klippy"])).Kind);
     }
 
     [Theory]
-    [InlineData("$KLIPPY_TEST_DIR")]
-    [InlineData("${KLIPPY_TEST_DIR}")]
+    [InlineData("$KLIPPY_UNIX_DIR")]
+    [InlineData("${KLIPPY_UNIX_DIR}")]
     public void UnixStyleVariablesExpandToo(string query)
     {
-        using var _ = EnvVar("KLIPPY_TEST_DIR", "/Users/sean/Library");
-
         Assert.Equal(ExecutionKind.Folder,
             Plan(query, platform: Mac, probe: Probe(folders: ["/Users/sean/Library"])).Kind);
     }
@@ -348,11 +357,8 @@ public class UnmatchedSearchTests
     [Fact]
     public void TildeMeansHome()
     {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        Assert.NotEqual("", home); // otherwise the assertion below proves nothing
-
         Assert.Equal(ExecutionKind.Folder,
-            Plan("~", platform: Linux, probe: Probe(folders: [home])).Kind);
+            Plan("~", platform: Linux, probe: Probe(folders: ["/home/sean"])).Kind);
     }
 
     [Fact]
@@ -360,7 +366,7 @@ public class UnmatchedSearchTests
     {
         // Not expanded to nothing: "%nope%\Klippy" becoming "\Klippy" would offer to open a
         // folder at the root of the current drive, which is not what anybody typed.
-        Assert.Equal(@"%KLIPPY_NO_SUCH_VAR%\Klippy", UnmatchedSearch.Expand(@"%KLIPPY_NO_SUCH_VAR%\Klippy"));
+        Assert.Equal(@"%KLIPPY_NO_SUCH_VAR%\Klippy", Machine.Expand(@"%KLIPPY_NO_SUCH_VAR%\Klippy"));
         Assert.Equal(ExecutionKind.None, Plan(@"%KLIPPY_NO_SUCH_VAR%\Klippy", verifyPaths: false).Kind);
     }
 
@@ -368,18 +374,17 @@ public class UnmatchedSearchTests
     public void AnItemsOwnMacrosAreLeftAlone()
     {
         // %C% is the clipboard placeholder, filled when an item runs. Reading it here as an
-        // environment variable named C would quietly rewrite it.
-        using var _ = EnvVar("C", @"C:\somewhere");
-
-        Assert.Equal("%C%", UnmatchedSearch.Expand("%C%"));
-        Assert.Equal("%P%", UnmatchedSearch.Expand("%P%"));
+        // environment variable named C would quietly rewrite it — and the environment
+        // described above defines one, so this is the trap rather than merely its absence.
+        Assert.Equal("%C%", Machine.Expand("%C%"));
+        Assert.Equal("%P%", Machine.Expand("%P%"));
     }
 
     [Fact]
     public void TextThatMerelyContainsAPercentIsUntouched()
     {
-        Assert.Equal("50% off", UnmatchedSearch.Expand("50% off"));
-        Assert.Equal("$", UnmatchedSearch.Expand("$"));
+        Assert.Equal("50% off", Machine.Expand("50% off"));
+        Assert.Equal("$", Machine.Expand("$"));
     }
 
     // ---- precedence ----
@@ -393,16 +398,4 @@ public class UnmatchedSearchTests
             Plan("sleep", platform: Linux, probe: Probe(files: ["sleep"])).Kind);
     }
 
-    /// <summary>Sets an environment variable for the duration of a test.</summary>
-    private static IDisposable EnvVar(string name, string value)
-    {
-        var previous = Environment.GetEnvironmentVariable(name);
-        Environment.SetEnvironmentVariable(name, value);
-        return new Restore(() => Environment.SetEnvironmentVariable(name, previous));
-    }
-
-    private sealed class Restore(Action dispose) : IDisposable
-    {
-        public void Dispose() => dispose();
-    }
 }

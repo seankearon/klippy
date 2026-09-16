@@ -80,7 +80,8 @@ primary hover action becomes **▷** rather than the copy glyph. `Ctrl/⌘+Enter
 copies, marker or not, so a snippet you usually run can still be put on the clipboard
 when you want the text — the row's badge says both: `↵ run · Ctrl+↵ copy`.
 
-What a marked snippet can run is a short allow-list, checked against its first word:
+What a marked snippet can run is a short allow-list, checked against its first word,
+once any environment variable in it has resolved:
 
 | Snippet starts with | Runs as |
 |---|---|
@@ -105,9 +106,37 @@ two arguments, not three. That is also how a path with a space in it stays one p
 "C:\Program Files\Klippy\Klippy.Desktop.exe" --minimised
 ```
 
-— and without the quotes the first word is `C:\Program`, which names nothing. Scripts and
-applications alike run from their own folder, which is where each normally expects to be,
-and a bare `notepad.exe` is left to Windows to find on `PATH`, as Run would.
+— and without the quotes the first word is `C:\Program`, which names nothing. A variable
+whose value contains a space needs no quotes at all, because it resolves *after* the line
+has been split into words: `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe` is one
+path however many spaces your user name has in it. Scripts and applications alike run from
+their own folder, which is where each normally expects to be, and a bare `notepad.exe` is
+left to Windows to find on `PATH`, as Run would.
+
+### Environment variables
+
+The first word of a marked snippet may name itself the way a path does everywhere else on
+the machine, in both dialects wherever you are: `%LOCALAPPDATA%` as on Windows, `$HOME` and
+`${HOME}` as on macOS and Linux, plus a leading `~`. Windows will not do this for you —
+only `cmd.exe` ever looked inside a file name, and nothing here goes through `cmd` — so
+without it `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe` is a folder with percent
+signs in its name and the launch fails on a path that plainly exists.
+
+A name that does not resolve is left exactly as written, so it stays a string naming
+nothing rather than quietly becoming a path with a hole in the middle of it. Two things it
+deliberately does **not** touch:
+
+- **Arguments.** Only the first word resolves. An argument keeps its percent signs, so the
+  `.bat` refusal below still sees what `cmd.exe` would see, and a child process inherits
+  the environment and can read its own `%APPDATA%` anyway.
+- **A macro's value.** `%C%` holding a path with a `%VAR%` in it is left as it stands: a
+  macro's value is data rather than more text to read, the same rule that keeps it from
+  becoming a second command. It also means a clipboard holding `C:\100%discount%off\tool.exe`
+  keeps its middle.
+
+The same shorthands, read the same way, on the typed route — see
+[Running an unmatched search](#running-an-unmatched-search). Two routes to the same
+launcher should not disagree about what a variable means.
 
 ### Macros
 
@@ -118,6 +147,10 @@ marker decides which of those happens, the macros work either way:
 |---|---|
 | `%P%` | A positional argument — what you typed after the quick-code |
 | `%C%` | Whatever text is on the clipboard right now |
+
+Environment variables are not macros and the asymmetry is real: a `%VAR%` in the first
+word resolves when an item **runs**, and a copy leaves it alone. A macro is the item's;
+a variable belongs to the path the item names.
 
 Say a snippet holds `https://www.google.com/search?q=%P%` behind the quick-code `?`.
 Typing
@@ -156,9 +189,10 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
 - **Nothing runs unmarked.** The marker is stored on the snippet and defaults to off, so
   every snippet that exists today — and every one an import brings in — goes on being
   copied.
-- **Only the allow-list above runs.** A snippet naming something that is neither link,
-  script nor application is not runnable however firmly it is marked, so `docker system
-  prune -af` stays text. A scheme is not a path whatever it ends in, either:
+- **Only the allow-list above runs**, applied to the first word once its variables have
+  resolved. A snippet naming something that is neither link, script nor application is not
+  runnable however firmly it is marked, so `docker system prune -af` stays text. A scheme
+  is not a path whatever it ends in, either:
   `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
   refused along with `javascript:`.
 - **An application is a program, and starting one is starting a program.** That is the
@@ -169,7 +203,16 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   `%C%` holding `; rm -rf ~` is one argument to the script, and stays one.
 - **Except for `.bat`**, which `cmd.exe` re-parses after .NET has quoted it. An argument
   carrying `& | < > ^ " %` is refused with a message instead, because pretending to
-  escape it would be a lie.
+  escape it would be a lie. The refusal is judged on the argument *as typed*, before
+  anything resolves — a variable defined as `a&b` would otherwise smuggle an ampersand
+  past the one check that exists to catch it — so `%APPDATA%` as an argument to a `.bat`
+  is refused too. **The `.bat` file's own path faces the same rule**, minus the `%`: it
+  rides the same line cmd.exe re-reads, and .NET quotes only what carries a space, so a
+  folder genuinely called `R&D` would start a second command.
+- **A path carrying a double quote is refused.** Windows stops the program name at the
+  quote while the allow-list reads the extension off the end, so `payload.scr"x.exe`
+  would pass as an `.exe` and start the `.scr`. A Windows path cannot contain a quote
+  anyway — the same fact that lets a pasted *Copy as path* be unwrapped safely.
 - `-File` rather than `-Command` for PowerShell, for the same reason: the arguments stay
   arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
   with it, since the script is one you keep in Klippy and have just asked for by name.
@@ -201,7 +244,9 @@ waited for and its exit code read, which a shell prefix could not offer.
   submodule pulls the submodule rather than its parent. Somewhere that is not a checkout
   is left alone, silently.
 - **Only a rooted path.** A bare `notepad.exe` for Windows to find on `PATH` names no
-  folder, and must not be read as one relative to wherever Klippy is running.
+  folder, and must not be read as one relative to wherever Klippy is running. A path named
+  through a variable *is* rooted once it resolves, so a marked item behind `%LOCALAPPDATA%`
+  is now eligible for a pull where it silently was not.
 - **A failed pull does not cancel the run.** Off the network, on a conflicted branch, with
   no git installed: the script still starts and the toast says so —
   *Running deploy.ps1 — git pull failed (1)*. The pull is there to make what starts
@@ -287,8 +332,9 @@ an unmatched one is a half-finished paste and a Windows path cannot contain a qu
 anyway. A snippet marked Execute has always tolerated them, because its line goes through
 the argument splitter; this is the same courtesy on the typed route.
 
-Environment variables come in both dialects wherever you are: `%APPDATA%` as on Windows,
-`$HOME` and `${HOME}` as on macOS and Linux, plus a leading `~`. A name that does not
+Environment variables read here exactly as they do in a marked snippet — see
+[Environment variables](#environment-variables) — which is the point: `%APPDATA%` names one
+folder whether you typed it into the filter box or wrote it into an item. A name that does not
 resolve is left exactly as typed, so it stays a string that matches nothing rather than
 quietly becoming a path with a hole in the middle of it. An item's own `%C%` and `%P%` are
 left alone — those are filled when an item runs, and a search box is not an item.
@@ -313,8 +359,9 @@ Windows.
 
 Whether a typed line means anything is decided by
 [`UnmatchedSearch`](Klippy/Services/UnmatchedSearch.cs), which is pure in the way
-[`ExecutionPolicy`](Klippy/Services/ExecutionPolicy.cs) is: the platform is a parameter
-and the file system is reached through an injected probe, so the rules that decide whether
+[`ExecutionPolicy`](Klippy/Services/ExecutionPolicy.cs) is: the platform is a parameter,
+the file system is reached through an injected probe and the environment through another,
+so the rules that decide whether
 to execute typed text are the ones the tests pin down hardest. A run that fails reports in
 the ordinary toast and leaves the window up to be read.
 

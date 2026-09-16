@@ -25,6 +25,10 @@ namespace Klippy.Services;
 /// what lets a row preview its own expansion without Klippy reading the clipboard on
 /// every keystroke: the arguments are already known, the clipboard is only read when
 /// the user actually copies or runs the item.
+///
+/// Environment variables are not macros and are not resolved here — they belong to the
+/// path a line names rather than to the item, and <see cref="EnvironmentProbe"/> is what
+/// reads them, on the run path only.
 /// </summary>
 public static partial class Macros
 {

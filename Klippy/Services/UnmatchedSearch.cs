@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.RegularExpressions;
 
 namespace Klippy.Services;
 
@@ -37,8 +36,12 @@ public sealed record PathProbe(Func<string, bool> DirectoryExists, Func<string, 
 /// while this is whatever happened to be typed into a filter box. And a path has to be
 /// rooted, because a relative one would resolve against wherever Klippy was started from,
 /// which is nobody's mental model.
+///
+/// Variables are not one of the two: <see cref="EnvironmentProbe"/> reads the same
+/// shorthands for both routes, so <c>%APPDATA%</c> names one folder whether it was typed
+/// into a filter box or written into an item.
 /// </summary>
-public static partial class UnmatchedSearch
+public static class UnmatchedSearch
 {
     private static readonly ExecutionPlan Nothing = new();
 
@@ -51,7 +54,8 @@ public static partial class UnmatchedSearch
         string? query,
         bool verifyPaths = true,
         ExecutionPlatform? platform = null,
-        PathProbe? probe = null)
+        PathProbe? probe = null,
+        EnvironmentProbe? environment = null)
     {
         var text = Unquote((query ?? "").Trim());
         if (text.Length == 0) return Nothing;
@@ -67,7 +71,7 @@ public static partial class UnmatchedSearch
         if (AsUrl(text) is { } url)
             return new ExecutionPlan { Kind = ExecutionKind.Url, Target = url };
 
-        return AsPath(text, verifyPaths, os, probe ?? PathProbe.Real);
+        return AsPath(text, verifyPaths, os, probe ?? PathProbe.Real, environment ?? EnvironmentProbe.Real);
     }
 
     /// <summary>
@@ -98,6 +102,10 @@ public static partial class UnmatchedSearch
     /// <see cref="Macros.SplitArguments"/>, which unquotes its first word whatever that
     /// word turns out to be. Two routes to the same launcher should not disagree about
     /// what a pair of quotes means.
+    ///
+    /// The same now goes for a variable, in the other direction: <c>%APPDATA%</c> had
+    /// always resolved here and never in a marked item, and two routes to the same
+    /// launcher should not disagree about that either.
     /// </summary>
     public static string Unquote(string text) =>
         text.Length >= 2 && text[0] == '"' && text[^1] == '"'
@@ -147,9 +155,10 @@ public static partial class UnmatchedSearch
         return dot > 0 && dot < uri.Host.Length - 1 ? url : null;
     }
 
-    private static ExecutionPlan AsPath(string text, bool verifyPaths, ExecutionPlatform os, PathProbe probe)
+    private static ExecutionPlan AsPath(
+        string text, bool verifyPaths, ExecutionPlatform os, PathProbe probe, EnvironmentProbe machine)
     {
-        var path = Expand(text);
+        var path = machine.Expand(text);
         if (!IsRooted(path)) return Nothing;
 
         // The extension is asked before the disk is, because a macOS .app bundle *is* a
@@ -184,35 +193,6 @@ public static partial class UnmatchedSearch
         new() { Kind = ExecutionKind.Folder, Target = path };
 
     /// <summary>
-    /// Expands the environment-variable shorthands people actually type: <c>%APPDATA%</c>
-    /// as on Windows, <c>$HOME</c>/<c>${HOME}</c> and a leading <c>~</c> as on macOS and
-    /// Linux. Both dialects are honoured everywhere, since the cost of the wrong one is a
-    /// name that does not resolve.
-    ///
-    /// An unknown name is left exactly as written, so it stays a string that matches
-    /// nothing rather than quietly becoming a path with a hole in the middle of it.
-    ///
-    /// <c>%C%</c> and <c>%P%</c> are not touched here: they are an item's placeholders,
-    /// filled from the clipboard and from typed arguments, and a search box is neither.
-    /// </summary>
-    public static string Expand(string text)
-    {
-        if (text.Length == 0) return text;
-
-        if (text[0] == '~' && (text.Length == 1 || text[1] == '/' || text[1] == '\\'))
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (home.Length > 0) text = home + text[1..];
-        }
-
-        return EnvVar().Replace(text, match =>
-            // %C% would otherwise be read as an environment variable named C.
-            Macros.IsPresent(match.Value)
-                ? match.Value
-                : Environment.GetEnvironmentVariable(match.Groups["name"].Value) ?? match.Value);
-    }
-
-    /// <summary>
     /// Whether a path names a place rather than somewhere relative to something else.
     ///
     /// Hand-rolled rather than <see cref="Path.IsPathRooted(string)"/>, which answers for
@@ -228,8 +208,4 @@ public static partial class UnmatchedSearch
 
     private static bool EndsWithSeparator(string path) =>
         path.Length > 0 && (path[^1] == '\\' || path[^1] == '/');
-
-    // Source-generated rather than a runtime Regex, which NativeAOT cannot compile.
-    [GeneratedRegex(@"%(?<name>[^%\s]+)%|\$\{(?<name>[^}\s]+)\}|\$(?<name>[A-Za-z_][A-Za-z0-9_]*)")]
-    private static partial Regex EnvVar();
 }
