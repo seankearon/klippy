@@ -48,6 +48,8 @@
                     Command="{Binding OpenTransferCommand}" />
             <Button Classes="footerLink" Content="settings"
                     Command="{Binding OpenSettingsCommand}" />
+            <Button Classes="footerLink" Content="quit"
+                    Command="{Binding RequestQuitCommand}" />
             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                        Foreground="{StaticResource MutedBrush}"
                        Text="{Binding SnippetCountText}" />
@@ -117,6 +119,22 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+      </Border>
+
+      <!-- Quit prompt. For one word the search box is a command line rather than a
+           filter, and Enter stops meaning "copy" — so it has to say so on the way in,
+           not spring a dialog on someone who typed four letters. -->
+      <Border x:Name="QuitPrompt" DockPanel.Dock="Top" Padding="14,10"
+              IsVisible="{Binding IsQuitOffered}"
+              Background="{StaticResource SurfaceBrush}"
+              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Classes="danger" Content="Quit" Margin="10,0,0,0"
+                  Command="{Binding RequestQuitCommand}" />
+          <TextBlock FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                     Foreground="{StaticResource Muted3Brush}"
+                     Text="&quot;quit&quot; closes Klippy — press ↵ or click Quit. Esc goes back to searching." />
+        </DockPanel>
       </Border>
 
       <!-- List over preview, with a draggable splitter between them. A Grid (not the
@@ -500,5 +518,6 @@
     <views:ConfirmOverlay />
     <views:TransferOverlay />
     <views:SettingsOverlay />
+    <views:QuitOverlay />
   </Panel>
 </Window>

@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.QuitOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <Panel IsVisible="{Binding IsQuitPending}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border MaxWidth="380" Margin="20" VerticalAlignment="Center"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="16">
+      <StackPanel Spacing="10">
+        <TextBlock Text="Quit Klippy" FontSize="13" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimaryBrush}" />
+        <TextBlock FontSize="12" Foreground="{StaticResource Muted3Brush}" TextWrapping="Wrap"
+                   Text="Klippy will stop listening for its hotkeys and leave the tray. Snippets and clipboard history are already saved." />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+          <Button Classes="subtle" Content="Cancel" Command="{Binding CancelQuitCommand}" />
+          <Button Classes="danger" Content="Quit" Command="{Binding ConfirmQuitCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

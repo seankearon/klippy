@@ -38,6 +38,13 @@ public partial class MainViewModel : ViewModelBase
     public const string AllTag = "All";
     public const string HistoryTag = "History";
 
+    /// <summary>
+    /// The one word the search box answers to as a command rather than a filter. Klippy
+    /// is a resident launcher, so without it the only way out is the tray menu — which is
+    /// a mouse trip away from a window you reached by keyboard.
+    /// </summary>
+    public const string QuitWord = "quit";
+
     private readonly SnippetStore _store;
     private readonly ClipHistoryStore? _history;
     private readonly AppSettings _prefs;
@@ -49,6 +56,7 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<TagChipViewModel> Tags { get; } = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsQuitOffered))]
     private string _filterText = "";
 
     [ObservableProperty]
@@ -65,6 +73,10 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private SettingsViewModel? _settings;
+
+    /// <summary>Whether the "are you sure" for closing the app is up.</summary>
+    [ObservableProperty]
+    private bool _isQuitPending;
 
     [ObservableProperty]
     private bool _isToastVisible;
@@ -101,6 +113,14 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public event Action? CloseRequested;
 
+    /// <summary>
+    /// Raised once the user has confirmed they want Klippy closed. Same shape as
+    /// <see cref="CloseRequested"/> and for the same reason: the view model has no process
+    /// to end, so it says what it wants and the head decides how — the desktop launcher
+    /// releases its hotkeys and tray icon and shuts the lifetime down.
+    /// </summary>
+    public event Action? QuitRequested;
+
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
         ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter  ⌘P preview"
         : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter  Ctrl+P preview";
@@ -128,6 +148,21 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Whether there is a clipboard history to switch to. False on mobile.</summary>
     public bool HasHistory => _history is not null;
+
+    /// <summary>
+    /// Whether closing the app is a thing this platform does. The desktop head is a
+    /// resident launcher with a real exit; on mobile the app *is* the screen, closing it
+    /// is the system's gesture to make, and iOS forbids an app quitting itself outright.
+    /// </summary>
+    public bool CanQuit => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
+    /// <summary>
+    /// Whether the search box currently reads as the quit command, so the view can say so
+    /// before <c>Enter</c> means something other than "copy". Trimmed and case-insensitive,
+    /// because it is a word someone types rather than a value they pick.
+    /// </summary>
+    public bool IsQuitOffered => CanQuit &&
+        string.Equals(FilterText.Trim(), QuitWord, StringComparison.OrdinalIgnoreCase);
 
     public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store) { }
 
@@ -452,6 +487,27 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void CancelDelete() => DeleteTarget = null;
 
+    /// <summary>
+    /// Asks to close the app. Only ever asks: a resident launcher is what the hotkeys
+    /// summon, so ending it on one keystroke — typed into the same box that filters the
+    /// list — would be the wrong shape entirely. <see cref="ConfirmQuit"/> is the answer.
+    /// </summary>
+    [RelayCommand]
+    private void RequestQuit()
+    {
+        if (CanQuit) IsQuitPending = true;
+    }
+
+    [RelayCommand]
+    private void ConfirmQuit()
+    {
+        IsQuitPending = false;
+        QuitRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private void CancelQuit() => IsQuitPending = false;
+
     [RelayCommand]
     private void ClearFilter() => FilterText = "";
 
@@ -482,6 +538,9 @@ public partial class MainViewModel : ViewModelBase
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
         if (Transfer is not null) { Transfer = null; return true; }
         if (Settings is not null) { Settings = null; return true; }
+        // Ahead of the filter: the confirmation was raised by the word still in the box,
+        // so backing out of it must not also take the word away.
+        if (IsQuitPending) { IsQuitPending = false; return true; }
         if (FilterText.Length > 0) { FilterText = ""; return true; }
         return false;
     }

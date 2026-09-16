@@ -26,6 +26,8 @@ scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row also copies it.
+Typing `quit` asks to close Klippy rather than filtering — see
+[Quitting](#quitting-desktop).
 
 A **preview pane** at the bottom shows the full content of the selected snippet —
 useful for long or multi-line entries that the one-line row preview truncates. It is
@@ -142,9 +144,9 @@ transfer button in the mobile header.
 ## Global hotkeys (desktop)
 
 Klippy runs as a resident launcher: it stays alive behind a tray / menu-bar icon, and a
-system-wide hotkey summons it. Closing the window hides it rather than quitting; use the
-tray menu's **Quit** to exit for real. Only one instance runs at a time, so launching
-Klippy again just tells you it is already resident.
+system-wide hotkey summons it. Closing the window hides it rather than quitting; see
+[Quitting](#quitting-desktop) for the ways out. Only one instance runs at a time, so
+launching Klippy again just tells you it is already resident.
 
 There are two keys, one per half of the app:
 
@@ -195,6 +197,32 @@ which costs an idle thread apiece and buys independent failure:
 Carbon's `RegisterEventHotKey` — chosen over an event tap because it needs no Accessibility
 permission. **The macOS path compiles but has not been run**, since it cannot be tested
 from Windows.
+
+## Quitting (desktop)
+
+Being resident is the point, so nothing about the window ends Klippy: closing it hides
+it, and `Esc` dismisses it. Three things do end it — two of them from the window you are
+already looking at:
+
+- **Type `quit`** into the search box and press `↵`. For that one word the box is a
+  command line rather than a filter, and a strip above the list says so before `↵` stops
+  meaning "copy" — so the shortcut is visible rather than folklore, and four letters
+  typed while hunting for a snippet cannot close the app by accident.
+- **The `quit` footer link**, for when the pointer is already down there.
+- **The tray / menu-bar icon's Quit**, which is where it has always been.
+
+Both of the in-window routes land on the same confirmation, because the search box and a
+footer full of links are places a stray keystroke or click can reach: `↵` or **Quit**
+closes, `Esc` or **Cancel** goes back. The tray menu asks nothing and never did — picking
+**Quit** off a two-item menu is already a deliberate act.
+
+Nothing is at stake in the data either way — snippets are written per edit and the
+clipboard history flushes on exit — but the hotkeys and the tray icon go with it, and
+getting them back means launching Klippy again.
+
+The word is deliberately not offered on mobile: Android leaves closing to the system's own
+gesture, and iOS forbids an app quitting itself outright, so there `quit` stays an ordinary
+search term.
 
 ## Clipboard history (Windows)
 

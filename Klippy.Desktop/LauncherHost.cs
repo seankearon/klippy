@@ -53,7 +53,13 @@ internal sealed class LauncherHost : IDisposable
         }
 
         if (_lifetime.MainWindow is Klippy.Views.MainWindow main)
+        {
             main.HideRequested = () => main.Hide();
+            // The in-app quit ends exactly where the tray menu's does: closing the window
+            // only hides it, so without this there is no way out that does not need the
+            // tray icon — and on a crowded notification area that can be a hunt.
+            main.QuitRequested = Quit;
+        }
 
         // The first appearance is a summon too. Nothing has been anywhere yet, so there is
         // nothing for Remembered to remember, and a user who asked for Centre means it from
