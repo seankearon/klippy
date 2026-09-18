@@ -77,6 +77,63 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 > Copy, then paste with Klippy still open (its normal launcher lifecycle). If Klippy is
 > closed before you paste, the plain-text flavour still works.
 
+## Variables (local defines)
+
+A snippet is the same text on every machine; a path is not. `klippy.vars` holds the
+per-machine half, so one snippet can be right on a Mac and on Windows:
+
+```ini
+# klippy.vars — local defines, never exported
+ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
+src=D:\src
+```
+
+A snippet written as `%ws% %src%\shine` then copies as the real command line for whichever
+machine you are on — paste it at a prompt and WebStorm opens the folder.
+
+**Only names the file defines are ever replaced.** Everything else is left byte for byte
+as it was written: `50% off`, `LIKE '%foo%'`, `%%1` in a batch file, `%TEMP%` in a command
+you have kept for years. There is no escape syntax because none is needed, and until you
+create the file nothing about copying changes at all.
+
+The rest of the rules are short:
+
+- `name=value`, one per line. `#` and `;` start a whole-line comment; a line that is not a
+  define is skipped rather than rejected, so one typo costs one variable.
+- The value is everything after the first `=`, trimmed — **quotes included**. Quote a path
+  with spaces, because the shell you paste into will need them.
+- Names are case-insensitive (`%ws%` and `%WS%` are one variable) and may not contain
+  whitespace or a percent sign, since neither could be written as `%name%`.
+- A value may use other variables, and anything the file does not define falls through to
+  the **process environment** — which is what makes the `%localappdata%` line above resolve
+  to a real path. That fallback is confined to values: a *snippet* containing `%TEMP%` may
+  predate Klippy's variables entirely and has to keep meaning what it says. To publish an
+  environment variable to snippets, name it: `localappdata=%localappdata%` is a cycle
+  against the file, so it resolves to the one the OS has.
+
+Expansion happens **on copy, not on save**. The store keeps `%ws%`, which is the whole
+point — a snippet flattened at save time would only ever be right on the machine that last
+saved it, and an export would carry one machine's paths to another. The list and the
+preview pane show the source for the same reason: it is what you would edit. Clips from the
+clipboard history are never expanded; captured text is not something you authored.
+
+The file is re-read whenever it changes, so an edit applies to the next copy rather than the
+next launch. Klippy does not create it — the **FILES** block in Settings shows the path to
+create it at, and how many variables it read back, which is how you check a hand-edit
+parsed.
+
+The name is configurable:
+
+```json
+{
+  "VariablesFile": "klippy.vars"
+}
+```
+
+A bare name sits beside the snippets; an absolute path is taken as given. That is the
+answer when a snippet store is shared between two machines and the variables file must not
+be — point each machine at its own.
+
 ## Settings
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
@@ -122,6 +179,13 @@ rather than throwing it across the desk mid-use. In `settings.json` the key is `
 spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Remembered"`
 rather than costing you the rest of the file.
 
+A **FILES** block at the bottom names the three paths that matter — `settings.json`, the
+data folder, and the [variables file](#variables-local-defines) with the number of
+variables read from it. Read-only on purpose: the folder is a
+[hand-edit](#choosing-the-folder-desktop) that takes effect on the next launch, and these
+lines are how you find what it named. They are hidden on mobile, where app storage is
+private and unreachable.
+
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
 is no OK button to forget. The Markdown three default to today's behaviour, so an upgrade
 changes nothing about how existing snippets copy — and **Where it was** does the same for
@@ -164,7 +228,7 @@ working, and Klippy says on stderr which one it could not claim. The history key
 registered where there is a history to summon — not on mobile, and not with history
 switched off.
 
-Stored in `settings.json` next to your snippets:
+Stored in `settings.json`, in Klippy's app-data folder (Settings shows the path):
 
 ```json
 {
@@ -324,9 +388,38 @@ whole snippet, so omitting it would blank the tag on snippets that already carry
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
-sandbox on Android (mode `0600`, app-private). The whole list is held in memory and each
+sandbox on Android (mode `0600`, app-private). `settings.json`, `history.json`, `clips/`
+and `klippy.vars` sit in the same folder. The whole list is held in memory and each
 mutation rewrites the file atomically (temp file + replace), so a crash can't corrupt it.
 A copy also writes, because `LastUsedAt` drives recency ranking.
+
+### Choosing the folder (desktop)
+
+`DataDirectory` moves the lot — snippets, history, clip images and the variables file:
+
+```json
+{
+  "DataDirectory": "D:\\Klippy"
+}
+```
+
+Environment variables and a leading `~` are expanded, so `"%OneDrive%\\Klippy"` and
+`"~/Klippy"` are both legitimate ways to write it. The path has to be absolute: relative to
+the exe, to the shell's working directory and to the app-data folder are three different
+answers, so the setting insists on being told which folder you mean.
+
+`settings.json` is the one file that stays behind, because it is the note saying where
+everything else went — it cannot live in the folder it names. Settings shows both paths,
+and the variables file, under **FILES**.
+
+It is read once at startup, so it takes a restart, and **nothing is moved for you**: copy
+the files across first. That cuts in your favour too — the old folder is left exactly as it
+was, so setting it back gets you back. A path Klippy cannot use is reported on stderr and
+ignored, costing that one preference rather than the snippets.
+
+It is a desktop setting for the same reason the **FILES** block is hidden on mobile: app
+storage there is private and unreachable, so there is no other folder to point at and no
+`settings.json` anyone could edit.
 
 **Android backup is on by default.** `allowBackup="true"` is now set explicitly rather
 than relied on as an implicit default, and both rule files

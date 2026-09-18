@@ -54,8 +54,21 @@ public partial class SettingsViewModel : ViewModelBase
     public string SettingsPath => _settings.SourcePath;
 
     /// <summary>
-    /// Whether to show that path at all. Mobile app storage is private and unreachable, so
-    /// there the line is noise — which is the whole reason this screen exists.
+    /// Where the snippets, the history and the variables file live — the same folder
+    /// unless <c>DataDirectory</c> says otherwise, in which case a user who set it months
+    /// ago deserves to be told where their data actually went.
+    /// </summary>
+    public string DataFolderText => $"{StorageLocations.Directory}  —  snippets, history";
+
+    /// <summary>
+    /// The variables file and what Klippy found in it. Both halves matter: the path is
+    /// where to create the file, and the count is how you know a hand-edit parsed.
+    /// </summary>
+    public string VariablesText { get; }
+
+    /// <summary>
+    /// Whether to show those paths at all. Mobile app storage is private and unreachable, so
+    /// there the lines are noise — which is the whole reason this screen exists.
     /// </summary>
     public bool ShowSettingsPath => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
@@ -95,6 +108,15 @@ public partial class SettingsViewModel : ViewModelBase
         _closeAfterClipboardCopy = settings.CloseAfterClipboardCopy;
         _closeAfterSnippetCopy = settings.CloseAfterSnippetCopy;
         _summonPlacement = settings.ParsedSummonPlacement;
+
+        // Read once, as the overlay opens: Current re-reads the file when it has changed,
+        // so reopening Settings after an edit is how you check what Klippy made of it.
+        var variables = KlippyVariables.Current;
+        VariablesText = $"{variables.FilePath}  —  " + (
+            !variables.Exists ? "no file yet"
+            : variables.Count == 1 ? "1 variable"
+            : $"{variables.Count} variables");
+
         _loaded = true;
     }
 

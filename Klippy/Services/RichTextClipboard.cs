@@ -108,22 +108,29 @@ public static partial class RichTextClipboard
         InlineLink().Replace(markdown ?? "", m => m.Groups["url"].Value);
 
     /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
-    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null)
+    /// <param name="variables">Defaults to <see cref="KlippyVariables.Current"/>; passed in by tests.</param>
+    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null, KlippyVariables? variables = null)
     {
         settings ??= AppSettings.Current;
 
+        // Variables are expanded once, before either flavour is built, so the HTML and the
+        // plain text say the same thing. Copy time rather than save time: %ws% has to stay
+        // %ws% in the store, or the snippet would only ever be right on the machine that
+        // last saved it — which is the whole point of having a local variables file.
+        var content = (variables ?? KlippyVariables.Current).Expand(snippet.Content);
+
         if (!snippet.IsMarkdown)
-            return new CopyPayload(snippet.Content, null);
+            return new CopyPayload(content, null);
 
         // The HTML is rendered from the source as written, never the sanitised text: a
         // rich-text target can show a real link, so it should get one. Sanitising only
         // touches the plain flavour, which is all a plain-text target ever sees.
-        var plain = settings.MarkdownSanitiseLinks ? SanitiseLinks(snippet.Content) : snippet.Content;
+        var plain = settings.MarkdownSanitiseLinks ? SanitiseLinks(content) : content;
 
         // With the HTML flavour switched off a Markdown snippet is just its source, which
         // is exactly what a plain snippet already is — so both take the same path.
         return settings.MarkdownToHtml
-            ? new CopyPayload(plain, ToHtml(snippet.Content, settings.MarkdownDoubleSpaced))
+            ? new CopyPayload(plain, ToHtml(content, settings.MarkdownDoubleSpaced))
             : new CopyPayload(plain, null);
     }
 

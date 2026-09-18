@@ -124,10 +124,23 @@
               <Border Height="1" Background="{StaticResource HairlineBrush}"
                       IsVisible="{Binding ShowSettingsPath}" />
 
-              <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
-                         IsVisible="{Binding ShowSettingsPath}"
-                         Foreground="{StaticResource MutedBrush}"
-                         Text="{Binding SettingsPath}" />
+              <!-- Read-only on purpose: moving the data folder mid-session would leave the
+                   store holding a file in the old one, so DataDirectory is a hand-edit in
+                   settings.json that takes effect on the next launch. The lines are here
+                   so you can find the files it names. -->
+              <StackPanel Spacing="4" IsVisible="{Binding ShowSettingsPath}">
+                <TextBlock Classes="mono" Text="FILES" FontSize="10" LetterSpacing="0.8"
+                           Foreground="{StaticResource MutedBrush}" />
+                <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedBrush}"
+                           Text="{Binding SettingsPath}" />
+                <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedBrush}"
+                           Text="{Binding DataFolderText}" />
+                <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedBrush}"
+                           Text="{Binding VariablesText}" />
+              </StackPanel>
 
               <DockPanel Margin="0,4,0,0">
                 <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"

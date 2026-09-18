@@ -29,6 +29,14 @@ sealed class Program
         // second copy here would go stale the moment a preference changed.
         var settings = AppSettings.Current;
 
+        // Before anything opens a file: the history service, the snippet store and the
+        // variables file all resolve their paths against StorageLocations.
+        if (!string.IsNullOrWhiteSpace(settings.DataDirectory) &&
+            !StorageLocations.TryUseDirectory(settings.DataDirectory, out var problem))
+            Console.Error.WriteLine(
+                $"Ignoring \"DataDirectory\" in {AppSettings.FilePath}: {problem}. " +
+                $"Using {StorageLocations.Directory}.");
+
         // Built before the app, because OnFrameworkInitializationCompleted constructs the
         // view models and they need to know whether there is a history to show.
         // File and image clips need clipboard formats Avalonia cannot express; text and
