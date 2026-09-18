@@ -299,6 +299,53 @@
   </Style>
 
   <!-- ============ Snippet list ============ -->
+  <!-- The unmatched-search offer. Not a list row, but it stands where the first one would
+       and can hold the selection instead of one, so it answers "what is Enter about to do"
+       exactly as a row does: an accent bar, an accent label, and the ↵ badge — none of
+       which it shows while a row has the selection instead. -->
+  <Style Selector="Button.offerRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="12,9,14,9" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Border.offer Rectangle.selBar">
+    <Setter Property="Fill" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.offer Border.enterBadge">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Border.offer TextBlock.offerVerb">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="Border.offer TextBlock.offerDetail">
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Button.offerRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverRowBrush}" />
+  </Style>
+
+  <!-- after the hover rule, so holding the selection wins over the pointer being near -->
+  <Style Selector="Border.offer.selected Button.offerRow /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SelectedRowBrush}" />
+  </Style>
+  <Style Selector="Border.offer.selected Rectangle.selBar">
+    <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+  </Style>
+  <Style Selector="Border.offer.selected Border.enterBadge">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="Border.offer.selected TextBlock.offerVerb">
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+  </Style>
+  <Style Selector="Border.offer.selected TextBlock.offerDetail">
+    <Setter Property="Foreground" Value="{StaticResource TextSelPreviewBrush}" />
+  </Style>
+
   <Style Selector="ListBox.snips">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="0" />
@@ -390,8 +437,38 @@
     <Setter Property="Opacity" Value="1" />
   </Style>
 
+  <!-- ============ Recent commands (MRU) ============ -->
+  <Style Selector="ListBox.commands">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0,2" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource Muted3Brush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverRowBrush}" />
+  </Style>
+  <!-- The browsed line is also in the search box, so it is marked the way a selected row
+       is: accent text on the selected-row fill, not Fluent's blue block. -->
+  <Style Selector="ListBox.commands ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SelectedRowBrush}" />
+  </Style>
+  <Style Selector="ListBox.commands ListBoxItem:selected TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+  </Style>
+
   <!-- ============ Scrollbars: slim, unobtrusive ============ -->
   <Style Selector="ListBox.snips ScrollBar:vertical">
+    <Setter Property="AllowAutoHide" Value="True" />
+  </Style>
+  <Style Selector="ListBox.commands ScrollBar:vertical">
     <Setter Property="AllowAutoHide" Value="True" />
   </Style>
 </Styles>

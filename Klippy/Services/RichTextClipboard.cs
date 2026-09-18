@@ -108,22 +108,30 @@ public static partial class RichTextClipboard
         InlineLink().Replace(markdown ?? "", m => m.Groups["url"].Value);
 
     /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
-    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null)
+    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null) =>
+        BuildPayload(snippet.Content, snippet.IsMarkdown, settings);
+
+    /// <param name="content">
+    /// The text to copy, which is the snippet's own unless its macros have just been
+    /// resolved — a copy puts the expansion on the clipboard, not the placeholders.
+    /// </param>
+    /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
+    public static CopyPayload BuildPayload(string content, bool isMarkdown, AppSettings? settings = null)
     {
         settings ??= AppSettings.Current;
 
-        if (!snippet.IsMarkdown)
-            return new CopyPayload(snippet.Content, null);
+        if (!isMarkdown)
+            return new CopyPayload(content, null);
 
         // The HTML is rendered from the source as written, never the sanitised text: a
         // rich-text target can show a real link, so it should get one. Sanitising only
         // touches the plain flavour, which is all a plain-text target ever sees.
-        var plain = settings.MarkdownSanitiseLinks ? SanitiseLinks(snippet.Content) : snippet.Content;
+        var plain = settings.MarkdownSanitiseLinks ? SanitiseLinks(content) : content;
 
         // With the HTML flavour switched off a Markdown snippet is just its source, which
         // is exactly what a plain snippet already is — so both take the same path.
         return settings.MarkdownToHtml
-            ? new CopyPayload(plain, ToHtml(snippet.Content, settings.MarkdownDoubleSpaced))
+            ? new CopyPayload(plain, ToHtml(content, settings.MarkdownDoubleSpaced))
             : new CopyPayload(plain, null);
     }
 

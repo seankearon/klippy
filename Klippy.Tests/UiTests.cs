@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Klippy.Models;
 using Klippy.Services;
 using Klippy.ViewModels;
 using Klippy.Views;
@@ -32,6 +34,22 @@ public class UiTests
 
     private static MainViewModel NewVm() =>
         new(new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json")));
+
+    /// <summary>The tag chips the open editor is showing, in the order they are laid out.</summary>
+    private static List<Button> TagChips(Window window, MainViewModel vm) =>
+        window.GetVisualDescendants().OfType<EditorOverlay>().Single()
+            .GetVisualDescendants().OfType<Button>()
+            .Where(b => ReferenceEquals(b.Command, vm.Editor!.SelectTagCommand))
+            .ToList();
+
+    private static void ClickCentre(Window window, Control control)
+    {
+        var point = control.TranslatePoint(
+            new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
 
     [AvaloniaFact]
     public void DesktopWindow_Renders_AndCapturesScreenshot()
@@ -257,6 +275,27 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public void SettingsOverlay_StaysOpenOnAClickInsideIt()
+    {
+        // The panel scrolls once it is taller than the window, and the ScrollViewer that
+        // allows that lies over the scrim — so the dismissal has to tell a press beside the
+        // panel from one that landed in it. Without that, flipping a toggle would close
+        // the dialog.
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.OpenSettingsCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var inside = new Point(340, 280); // the middle of the centred panel
+        window.MouseDown(inside, MouseButton.Left);
+        window.MouseUp(inside, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Settings);
+    }
+
+    [AvaloniaFact]
     public void MobileView_HasASettingsButton_AndCapturesScreenshot()
     {
         // Android shows no window chrome, so the header button is the only way in.
@@ -310,7 +349,9 @@ public class UiTests
     public void EditorDialog_GripDrag_ResizesAndTheSizeSticks()
     {
         var vm = NewVm();
-        var window = new MainWindow { DataContext = vm };
+        // Taller than the 560 the window opens at: the dialog now fills that height on
+        // its own, and the grip can only ever drag out to what the window allows.
+        var window = new MainWindow { DataContext = vm, Height = 720 };
         window.Show();
         vm.NewCommand.Execute(null);
         Dispatcher.UIThread.RunJobs();
@@ -406,6 +447,86 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public void F2_OpensTheEditorOnTheSelectedSnippet()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.FilterText = "slf";
+        Assert.Null(vm.Editor);
+
+        window.KeyPress(Key.F2, RawInputModifiers.None, PhysicalKey.F2, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Editor);
+        Assert.False(vm.Editor!.IsNew);
+        Assert.Equal("Send log files", vm.Editor.Label);
+    }
+
+    [AvaloniaFact]
+    public void CtrlI_OpensTheEditorToo_ForKeyboardsWhereF2IsBrightness()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.FilterText = "slf";
+        var cmdMod = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+
+        window.KeyPress(Key.I, cmdMod, PhysicalKey.I, "i");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(vm.Editor);
+        Assert.Equal("Send log files", vm.Editor!.Label);
+    }
+
+    [AvaloniaFact]
+    public void TheEditShortcutIsIgnored_WhileAnOverlayIsOpen()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.OpenSettingsCommand.Execute(null);
+
+        window.KeyPress(Key.F2, RawInputModifiers.None, PhysicalKey.F2, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);      // the settings overlay keeps the keyboard
+        Assert.NotNull(vm.Settings);
+    }
+
+    [AvaloniaFact]
+    public void TheRowShortcutsDoNothingOnAClip_RatherThanThrowing()
+    {
+        // A clip has neither an editor nor a duplicate. Handing one to a command that
+        // takes snippets throws, which on a key press means taking the app with it.
+        var history = ClipHistoryStore.InMemory();
+        history.Add(new ClipEntry { Text = "some clip", SourceApp = "chrome" });
+
+        var vm = new MainViewModel(
+            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json")),
+            history);
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.ShowHistory();
+        Assert.IsType<ClipViewModel>(vm.SelectedSnippet);
+
+        var cmdMod = OperatingSystem.IsMacOS() ? RawInputModifiers.Meta : RawInputModifiers.Control;
+        window.KeyPress(Key.F2, RawInputModifiers.None, PhysicalKey.F2, null);
+        window.KeyPress(Key.D, cmdMod, PhysicalKey.D, "d");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(vm.Editor);
+    }
+
+    [AvaloniaFact]
     public void Duplicate_PrefillsEditor_AndSaveCreatesCopy()
     {
         var vm = NewVm();
@@ -446,6 +567,45 @@ public class UiTests
 
         vm.NewCommand.Execute(null);
         Assert.False(vm.Editor.HasDuplicate); // plain new editor has no duplicate either
+    }
+
+    [AvaloniaFact]
+    public void EditorOverlay_OffersTheTagsInUse_AndAClickOnOneFillsTheField()
+    {
+        var vm = NewVm();
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        var chips = TagChips(window, vm);
+        Assert.Equal(new[] { "banking", "dev", "personal", "web", "work" },
+            chips.Select(c => (string?)c.Content));
+
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor-tags.png"));
+
+        var work = chips.Single(c => (string?)c.Content == "work");
+        ClickCentre(window, work);
+
+        Assert.Equal("work", vm.Editor!.Tag);
+        Assert.Contains("selected", TagChips(window, vm).Single(c => (string?)c.Content == "work").Classes);
+    }
+
+    [AvaloniaFact]
+    public void EditorOverlay_HidesTheTagRow_WhenNothingIsTaggedYet()
+    {
+        var store = new SnippetStore(
+            Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+        var vm = new MainViewModel(store);
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        vm.NewCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.Editor!.HasTagSuggestions);
+        Assert.Empty(TagChips(window, vm));
     }
 
     [AvaloniaFact]

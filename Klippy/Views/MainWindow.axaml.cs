@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Klippy.Services;
@@ -49,7 +50,13 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
         if (Vm is { } vm)
+        {
             vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
+            vm.ClipboardReader = () => Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
+            // Only the desktop head can open a browser or start a script, so this is
+            // where execution is wired in — the shared view model only asks for it.
+            vm.Executor = ProcessLauncher.RunAsync;
+        }
         SearchBox.Focus();
     }
 
@@ -144,24 +151,25 @@ public partial class MainWindow : Window
 
         // While an overlay is open only Esc (cancel) and Cmd/Ctrl+Enter (save) are global.
         if (vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
-            || vm.Settings is not null || vm.IsQuitPending)
+            || vm.Settings is not null || vm.PendingOffer is not null)
         {
             if (e.Key == Key.Escape)
             {
                 vm.HandleEscape();
                 e.Handled = true;
             }
-            else if (e.Key == Key.Enter && vm.IsQuitPending)
-            {
-                // The way in was a typed word, so the way out has to be the keyboard too —
-                // otherwise the quit command ends at a dialog only the mouse can answer.
-                vm.ConfirmQuitCommand.Execute(null);
-                e.Handled = true;
-            }
             else if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(cmdMod)
                      && vm.Editor?.SaveCommand.CanExecute(null) == true)
             {
                 vm.Editor.SaveCommand.Execute(null);
+                e.Handled = true;
+            }
+            // The one confirmation a bare Enter answers. It is the last step of a keyboard
+            // gesture that began with typing "restart", so reaching for the mouse to finish
+            // it would be the odd thing — and the dialog it confirms is the deliberation.
+            else if (e.Key == Key.Enter && vm.PendingOffer is not null)
+            {
+                vm.ConfirmOfferCommand.Execute(null);
                 e.Handled = true;
             }
             return;
@@ -185,7 +193,13 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
                 case Key.D:
-                    vm.DuplicateCommand.Execute(vm.SelectedSnippet);
+                    vm.DuplicateSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                case Key.I:
+                    // The Mac half of the edit shortcut: F2 is a brightness key on a
+                    // laptop keyboard unless the function-key setting says otherwise.
+                    vm.EditSelectedCommand.Execute(null);
                     e.Handled = true;
                     return;
                 case Key.P:
@@ -196,31 +210,43 @@ public partial class MainWindow : Window
                     vm.OpenSettingsCommand.Execute(null);
                     e.Handled = true;
                     return;
+                case Key.Enter:
+                    // Enter does whatever the item is marked for; Cmd/Ctrl+Enter always
+                    // copies, which is how you get the text of an item marked to run.
+                    vm.CopySelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
             }
         }
 
         switch (e.Key)
         {
+            case Key.F2:
+                // What F2 does to the selected thing everywhere else: open it for editing.
+                vm.EditSelectedCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.Down:
-                vm.MoveSelection(1);
+                // The MRU while it is open — and, from an empty search box, the key that
+                // opens it. Otherwise the list, as it has always been.
+                vm.Navigate(1);
                 e.Handled = true;
                 break;
             case Key.Up:
-                vm.MoveSelection(-1);
+                vm.Navigate(-1);
                 e.Handled = true;
                 break;
             case Key.Enter:
-                // "quit" in the search box is a command, not a filter, so Enter asks to
-                // close rather than copying whatever the word happened to match. The
-                // prompt strip above the list has already said as much.
-                if (vm.IsQuitOffered)
+                // A selected row always wins: running an unmatched search is what Enter
+                // falls back to, never what it prefers.
+                if (vm.SelectedSnippet is not null)
                 {
-                    vm.RequestQuitCommand.Execute(null);
+                    vm.ActivateSelectedCommand.Execute(null);
                     e.Handled = true;
                 }
-                else if (vm.SelectedSnippet is not null)
+                else if (vm.Offer is not null)
                 {
-                    vm.CopySelectedCommand.Execute(null);
+                    vm.RunOfferCommand.Execute(null);
                     e.Handled = true;
                 }
                 break;
@@ -238,7 +264,26 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Clicking a row copies it (design: copy on click) — unless the click landed on a button.</summary>
+    /// <summary>
+    /// Clicking a command in the MRU takes it as the line to work with rather than
+    /// running it: the text is already in the box (the click selected it), so this only
+    /// puts the list away and hands the keyboard back to the search box. Recalling a
+    /// command you want to edit before running it is the common case, and running one is
+    /// then the Enter it always was.
+    /// </summary>
+    private void CommandTapped(object? sender, TappedEventArgs e)
+    {
+        if (Vm is not { } vm) return;
+        vm.AcceptCommand();
+        SearchBox.Focus();
+        SearchBox.CaretIndex = SearchBox.Text?.Length ?? 0;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Clicking a row triggers it — a copy, or a run where the item is marked for one —
+    /// unless the click landed on a button.
+    /// </summary>
     private void RowTapped(object? sender, TappedEventArgs e)
     {
         if (Vm is not { } vm) return;
@@ -247,7 +292,7 @@ public partial class MainWindow : Window
         if (sender is Control { DataContext: RowViewModel row })
         {
             vm.SelectedSnippet = row;
-            vm.CopyCommand.Execute(row);
+            vm.ActivateCommand.Execute(row);
         }
     }
 }
