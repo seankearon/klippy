@@ -1122,7 +1122,13 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenSettings() =>
-        Settings = new SettingsViewModel(_prefs, close: () => Settings = null, canExecuteUnmatched: CanExecuteUnmatched);
+        Settings = new SettingsViewModel(
+            _prefs,
+            close: () => Settings = null,
+            canExecuteUnmatched: CanExecuteUnmatched,
+            // The head's own launcher, so Settings can open a folder exactly where a
+            // marked item can and nowhere it cannot.
+            executor: Executor);
 
     /// <summary>
     /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns

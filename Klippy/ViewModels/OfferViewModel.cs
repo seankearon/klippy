@@ -37,6 +37,7 @@ public sealed class OfferViewModel : ViewModelBase
     {
         ExecutionKind.Url => "Open link",
         ExecutionKind.Folder => "Open folder",
+        ExecutionKind.Document => "Open file",
         ExecutionKind.Script => "Run script",
         ExecutionKind.Application => "Start",
         ExecutionKind.System => Plan.Action.ToString(),

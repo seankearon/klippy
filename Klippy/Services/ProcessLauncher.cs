@@ -189,6 +189,14 @@ public static class ProcessLauncher
                                       && !Directory.Exists(plan.Target) =>
             $"Application not found: {plan.Target}",
 
+        // Windows would answer a missing document with a shell dialog, and xdg-open with a
+        // line on a console nobody is reading. Say it in the toast instead.
+        ExecutionKind.Document when !File.Exists(plan.Target) =>
+            $"File not found: {plan.Target}",
+
+        ExecutionKind.Folder when !Directory.Exists(plan.Target) =>
+            $"Folder not found: {plan.Target}",
+
         _ => null,
     };
 

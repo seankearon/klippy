@@ -533,12 +533,26 @@ The row itself keeps showing `%ws%`, with only its typed arguments filled in. Un
 `%P%`, whose value you have just typed and want to check, a variable's value is the same
 every time and is usually a long path — and the row is what you would edit.
 
-The file is re-read whenever it changes, so an edit applies to the next copy rather than
-the next launch. Klippy does not create it — the **FILES** block in Settings shows the path to
-create it at, and how many variables it read back, which is how you check a hand-edit
-parsed.
+### Getting at the file
 
-The name is configurable:
+The **FILES** block in Settings does the whole job, because hunting down `%APPDATA%` to
+edit a file you have just been told about is an errand a settings screen should spare you:
+
+- **The path is a text box.** A bare name sits beside the snippets, an absolute path is
+  taken as given — which is the answer when a snippet store is shared between two machines
+  and the variables file must not be. It saves when you leave the box, and applies to the
+  next copy: the file is re-read whenever it changes, so there is nothing to restart.
+- **Create / Open** opens the file in whatever your machine opens a text file with,
+  writing a commented example first when there is nothing there yet. The example is
+  entirely comments, so a file made by accident defines nothing and changes nothing.
+- **Folder** opens the folder it lives in, and the data folder above it has its own
+  **Open**.
+
+Under the box, what Klippy read back: `3 variables`, or `no file yet`, or
+`no variables in it` for a file that is all comments. That line is how you check a
+hand-edit parsed.
+
+The same setting by hand, for anyone who would rather:
 
 ```json
 {
@@ -546,9 +560,8 @@ The name is configurable:
 }
 ```
 
-A bare name sits beside the snippets; an absolute path is taken as given. That is the
-answer when a snippet store is shared between two machines and the variables file must not
-be — point each machine at its own.
+The buttons are desktop only — they go through the same launcher an item marked Execute
+does, and mobile has none, so there they are absent rather than dead.
 
 ## Settings
 
@@ -632,12 +645,13 @@ rather than throwing it across the desk mid-use. In `settings.json` the key is `
 spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Remembered"`
 rather than costing you the rest of the file.
 
-A **FILES** block at the bottom names the three paths that matter — `settings.json`, the
-data folder, and the [variables file](#variables-local-defines) with the number of
-variables read from it. Read-only on purpose: the folder is a
-[hand-edit](#choosing-the-folder-desktop) that takes effect on the next launch, and these
-lines are how you find what it named. They are hidden on mobile, where app storage is
-private and unreachable.
+A **FILES** block at the bottom names the three paths that matter. `settings.json` cannot
+move, since it is the file that says where the others went. The data folder is a
+[hand-edit](#choosing-the-folder-desktop) that takes effect on the next launch, with an
+**Open** beside it. The [variables file](#variables-local-defines) is a text box you can
+point anywhere, with buttons to create or open it and to open its folder — see
+[Getting at the file](#getting-at-the-file). The whole block is hidden on mobile, where app
+storage is private and unreachable.
 
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
 is no OK button to forget. The panel scrolls rather than running off the bottom of a short
@@ -904,7 +918,7 @@ answers, so the setting insists on being told which folder you mean.
 
 `settings.json` is the one file that stays behind, because it is the note saying where
 everything else went — it cannot live in the folder it names. Settings shows both paths,
-and the variables file, under **FILES**.
+and the variables file, under **FILES**, with an **Open** button on the folder.
 
 It is read once at startup, so it takes a restart, and **nothing is moved for you**: copy
 the files across first. That cuts in your favour too — the old folder is left exactly as it

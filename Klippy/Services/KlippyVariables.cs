@@ -80,14 +80,19 @@ public sealed class KlippyVariables
     // ---- where the file is ----
 
     /// <summary>
-    /// The configured file, resolved: a bare name lands in the storage folder, an absolute
-    /// path is taken as given — which is how a shared snippet store still reads a
-    /// machine-local file.
+    /// The file <paramref name="settings"/> names, resolved: a bare name lands in the
+    /// storage folder, an absolute path is taken as given — which is how a shared snippet
+    /// store still reads a machine-local file. A blank name is the default one, since
+    /// there is no such thing as "no variables file": one that is not there defines
+    /// nothing, which is the same answer.
     /// </summary>
-    public static string CurrentPath => StorageLocations.Resolve(
-        AppSettings.Current.VariablesFile is { } name && !string.IsNullOrWhiteSpace(name)
+    public static string PathFor(AppSettings settings) => StorageLocations.Resolve(
+        settings.VariablesFile is { } name && !string.IsNullOrWhiteSpace(name)
             ? name
             : DefaultFileName);
+
+    /// <summary>What <see cref="Current"/> is reading. <see cref="PathFor"/> of the app's own settings.</summary>
+    public static string CurrentPath => PathFor(AppSettings.Current);
 
     private static KlippyVariables? _current;
 
