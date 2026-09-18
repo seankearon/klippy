@@ -38,6 +38,14 @@ public partial class MainViewModel : ViewModelBase
     public const string AllTag = "All";
     public const string HistoryTag = "History";
 
+    /// <summary>
+    /// The word that offers to close Klippy, matched as the whole line the way
+    /// <see cref="UnmatchedSearch.SystemActionFor"/> matches "lock" and "restart". Klippy
+    /// is a resident launcher, so without it the only way out is the tray menu — a mouse
+    /// trip away from a window you reached by hotkey.
+    /// </summary>
+    public const string QuitWord = "quit";
+
     private readonly SnippetStore _store;
     private readonly ClipHistoryStore? _history;
     private readonly CommandHistory? _commands;
@@ -183,6 +191,14 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public event Action? CloseRequested;
 
+    /// <summary>
+    /// Raised once the user has confirmed they want Klippy closed. Same shape as
+    /// <see cref="CloseRequested"/> and for the same reason: the view model has no process
+    /// to end, so it says what it wants and the head decides how — the desktop launcher
+    /// releases its hotkeys and tray icon and shuts the lifetime down.
+    /// </summary>
+    public event Action? QuitRequested;
+
     public string KeyHints { get; } = OperatingSystem.IsMacOS()
         ? "↑↓ navigate  ↵ copy  ⌘N new  ⌘F filter  ⌘P preview"
         : "↑↓ navigate  ↵ copy  Ctrl+N new  Ctrl+F filter  Ctrl+P preview";
@@ -215,6 +231,17 @@ public partial class MainViewModel : ViewModelBase
     /// lock. The Settings toggles follow this, so the two can never disagree.
     /// </summary>
     public bool CanExecuteUnmatched { get; } = !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
+    /// <summary>
+    /// Whether closing the app is a thing this platform does. The desktop head is a
+    /// resident launcher with a real exit; on mobile the app *is* the screen, closing it is
+    /// the system's gesture to make, and iOS forbids an app quitting itself outright.
+    ///
+    /// Separate from <see cref="CanExecuteUnmatched"/> although the platforms agree today:
+    /// that one is about handing typed text to the machine and can be switched off in
+    /// Settings, and being unwilling to do that is no reason to be unable to close the app.
+    /// </summary>
+    public bool CanQuit { get; } = !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
     /// <summary>Whether there is a clipboard history to switch to. False on mobile.</summary>
     public bool HasHistory => _history is not null;
@@ -333,6 +360,17 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void UpdateOffer()
     {
+        // Klippy's own quit, ahead of the gate below and deliberately outside it: that
+        // setting governs handing typed text to the machine, and closing the app is
+        // neither typed text nor the machine's business. An item still beats it exactly as
+        // one beats "lock" — "quit" is an ordinary word, and a snippet answering to it was
+        // plausibly what was being looked for. The tray menu and the footer link remain.
+        if (CanQuit && Names(FilterText, QuitWord) && Filtered.Count == 0)
+        {
+            Offer = OfferViewModel.Quit();
+            return;
+        }
+
         if (!_prefs.ExecuteUnmatched || !CanExecuteUnmatched)
         {
             Offer = null;
@@ -715,12 +753,35 @@ public partial class MainViewModel : ViewModelBase
     private void CancelOffer() => PendingOffer = null;
 
     /// <summary>
+    /// Asks to close Klippy, from the footer link rather than the typed word — the route
+    /// for a pointer already down there, and the one that still works when a snippet
+    /// called "quit" has taken the word.
+    ///
+    /// It puts up the same confirmation the offer does rather than a second dialog of its
+    /// own: one question, however it was asked.
+    /// </summary>
+    [RelayCommand]
+    private void RequestQuit()
+    {
+        if (CanQuit) PendingOffer = OfferViewModel.Quit();
+    }
+
+    /// <summary>
     /// Hands the offer's plan to the same engine an item marked Execute goes through, and
     /// reports in the same toast. The only difference is where the plan came from.
+    ///
+    /// Quit is the one offer with no plan to hand over: it is Klippy closing rather than
+    /// Klippy starting something, so it turns back here and never reaches the launcher.
     /// </summary>
     private async Task Run(OfferViewModel offer)
     {
         CloseCommands(restore: false);
+
+        if (offer.IsQuit)
+        {
+            QuitRequested?.Invoke();
+            return;
+        }
 
         if (Executor is not { } run)
         {

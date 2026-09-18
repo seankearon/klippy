@@ -48,6 +48,8 @@
                     Command="{Binding OpenTransferCommand}" />
             <Button Classes="footerLink" Content="settings"
                     Command="{Binding OpenSettingsCommand}" />
+            <Button Classes="footerLink" Content="quit"
+                    Command="{Binding RequestQuitCommand}" />
             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                        Foreground="{StaticResource MutedBrush}"
                        Text="{Binding SnippetCountText}" />
@@ -139,10 +141,16 @@
               <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
               <Button Classes="offerRow" Command="{Binding RunOfferCommand}">
                 <DockPanel>
+                  <!-- Play for everything that starts something; the power symbol for the
+                       one offer that closes something instead. -->
                   <Viewbox DockPanel.Dock="Left" Width="11" Height="11"
                            VerticalAlignment="Center" Margin="0,0,10,0">
                     <Grid Width="24" Height="24">
-                      <Path Data="{StaticResource IconPlay}" Fill="{StaticResource AccentBrush}" />
+                      <Path Data="{StaticResource IconPlay}" Fill="{StaticResource AccentBrush}"
+                            IsVisible="{Binding !Offer.IsQuit}" />
+                      <Path Data="{StaticResource IconPower}" Stroke="{StaticResource AccentBrush}"
+                            StrokeThickness="2.2" StrokeLineCap="Round"
+                            IsVisible="{Binding Offer.IsQuit}" />
                     </Grid>
                   </Viewbox>
                   <Border DockPanel.Dock="Right" Classes="enterBadge"
@@ -150,7 +158,8 @@
                           CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
                           Margin="10,0,0,0">
                     <TextBlock Classes="mono" FontSize="10"
-                               Foreground="{StaticResource AccentBrush}" Text="↵ run" />
+                               Foreground="{StaticResource AccentBrush}"
+                               Text="{Binding Offer.KeyBadge}" />
                   </Border>
                   <TextBlock Classes="offerVerb" DockPanel.Dock="Left" FontSize="12"
                              FontWeight="SemiBold" VerticalAlignment="Center"

@@ -32,6 +32,13 @@ public partial class MainWindow : Window
     /// <summary>Set by the desktop head when running as a resident launcher.</summary>
     public Action? HideRequested { get; set; }
 
+    /// <summary>
+    /// Set by the desktop head: what to do once the user has confirmed they want Klippy
+    /// closed. Left null there is no launcher to end, so the confirmation simply does
+    /// nothing rather than half-closing a window the hotkey still expects to find.
+    /// </summary>
+    public Action? QuitRequested { get; set; }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -67,6 +74,7 @@ public partial class MainWindow : Window
             previous.PropertyChanged -= VmPropertyChanged;
             previous.Copied -= SelectSearchText;
             previous.CloseRequested -= HideAfterCopy;
+            previous.QuitRequested -= Quit;
         }
         _watched = Vm;
         if (_watched is { } current)
@@ -74,6 +82,7 @@ public partial class MainWindow : Window
             current.PropertyChanged += VmPropertyChanged;
             current.Copied += SelectSearchText;
             current.CloseRequested += HideAfterCopy;
+            current.QuitRequested += Quit;
         }
 
         ApplyPreviewHeight();
@@ -94,6 +103,9 @@ public partial class MainWindow : Window
     /// Nothing to do when there is no launcher — a plain window run has nowhere to hide to.
     /// </summary>
     private void HideAfterCopy() => HideRequested?.Invoke();
+
+    /// <summary>Confirmed quit: the head owns the tray icon and the hotkeys, so it ends it.</summary>
+    private void Quit() => QuitRequested?.Invoke();
 
     private void VmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

@@ -30,7 +30,7 @@ search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `↓` on an empty search box opens
 [recent commands](#recent-commands-the-mru), `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it, the
-same as `Enter`.
+same as `Enter`. Typing `quit` offers to [close Klippy](#quitting-desktop).
 
 > `F2` is the edit key everywhere else, and `Ctrl/⌘+I` is there for Mac keyboards, where
 > `F2` is the brightness key unless the function-key setting says otherwise. Both open
@@ -563,9 +563,9 @@ transfer button in the mobile header.
 ## Global hotkeys (desktop)
 
 Klippy runs as a resident launcher: it stays alive behind a tray / menu-bar icon, and a
-system-wide hotkey summons it. Closing the window hides it rather than quitting; use the
-tray menu's **Quit** to exit for real. Only one instance runs at a time, so launching
-Klippy again just tells you it is already resident.
+system-wide hotkey summons it. Closing the window hides it rather than quitting; see
+[Quitting](#quitting-desktop) for the ways out. Only one instance runs at a time, so
+launching Klippy again just tells you it is already resident.
 
 There are two keys, one per half of the app:
 
@@ -616,6 +616,44 @@ which costs an idle thread apiece and buys independent failure:
 Carbon's `RegisterEventHotKey` — chosen over an event tap because it needs no Accessibility
 permission. **The macOS path compiles but has not been run**, since it cannot be tested
 from Windows.
+
+## Quitting (desktop)
+
+Being resident is the point, so nothing about the window ends Klippy: closing it hides
+it, and `Esc` dismisses it. Three things do end it — two of them from the window you are
+already looking at:
+
+- **Type `quit`.** It appears as an offer in the band where the first row would have
+  been, reading `Quit Klippy · stop listening and leave the tray`, and `↵` takes it —
+  the same gesture, in the same place, as [`lock` or `restart`](#running-an-unmatched-search).
+- **The `quit` footer link**, for when the pointer is already down there.
+- **The tray / menu-bar icon's Quit**, which is where it has always been.
+
+Both of the in-window routes land on the same confirmation, because the search box and a
+footer full of links are places a stray keystroke or click can reach: `↵` or **Quit Klippy**
+closes, `Esc` or **Cancel** goes back. The tray menu asks nothing and never did — picking
+**Quit** off a two-item menu is already a deliberate act.
+
+Nothing is at stake in the data — snippets are written per edit and the clipboard history
+flushes on exit — but the hotkeys and the tray icon go with it, and getting them back means
+launching Klippy again. That, rather than lost work, is what the dialog says.
+
+**An item that matches beats it**, exactly as one beats `lock`: `quit` is an ordinary word,
+and a snippet answering to it was plausibly what was being looked for. A snippet called
+"Quit the trial" keeps the word a filter for as long as it exists — the footer link and the
+tray are then the ways out, which is why the link is there and not only the word.
+
+It is **not** part of [running an unmatched search](#running-an-unmatched-search), although
+it stands in the same place and answers to the same key. Klippy closing is not Klippy
+starting something: no plan reaches
+[`ProcessLauncher`](Klippy/Services/ProcessLauncher.cs), and it is outside the **Run it**
+setting — being unwilling to hand typed text to the machine is no reason to be unable to
+close the app. For the same reason its confirmation is not the one **Confirm OS actions**
+can waive: that governs the machine's controls, and this one closes a program.
+
+The word is deliberately not offered on mobile: Android leaves closing to the system's own
+gesture, and iOS forbids an app quitting itself outright, so there `quit` stays an ordinary
+search term.
 
 ## Clipboard history (Windows)
 

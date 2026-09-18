@@ -23,6 +23,8 @@
   <StreamGeometry x:Key="IconBookmark">M 6,3 L 18,3 A 1,1 0 0 1 19,4 L 19,21 L 12,16 L 5,21 L 5,4 A 1,1 0 0 1 6,3 Z</StreamGeometry>
   <!-- play triangle: execute the item (open its link, run its script) -->
   <StreamGeometry x:Key="IconPlay">M 7,4.5 L 19.5,12 L 7,19.5 Z</StreamGeometry>
+  <!-- power symbol: the one offer that closes something rather than starting it -->
+  <StreamGeometry x:Key="IconPower">M 7.8,6.2 A 7.6,7.6 0 1 0 16.2,6.2 M 12,3 L 12,11.5</StreamGeometry>
   <!-- circled exclamation, for a toast reporting something that went wrong -->
   <StreamGeometry x:Key="IconAlert">M 21,12 A 9,9 0 1 0 3,12 A 9,9 0 1 0 21,12 M 12,7 L 12,13 M 12,16.5 L 12,16.6</StreamGeometry>
   <!-- copy glyph with a plus in the front sheet (duplicate) -->
