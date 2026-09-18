@@ -4,8 +4,8 @@ using System.IO;
 namespace Klippy.Services;
 
 /// <summary>
-/// Where the snippet store lives, and whether that location participates in the
-/// platform's device backup.
+/// Where Klippy's files live, and whether that location participates in the platform's
+/// device backup.
 ///
 /// Uninstalling an app always deletes its private storage, so what actually decides
 /// whether snippets survive an uninstall/reinstall is the *backup*. Android gives every
@@ -20,11 +20,19 @@ namespace Klippy.Services;
 public static class StorageLocations
 {
     public const string FileName = "snippets.json";
+    public const string SettingsFileName = "settings.json";
 
-    /// <summary>Normal, backed-up location. Defaults to the platform app-data folder.</summary>
-    public static string Directory { get; set; } = Path.Combine(
+    /// <summary>
+    /// The platform's own app-data folder for Klippy: <c>%APPDATA%\Klippy</c> on Windows,
+    /// <c>~/.config/Klippy</c> elsewhere. Where Klippy looks before it is told otherwise,
+    /// and where <see cref="SettingsPath"/> stays whatever it is told.
+    /// </summary>
+    public static string DefaultDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create),
         "Klippy");
+
+    /// <summary>Normal, backed-up location for Klippy's data. Defaults to <see cref="DefaultDirectory"/>.</summary>
+    public static string Directory { get; set; } = DefaultDirectory;
 
     /// <summary>
     /// Directory the platform excludes from backup, or null if it has no such concept.
@@ -38,10 +46,12 @@ public static class StorageLocations
     public static string BackedUpPath => Path.Combine(Directory, FileName);
 
     /// <summary>
-    /// Preferences always live in the normal directory, never the backup-exempt one:
-    /// the "wipe on uninstall" choice is about snippet data, not settings.
+    /// Preferences live in <see cref="DefaultDirectory"/>, never the backup-exempt one and
+    /// never a redirected one: the "wipe on uninstall" choice is about snippet data, not
+    /// settings — and settings.json is the file that *names* the redirected folder, so it
+    /// is the one thing that cannot move into it.
     /// </summary>
-    public static string SettingsPath => Path.Combine(Directory, "settings.json");
+    public static string SettingsPath => Path.Combine(DefaultDirectory, SettingsFileName);
 
     /// <summary>
     /// Captured clipboard history. Always the normal directory: history is a desktop-only
@@ -65,4 +75,70 @@ public static class StorageLocations
     /// </summary>
     public static string ActivePath =>
         BackupExemptPath is { } exempt && File.Exists(exempt) ? exempt : BackedUpPath;
+
+    /// <summary>
+    /// Resolves a configured file name: a bare name (or relative path) lands in
+    /// <see cref="Directory"/> beside the snippets, an absolute one is taken as given.
+    /// <see cref="ExpandPath"/> runs over it first, because a hand-edited path is written
+    /// with the shorthands rather than spelled out.
+    /// </summary>
+    public static string Resolve(string fileName)
+    {
+        var expanded = ExpandPath(fileName);
+        if (expanded.Length == 0) return Directory;
+        return Path.IsPathRooted(expanded) ? expanded : Path.Combine(Directory, expanded);
+    }
+
+    /// <summary>
+    /// <c>%APPDATA%\Klippy</c>, <c>$HOME/Klippy</c> and <c>~/Klippy</c> are how a
+    /// hand-edited path is written, and .NET expands none of them on its own.
+    ///
+    /// Through <see cref="EnvironmentProbe"/>, so a path in settings.json reads exactly as
+    /// one typed into the search box or written into an item. The environment only —
+    /// Klippy's own variables file lives *inside* the folder this decides, so it cannot
+    /// help name it.
+    /// </summary>
+    public static string ExpandPath(string? path) =>
+        string.IsNullOrWhiteSpace(path) ? "" : EnvironmentProbe.Real.Expand(path.Trim());
+
+    /// <summary>
+    /// Points snippets, history, clip blobs and the variables file at
+    /// <paramref name="directory"/>. Settings stay in <see cref="DefaultDirectory"/>, as
+    /// <see cref="SettingsPath"/> explains.
+    ///
+    /// Nothing is moved for the caller: a redirect that quietly relocated files would be
+    /// the one operation in Klippy that can lose data, and the old folder left untouched
+    /// is what makes changing your mind free. Returns false, with <paramref name="problem"/>
+    /// saying why, when the path is unusable — a mistyped folder must cost the preference
+    /// and not the snippets.
+    /// </summary>
+    public static bool TryUseDirectory(string? directory, out string problem)
+    {
+        problem = "";
+        var expanded = ExpandPath(directory);
+        if (expanded.Length == 0)
+        {
+            problem = $"\"{directory}\" expands to nothing";
+            return false;
+        }
+        if (!Path.IsPathRooted(expanded))
+        {
+            problem = $"\"{expanded}\" is not an absolute path";
+            return false;
+        }
+
+        try
+        {
+            System.IO.Directory.CreateDirectory(expanded);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                    or ArgumentException or NotSupportedException)
+        {
+            problem = $"\"{expanded}\" could not be created ({e.Message})";
+            return false;
+        }
+
+        Directory = expanded;
+        return true;
+    }
 }

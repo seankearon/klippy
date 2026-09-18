@@ -21,6 +21,14 @@ public enum ExecutionKind
     /// <summary>A folder, opened in the platform's file manager.</summary>
     Folder,
 
+    /// <summary>
+    /// A file, handed to whatever the platform opens its kind with — the same gesture as
+    /// double-clicking it. Distinct from <see cref="Application"/>, which starts a
+    /// program, and from <see cref="Script"/>, which hands one to an interpreter: a
+    /// klippy.vars is neither, and wants the user's text editor.
+    /// </summary>
+    Document,
+
     /// <summary>A machine-level action: lock, sleep, hibernate or restart.</summary>
     System,
 }
@@ -81,6 +89,7 @@ public sealed record ExecutionPlan
         ExecutionKind.Script => "Running " + ExecutionPolicy.FileNameOf(Target),
         ExecutionKind.Application => "Starting " + ExecutionPolicy.ApplicationName(Target),
         ExecutionKind.Folder => "Opening " + ExecutionPolicy.FolderName(Target),
+        ExecutionKind.Document => "Opening " + ExecutionPolicy.FileNameOf(Target),
         ExecutionKind.System => Action switch
         {
             SystemAction.Lock => "Locking the screen",
@@ -362,14 +371,9 @@ public static class ExecutionPolicy
         ExecutionPlatform platform,
         Func<string, bool>? isExecutable = null) => plan.Kind switch
     {
-        ExecutionKind.Url => platform switch
-        {
-            // ShellExecute is what consults the user's default browser; macOS and Linux
-            // have a command that does the same job.
-            ExecutionPlatform.Windows => new LaunchCommand(plan.Target, Array.Empty<string>(), UseShellExecute: true),
-            ExecutionPlatform.MacOS => new LaunchCommand("open", new[] { plan.Target }),
-            _ => new LaunchCommand("xdg-open", new[] { plan.Target }),
-        },
+        // A link and a document are the same gesture to the OS: hand it the thing and let
+        // the user's own default decide what opens it.
+        ExecutionKind.Url or ExecutionKind.Document => ShellOpen(plan.Target, platform),
         ExecutionKind.Script => ScriptCommand(plan, platform, isExecutable),
         ExecutionKind.Application => ApplicationCommand(plan, platform),
         ExecutionKind.Folder => platform switch
@@ -382,6 +386,18 @@ public static class ExecutionPolicy
         },
         ExecutionKind.System => SystemCommand(plan.Action, platform),
         _ => null,
+    };
+
+    /// <summary>
+    /// What the platform opens something with when it is not told: ShellExecute consults
+    /// the user's file associations and default browser, and <c>open</c> / <c>xdg-open</c>
+    /// are the same job by another name.
+    /// </summary>
+    private static LaunchCommand ShellOpen(string target, ExecutionPlatform platform) => platform switch
+    {
+        ExecutionPlatform.Windows => new LaunchCommand(target, Array.Empty<string>(), UseShellExecute: true),
+        ExecutionPlatform.MacOS => new LaunchCommand("open", new[] { target }),
+        _ => new LaunchCommand("xdg-open", new[] { target }),
     };
 
     /// <summary>

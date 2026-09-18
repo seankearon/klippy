@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Klippy.Services;
@@ -19,6 +21,13 @@ public partial class SettingsViewModel : ViewModelBase
 {
     private readonly AppSettings _settings;
     private readonly Action _close;
+
+    /// <summary>
+    /// Opens a file or a folder, through the same launcher an item marked Execute uses.
+    /// Null on mobile and in tests that do not care, which is what <see cref="CanOpenFiles"/>
+    /// reports so the buttons are absent rather than dead.
+    /// </summary>
+    private readonly Func<ExecutionPlan, Task<ExecutionResult>>? _executor;
 
     /// <summary>Suppresses saving while the constructor seeds the properties.</summary>
     private readonly bool _loaded;
@@ -66,14 +75,64 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _statusText;
 
+    /// <summary>
+    /// The variables file, as configured: a bare name sits in the data folder, an absolute
+    /// path is taken as given. Editable, because the whole reason to change it is to point
+    /// at a file somewhere else — and hunting down settings.json to do that is the sort of
+    /// errand this screen exists to spare you.
+    /// </summary>
+    [ObservableProperty]
+    private string _variablesFile;
+
     /// <summary>Where these preferences are written. Shown so a desktop user can find the file.</summary>
     public string SettingsPath => _settings.SourcePath;
 
     /// <summary>
-    /// Whether to show that path at all. Mobile app storage is private and unreachable, so
-    /// there the line is noise — which is the whole reason this screen exists.
+    /// Where the snippets, the history and the variables file live — the same folder
+    /// unless <c>DataDirectory</c> says otherwise, in which case a user who set it months
+    /// ago deserves to be told where their data actually went.
+    /// </summary>
+    public string DataFolder => StorageLocations.Directory;
+
+    /// <summary>
+    /// What <see cref="VariablesFile"/> actually resolves to, which is the thing the
+    /// buttons act on and the only form worth showing for a bare name.
+    /// </summary>
+    public string VariablesPath { get; private set; } = "";
+
+    /// <summary>
+    /// What Klippy read back from it: the count is how you know a hand-edit parsed, and
+    /// "no file yet" is how you know the button beside it is about to write one.
+    /// </summary>
+    public string VariablesSummary { get; private set; } = "";
+
+    /// <summary>
+    /// The line under the box: the count, with the resolved path in front of it only when
+    /// that is not simply what was typed. A bare name is worth resolving on screen; an
+    /// absolute one is already the answer, and repeating it reads like a second setting.
+    /// </summary>
+    public string VariablesStatusText =>
+        string.Equals(VariablesFile?.Trim(), VariablesPath, StringComparison.Ordinal)
+            ? VariablesSummary
+            : $"{VariablesPath}  —  {VariablesSummary}";
+
+    /// <summary>Whether that file is there, which decides what the open button offers to do.</summary>
+    public bool VariablesFileExists { get; private set; }
+
+    /// <summary>"Open" once the file is there, "Create" while it is not.</summary>
+    public string OpenVariablesVerb => VariablesFileExists ? "Open" : "Create";
+
+    /// <summary>
+    /// Whether to show those paths at all. Mobile app storage is private and unreachable, so
+    /// there the lines are noise — which is the whole reason this screen exists.
     /// </summary>
     public bool ShowSettingsPath => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+
+    /// <summary>
+    /// Whether the buttons that open a file or a folder can do anything. They go through
+    /// the same launcher an item marked Execute does, and mobile has none.
+    /// </summary>
+    public bool CanOpenFiles => _executor is not null;
 
     /// <summary>
     /// Whether to offer the close-after-copy toggles. Only the desktop launcher has a
@@ -118,10 +177,19 @@ public partial class SettingsViewModel : ViewModelBase
     /// Whether this app offers to run an unmatched search at all. Passed down from the
     /// main view model, so the toggles and the offer can never disagree.
     /// </param>
-    public SettingsViewModel(AppSettings settings, Action close, bool canExecuteUnmatched = false)
+    /// <param name="executor">
+    /// What opens a file or a folder. The main view model's own, so Settings cannot open
+    /// anything a marked item could not.
+    /// </param>
+    public SettingsViewModel(
+        AppSettings settings,
+        Action close,
+        bool canExecuteUnmatched = false,
+        Func<ExecutionPlan, Task<ExecutionResult>>? executor = null)
     {
         _settings = settings;
         _close = close;
+        _executor = executor;
         ShowExecuteUnmatched = canExecuteUnmatched;
         _markdownToHtml = settings.MarkdownToHtml;
         _markdownDoubleSpaced = settings.MarkdownDoubleSpaced;
@@ -133,8 +201,144 @@ public partial class SettingsViewModel : ViewModelBase
         _executeUnmatched = settings.ExecuteUnmatched;
         _executeVerifyPaths = settings.ExecuteVerifyPaths;
         _executeConfirmSystemActions = settings.ExecuteConfirmSystemActions;
+
+        _variablesFile = settings.VariablesFile;
+        ReadVariables();
+
         _loaded = true;
     }
+
+    /// <summary>
+    /// Re-reads the variables file and refreshes what the screen says about it. Called as
+    /// the overlay opens, after an edit to the path, and after the file is created — the
+    /// count beside a path is only worth showing while it is current.
+    /// </summary>
+    private void ReadVariables()
+    {
+        // The settings being edited, not AppSettings.Current: those are the same instance
+        // in the app, and a screen that read the global while writing to an instance would
+        // be showing one file and editing another the moment they were not.
+        var variables = KlippyVariables.Load(KlippyVariables.PathFor(_settings));
+
+        VariablesPath = variables.FilePath;
+        VariablesFileExists = variables.Exists;
+        VariablesSummary =
+            !variables.Exists ? "no file yet"
+            : variables.Count == 0 ? "no variables in it"
+            : variables.Count == 1 ? "1 variable"
+            : $"{variables.Count} variables";
+
+        OnPropertyChanged(nameof(VariablesPath));
+        OnPropertyChanged(nameof(VariablesSummary));
+        OnPropertyChanged(nameof(VariablesStatusText));
+        OnPropertyChanged(nameof(VariablesFileExists));
+        OnPropertyChanged(nameof(OpenVariablesVerb));
+    }
+
+    /// <summary>
+    /// A blank box means the default name rather than nothing, since there is no such
+    /// thing as "no variables file" — a file that is not there simply defines nothing.
+    /// Saved as typed, so the box keeps showing what was written rather than rewriting it
+    /// under the cursor.
+    /// </summary>
+    partial void OnVariablesFileChanged(string value)
+    {
+        if (!_loaded) return;
+
+        _settings.VariablesFile = string.IsNullOrWhiteSpace(value)
+            ? KlippyVariables.DefaultFileName
+            : value.Trim();
+
+        Save();
+        ReadVariables(); // the path moved, so the count beside it is about a different file
+    }
+
+    /// <summary>
+    /// Opens the variables file in whatever the machine opens a text file with, writing a
+    /// commented example first when there is nothing there yet.
+    ///
+    /// Creating it here rather than at startup: an empty file in everyone's app-data
+    /// folder would be a file to wonder about, whereas one written the moment you ask to
+    /// see it is the answer to the question you just asked.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenVariables()
+    {
+        if (!VariablesFileExists && !TryWriteTemplate()) return;
+
+        await Open(new ExecutionPlan { Kind = ExecutionKind.Document, Target = VariablesPath });
+    }
+
+    /// <summary>Opens the folder the variables file is in, existing or not.</summary>
+    [RelayCommand]
+    private Task OpenVariablesFolder()
+    {
+        var folder = Path.GetDirectoryName(VariablesPath);
+        return string.IsNullOrEmpty(folder)
+            ? Task.CompletedTask
+            : Open(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = folder });
+    }
+
+    /// <summary>Opens the folder holding the snippets, the history and the clip images.</summary>
+    [RelayCommand]
+    private Task OpenDataFolder() =>
+        Open(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = DataFolder });
+
+    private async Task Open(ExecutionPlan plan)
+    {
+        if (_executor is not { } run) return;
+
+        var result = await run(plan);
+        StatusText = result.Started ? null : result.Message;
+    }
+
+    /// <summary>
+    /// Writes the commented example. Returns whether it worked — a folder that cannot be
+    /// written is reported in the same line a failed save is, rather than opening an
+    /// editor on a file that is not there.
+    /// </summary>
+    private bool TryWriteTemplate()
+    {
+        try
+        {
+            var folder = Path.GetDirectoryName(VariablesPath);
+            if (!string.IsNullOrEmpty(folder)) Directory.CreateDirectory(folder);
+
+            File.WriteAllText(VariablesPath, VariablesTemplate);
+            ReadVariables();
+            StatusText = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Could not create {VariablesPath}: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// What a new variables file says. Entirely comments, so a file created by accident
+    /// defines nothing and changes nothing — and the syntax is in front of you at the
+    /// moment you have the file open to use it.
+    /// </summary>
+    private const string VariablesTemplate =
+        """
+        # Klippy variables — local defines for this machine.
+        #
+        # One name=value per line. A snippet expands %name% when it is copied, and a
+        # snippet marked Execute resolves one in its first word. Names Klippy does not
+        # know are left exactly as written, so ordinary percent signs are safe.
+        #
+        # A value may use other variables, and anything not defined here falls through to
+        # this machine's environment:
+        #
+        #   ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
+        #   src=D:\src
+        #
+        # Then a snippet reading "%ws% %src%\shine" opens that folder in WebStorm.
+        # Quote a path that has spaces in it — the quotes are kept.
+
+        """;
 
     partial void OnExecutePullFirstChanged(bool value)
     {

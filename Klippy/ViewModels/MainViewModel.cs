@@ -379,7 +379,14 @@ public partial class MainViewModel : ViewModelBase
 
         // Only a rooted path ever reaches the file system here, so an ordinary search word
         // costs the same as it did when this ran on an empty list alone.
-        var plan = UnmatchedSearch.Plan(FilterText, _prefs.ExecuteVerifyPaths);
+        //
+        // The same environment a marked item is resolved against, variables file included:
+        // two routes to the same launcher must not disagree about what %ws% means any more
+        // than about what %LOCALAPPDATA% does.
+        var plan = UnmatchedSearch.Plan(
+            FilterText,
+            _prefs.ExecuteVerifyPaths,
+            environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real));
         if (plan.Kind == ExecutionKind.None)
         {
             Offer = null;
@@ -576,9 +583,15 @@ public partial class MainViewModel : ViewModelBase
         CopyPayload payload;
         if (row is SnippetViewModel snippet)
         {
+            // Local defines first, then macros, which is the order the execute path
+            // resolves them in and for the same reason: a %ws% that arrives through %C%
+            // is a value off the clipboard rather than a name the item asked to have
+            // resolved.
+            var template = KlippyVariables.Current.Expand(snippet.Model.Content);
+
             // Macros resolve on the way to the clipboard, so what lands there is the
             // expansion — a half-typed invocation must never paste as "%P%".
-            var content = await ResolveMacrosAsync(snippet.Model.Content, snippet.Arguments);
+            var content = await ResolveMacrosAsync(template, snippet.Arguments);
             payload = RichTextClipboard.BuildPayload(content, snippet.Model.IsMarkdown);
         }
         // A clip keeps whatever flavours it was captured with, so pasting it back gives
@@ -630,7 +643,16 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var text = row.Template;
-        var plan = WithPreferences(ExecutionPolicy.Plan(text, row.Arguments, await ReadClipboardForAsync(text)));
+
+        // The variables file sits in front of the machine's own environment, so %ws% names
+        // WebStorm on the run path exactly as %LOCALAPPDATA% names a folder. Handing it to
+        // the policy rather than expanding here keeps the first-word-only rule: an
+        // argument's percent signs stay the user's own.
+        var plan = WithPreferences(ExecutionPolicy.Plan(
+            text,
+            row.Arguments,
+            await ReadClipboardForAsync(text),
+            environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real)));
 
         if (plan.Kind == ExecutionKind.None)
         {
@@ -1100,7 +1122,13 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenSettings() =>
-        Settings = new SettingsViewModel(_prefs, close: () => Settings = null, canExecuteUnmatched: CanExecuteUnmatched);
+        Settings = new SettingsViewModel(
+            _prefs,
+            close: () => Settings = null,
+            canExecuteUnmatched: CanExecuteUnmatched,
+            // The head's own launcher, so Settings can open a folder exactly where a
+            // marked item can and nowhere it cannot.
+            executor: Executor);
 
     /// <summary>
     /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns

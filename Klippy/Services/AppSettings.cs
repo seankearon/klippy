@@ -146,6 +146,30 @@ public sealed class AppSettings
     public string SummonPlacement { get; set; } = nameof(LauncherPlacement.Remembered);
 
     /// <summary>
+    /// Where Klippy keeps its files — snippets, clipboard history, clip images and the
+    /// variables file. Empty means the platform's own app-data folder, which is what it
+    /// has always been. Environment variables and a leading <c>~</c> are expanded, so
+    /// <c>"%OneDrive%\\Klippy"</c> is a legitimate way to write it.
+    ///
+    /// Read once at startup, since a store that changed folder mid-session would have to
+    /// decide what to do with the file it already had open. Nothing is moved for you:
+    /// copy the files across first, and note that the old folder is left exactly as it
+    /// was, so setting this back gets you back.
+    ///
+    /// settings.json itself never moves — it is the file that says where everything else
+    /// went, so it stays where Klippy can always find it.
+    /// </summary>
+    public string DataDirectory { get; set; } = "";
+
+    /// <summary>
+    /// The local variables file: <c>%name%</c> defines an item expands on the way to the
+    /// clipboard, and that the run path resolves a path against. A bare name sits beside
+    /// the snippets, an absolute path is taken as given — which is how a snippet store
+    /// shared between two machines still reads a file local to each.
+    /// </summary>
+    public string VariablesFile { get; set; } = KlippyVariables.DefaultFileName;
+
+    /// <summary>
     /// The one instance the app reads and writes. Loaded on first touch, because the
     /// shared UI needs preferences on platforms whose head never loads them itself
     /// (Android, iOS) — and where there is no settings.json a user could edit by hand.

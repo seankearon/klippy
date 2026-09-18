@@ -189,10 +189,56 @@
                 <Border Height="1" Background="{StaticResource HairlineBrush}"
                         IsVisible="{Binding ShowSettingsPath}" />
 
-                <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
-                           IsVisible="{Binding ShowSettingsPath}"
-                           Foreground="{StaticResource MutedBrush}"
-                           Text="{Binding SettingsPath}" />
+                <StackPanel Spacing="8" IsVisible="{Binding ShowSettingsPath}">
+                  <TextBlock Classes="mono" Text="FILES" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+
+                  <!-- settings.json is the one file that cannot move, since it is what
+                       names where the rest went. Nothing to set, so nothing to type in. -->
+                  <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                             Foreground="{StaticResource MutedBrush}"
+                             Text="{Binding SettingsPath}" />
+
+                  <Grid ColumnDefinitions="*,8,Auto">
+                    <TextBlock Grid.Column="0" Classes="mono" FontSize="10" TextWrapping="Wrap"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="{Binding DataFolder}" />
+                    <Button Grid.Column="2" Classes="chip" Content="Open"
+                            VerticalAlignment="Top"
+                            IsVisible="{Binding CanOpenFiles}"
+                            Command="{Binding OpenDataFolderCommand}" />
+                  </Grid>
+
+                  <!-- The variables file is the one path here worth pointing somewhere
+                       else: a store shared between two machines still wants a file local
+                       to each. Typing takes effect on the next copy - nothing to restart,
+                       since the file is re-read whenever it changes. -->
+                  <StackPanel Spacing="4">
+                    <TextBlock Classes="mono" Text="VARIABLES FILE" FontSize="10" LetterSpacing="0.8"
+                               Foreground="{StaticResource MutedBrush}" />
+
+                    <Grid ColumnDefinitions="*,8,Auto,6,Auto">
+                      <!-- LostFocus, not the default per-keystroke: each change saves
+                           settings.json and re-reads the file it names, and typing a path
+                           would otherwise do both once per character. -->
+                      <TextBox Grid.Column="0" Classes="mono" FontSize="11"
+                               Watermark="klippy.vars"
+                               Text="{Binding VariablesFile, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                      <Button Grid.Column="2" Classes="chip"
+                              Content="{Binding OpenVariablesVerb}"
+                              IsVisible="{Binding CanOpenFiles}"
+                              Command="{Binding OpenVariablesCommand}" />
+                      <Button Grid.Column="4" Classes="chip" Content="Folder"
+                              IsVisible="{Binding CanOpenFiles}"
+                              Command="{Binding OpenVariablesFolderCommand}" />
+                    </Grid>
+
+                    <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="{Binding VariablesStatusText}" />
+                  </StackPanel>
+                </StackPanel>
 
                 <DockPanel Margin="0,4,0,0">
                   <Button DockPanel.Dock="Right" Classes="subtle" Content="Done"

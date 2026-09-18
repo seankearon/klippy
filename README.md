@@ -138,6 +138,11 @@ The same shorthands, read the same way, on the typed route — see
 [Running an unmatched search](#running-an-unmatched-search). Two routes to the same
 launcher should not disagree about what a variable means.
 
+Klippy's own [variables file](#variables-local-defines) sits in front of the machine here:
+a name defined in `klippy.vars` answers first, and the environment answers everything else.
+So `%ws%` names WebStorm on this machine with no environment variable to set, and
+`%LOCALAPPDATA%` keeps working exactly as above.
+
 ### Macros
 
 A snippet's text can carry placeholders, filled in when it is copied or run — the
@@ -461,6 +466,103 @@ If a platform rejects the HTML flavour, the copy silently falls back to plain te
 > Copy, then paste with Klippy still open (its normal launcher lifecycle). If Klippy is
 > closed before you paste, the plain-text flavour still works.
 
+## Variables (local defines)
+
+A snippet is the same text on every machine; a path is not. `klippy.vars` holds the
+per-machine half, so one snippet can be right on a Mac and on Windows:
+
+```ini
+# klippy.vars — local defines, never exported
+ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
+src=D:\src
+```
+
+A snippet written as `%ws% %src%\shine` then means the real command line for whichever
+machine you are on: copy it and paste it at a prompt, or mark it
+[Execute](#running-things-links-scripts-applications-and-macros) and press Enter.
+
+**Only names the file defines are ever replaced.** Everything else is left byte for byte
+as it was written: `50% off`, `LIKE '%foo%'`, `%%1` in a batch file, `%TEMP%` in a command
+you have kept for years. There is no escape syntax because none is needed, and until you
+create the file nothing about copying changes at all.
+
+The rest of the rules are short:
+
+- `name=value`, one per line. `#` and `;` start a whole-line comment; a line that is not a
+  define is skipped rather than rejected, so one typo costs one variable.
+- The value is everything after the first `=`, trimmed — **quotes included**. Quote a path
+  with spaces, because the shell you paste into will need them.
+- Names are case-insensitive (`%ws%` and `%WS%` are one variable) and may not contain
+  whitespace or a percent sign, since neither could be written as `%name%`.
+- A value may use other variables, and anything the file does not define falls through to
+  the **process environment** — which is what makes the `%localappdata%` line above resolve
+  to a real path. On the copy path that fallback is confined to values: a *snippet*
+  containing `%TEMP%` may predate Klippy's variables entirely and has to keep meaning what
+  it says. To publish an environment variable to snippets, name it:
+  `localappdata=%localappdata%` is a cycle against the file, so it resolves to the one the
+  OS has.
+- `%C%` and `%P%` are [macros](#macros), not variables. A file that defines `c` or `p`
+  does not get to swallow them — nobody writing `%C%` meant a variable named C.
+
+### When it happens, and in what order
+
+Expansion is **on use, not on save**. The store keeps `%ws%`, which is the whole point — a
+snippet flattened at save time would only ever be right on the machine that last saved it,
+and an export would carry one machine's paths to another. Clips from the clipboard history
+are never expanded either; captured text is not something you authored.
+
+Variables resolve **before** [macros](#macros), on both routes:
+
+| Route | What resolves |
+|---|---|
+| **Copy** | Variables over the whole text, then `%C%` and `%P%` |
+| **Execute** | Variables and [environment variables](#environment-variables) over the first word, then `%C%` and `%P%` |
+
+That order is the point rather than an accident: `%ws%` is a name the item asked to have
+resolved, while a clipboard value or a typed argument is data — and data is never re-read
+for names. A path off the clipboard keeps its middle, exactly as
+[Environment variables](#environment-variables) describes.
+
+On the run path the variables file simply sits in front of the machine's own environment,
+so `%ws%` names WebStorm there the way `%LOCALAPPDATA%` names a folder — on a marked item
+and on a line [typed into the search box](#running-an-unmatched-search) alike, since two
+routes to the same launcher should not disagree about what a name means. Where the file and
+the environment both define one, the file wins: being the local answer is what it is for.
+
+The row itself keeps showing `%ws%`, with only its typed arguments filled in. Unlike a
+`%P%`, whose value you have just typed and want to check, a variable's value is the same
+every time and is usually a long path — and the row is what you would edit.
+
+### Getting at the file
+
+The **FILES** block in Settings does the whole job, because hunting down `%APPDATA%` to
+edit a file you have just been told about is an errand a settings screen should spare you:
+
+- **The path is a text box.** A bare name sits beside the snippets, an absolute path is
+  taken as given — which is the answer when a snippet store is shared between two machines
+  and the variables file must not be. It saves when you leave the box, and applies to the
+  next copy: the file is re-read whenever it changes, so there is nothing to restart.
+- **Create / Open** opens the file in whatever your machine opens a text file with,
+  writing a commented example first when there is nothing there yet. The example is
+  entirely comments, so a file made by accident defines nothing and changes nothing.
+- **Folder** opens the folder it lives in, and the data folder above it has its own
+  **Open**.
+
+Under the box, what Klippy read back: `3 variables`, or `no file yet`, or
+`no variables in it` for a file that is all comments. That line is how you check a
+hand-edit parsed.
+
+The same setting by hand, for anyone who would rather:
+
+```json
+{
+  "VariablesFile": "klippy.vars"
+}
+```
+
+The buttons are desktop only — they go through the same launcher an item marked Execute
+does, and mobile has none, so there they are absent rather than dead.
+
 ## Settings
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
@@ -543,6 +645,14 @@ rather than throwing it across the desk mid-use. In `settings.json` the key is `
 spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Remembered"`
 rather than costing you the rest of the file.
 
+A **FILES** block at the bottom names the three paths that matter. `settings.json` cannot
+move, since it is the file that says where the others went. The data folder is a
+[hand-edit](#choosing-the-folder-desktop) that takes effect on the next launch, with an
+**Open** beside it. The [variables file](#variables-local-defines) is a text box you can
+point anywhere, with buttons to create or open it and to open its folder — see
+[Getting at the file](#getting-at-the-file). The whole block is hidden on mobile, where app
+storage is private and unreachable.
+
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
 is no OK button to forget. The panel scrolls rather than running off the bottom of a short
 window. The Markdown three default to today's behaviour, so an upgrade changes nothing about
@@ -585,7 +695,7 @@ working, and Klippy says on stderr which one it could not claim. The history key
 registered where there is a history to summon — not on mobile, and not with history
 switched off.
 
-Stored in `settings.json` next to your snippets:
+Stored in `settings.json`, in Klippy's app-data folder (Settings shows the path):
 
 ```json
 {
@@ -786,9 +896,38 @@ whole snippet, so omitting it would blank the tag on snippets that already carry
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
-sandbox on Android (mode `0600`, app-private). The whole list is held in memory and each
+sandbox on Android (mode `0600`, app-private). `settings.json`, `history.json`, `clips/`
+and `klippy.vars` sit in the same folder. The whole list is held in memory and each
 mutation rewrites the file atomically (temp file + replace), so a crash can't corrupt it.
 A copy also writes, because `LastUsedAt` drives recency ranking.
+
+### Choosing the folder (desktop)
+
+`DataDirectory` moves the lot — snippets, history, clip images and the variables file:
+
+```json
+{
+  "DataDirectory": "D:\\Klippy"
+}
+```
+
+Environment variables and a leading `~` are expanded, so `"%OneDrive%\\Klippy"` and
+`"~/Klippy"` are both legitimate ways to write it. The path has to be absolute: relative to
+the exe, to the shell's working directory and to the app-data folder are three different
+answers, so the setting insists on being told which folder you mean.
+
+`settings.json` is the one file that stays behind, because it is the note saying where
+everything else went — it cannot live in the folder it names. Settings shows both paths,
+and the variables file, under **FILES**, with an **Open** button on the folder.
+
+It is read once at startup, so it takes a restart, and **nothing is moved for you**: copy
+the files across first. That cuts in your favour too — the old folder is left exactly as it
+was, so setting it back gets you back. A path Klippy cannot use is reported on stderr and
+ignored, costing that one preference rather than the snippets.
+
+It is a desktop setting for the same reason the **FILES** block is hidden on mobile: app
+storage there is private and unreachable, so there is no other folder to point at and no
+`settings.json` anyone could edit.
 
 **Android backup is on by default.** `allowBackup="true"` is now set explicitly rather
 than relied on as an implicit default, and both rule files
