@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Klippy.Services;
 using Xunit;
@@ -103,6 +103,24 @@ public class StorageConfigTests : IDisposable
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         Assert.Equal(Path.Combine(home, "Klippy"), StorageLocations.ExpandPath("~/Klippy"));
         Assert.Equal(home, StorageLocations.ExpandPath("~"));
+    }
+
+    [Fact]
+    public void ForwardSlashes_AreSettledToThisMachinesSeparator()
+    {
+        // Not a rule about tildes: every spelling gets the same treatment, because what is
+        // being settled is the path written for this machine, not the shorthand that named
+        // it. "%OneDrive%/Klippy" is as easy to type by hand as "~/Klippy" is.
+        var name = $"KLIPPY_TEST_{Guid.NewGuid():N}";
+        Environment.SetEnvironmentVariable(name, _root);
+        try
+        {
+            Assert.Equal(Path.Combine(_root, "Klippy"), StorageLocations.ExpandPath($"%{name}%/Klippy"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(name, null);
+        }
     }
 
     [Fact]

@@ -109,10 +109,15 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>
     /// The line under the box: the count, with the resolved path in front of it only when
     /// that is not simply what was typed. A bare name is worth resolving on screen; an
-    /// absolute one is already the answer, and repeating it reads like a second setting.
+    /// absolute one is already the answer, and repeating it reads like a second setting —
+    /// including when it was typed with the other separator, which is a respelling of the
+    /// answer rather than a new one.
     /// </summary>
     public string VariablesStatusText =>
-        string.Equals(VariablesFile?.Trim(), VariablesPath, StringComparison.Ordinal)
+        string.Equals(
+            StorageLocations.NormalizeSeparators(VariablesFile?.Trim() ?? ""),
+            VariablesPath,
+            StringComparison.Ordinal)
             ? VariablesSummary
             : $"{VariablesPath}  —  {VariablesSummary}";
 

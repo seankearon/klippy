@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -90,6 +90,21 @@ public class VariablesSettingsTests : IDisposable
     {
         // The box already shows it; a second copy underneath reads like a second setting.
         Assert.Equal("no file yet", Vm().VariablesStatusText);
+    }
+
+    [Fact]
+    public void NorIsItRepeatedWhenItWasTypedWithTheOtherSeparator()
+    {
+        // "D:/klippy/work.vars" is how the same path arrives from a person who types Unix
+        // separators out of habit. Klippy settles it to backslashes on the way through, so
+        // the resolved path stops matching the box character for character while still
+        // being the very same answer — which is not worth a second line.
+        var vm = Vm();
+        vm.VariablesFile = Path.Combine(_root, "work.vars")
+                               .Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        Assert.Equal(Path.Combine(_root, "work.vars"), vm.VariablesPath);
+        Assert.Equal("no file yet", vm.VariablesStatusText);
     }
 
     [Fact]

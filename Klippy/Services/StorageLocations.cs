@@ -97,9 +97,36 @@ public static class StorageLocations
     /// one typed into the search box or written into an item. The environment only —
     /// Klippy's own variables file lives *inside* the folder this decides, so it cannot
     /// help name it.
+    ///
+    /// The separator is settled here rather than in <see cref="EnvironmentProbe"/>, whose
+    /// <c>Expand</c> is handed the environment instead of asking the machine it is running
+    /// on: it has to leave <c>/home/sam/src</c> alone while running on Windows, because a
+    /// rule about one platform is routinely tested from another. This method is only ever
+    /// about this machine, so <c>~/Klippy</c> and <c>%USERPROFILE%/Klippy</c> arrive
+    /// spelled the way everything else here spells a path. What is given up for that is
+    /// the user's own spelling — see <see cref="NormalizeSeparators"/> for how little of it.
+    ///
+    /// Not <c>Path.GetFullPath</c>, which would root a relative path against the working
+    /// directory and quietly defeat both the refusal in <see cref="TryUseDirectory"/> and
+    /// the beside-the-snippets branch of <see cref="Resolve"/>.
     /// </summary>
     public static string ExpandPath(string? path) =>
-        string.IsNullOrWhiteSpace(path) ? "" : EnvironmentProbe.Real.Expand(path.Trim());
+        string.IsNullOrWhiteSpace(path)
+            ? ""
+            : NormalizeSeparators(EnvironmentProbe.Real.Expand(path.Trim()));
+
+    /// <summary>
+    /// A path spelled the way this machine spells one. The separator only: nothing is
+    /// resolved, rooted or expanded, so a bare name stays a bare name and a <c>~</c> stays
+    /// a tilde — which is what makes it safe to run over a path a person typed, in order to
+    /// compare it with one Klippy resolved.
+    ///
+    /// One character, one direction. On Unix the two are already the same character and
+    /// this does nothing at all; the mirror image of it would be a bug, a backslash being
+    /// an ordinary character in a Unix file name rather than a separator.
+    /// </summary>
+    public static string NormalizeSeparators(string path) =>
+        path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
 
     /// <summary>
     /// Points snippets, history, clip blobs and the variables file at
