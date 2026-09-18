@@ -48,6 +48,8 @@
                     Command="{Binding OpenTransferCommand}" />
             <Button Classes="footerLink" Content="settings"
                     Command="{Binding OpenSettingsCommand}" />
+            <Button Classes="footerLink" Content="quit"
+                    Command="{Binding RequestQuitCommand}" />
             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                        Foreground="{StaticResource MutedBrush}"
                        Text="{Binding SnippetCountText}" />
@@ -96,389 +98,506 @@
         </DockPanel>
       </Border>
 
-      <!-- Tag chips -->
-      <Border DockPanel.Dock="Top" Padding="14,10"
-              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
-        <ItemsControl ItemsSource="{Binding Tags}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="6" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:TagChipViewModel">
-              <!-- The History chip carries the "mode" class, which sets it apart so the
-                   row reads as "mode, then tags" rather than one list of filters. -->
-              <Button Classes="chip" Classes.selected="{Binding IsSelected}"
-                      Classes.mode="{Binding IsMode}"
-                      Content="{Binding Name}"
-                      Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectTagCommand}"
-                      CommandParameter="{Binding}" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </Border>
+      <!-- Everything below the filter bar, with the recent-commands list overlaying the
+           top of it: the MRU hangs from the search box, so it covers the list rather
+           than pushing it down the window every time it opens. -->
+      <Panel>
+        <DockPanel>
 
-      <!-- List over preview, with a draggable splitter between them. A Grid (not the
-           outer DockPanel) because only a Grid can host a GridSplitter. The preview
-           row's height is driven from code-behind: 0 when closed, the last dragged
-           height when open. -->
-      <Grid x:Name="ListPreviewGrid">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="*" MinHeight="72" />
-          <RowDefinition Height="Auto" />
-          <!-- preview row: height owned by the code-behind (PreviewRowIndex) -->
-          <RowDefinition Height="0" />
-        </Grid.RowDefinitions>
+          <!-- Tag chips -->
+          <Border DockPanel.Dock="Top" Padding="14,10"
+                  BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <ItemsControl ItemsSource="{Binding Tags}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="6" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TagChipViewModel">
+                  <!-- The History chip carries the "mode" class, which sets it apart so the
+                       row reads as "mode, then tags" rather than one list of filters. -->
+                  <Button Classes="chip" Classes.selected="{Binding IsSelected}"
+                          Classes.mode="{Binding IsMode}"
+                          Content="{Binding Name}"
+                          Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SelectTagCommand}"
+                          CommandParameter="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
 
-        <!-- Snippet list -->
-        <ListBox x:Name="SnippetList" Grid.Row="0" Classes="snips desktop"
-                 ItemsSource="{Binding Filtered}"
-                 SelectedItem="{Binding SelectedSnippet}"
-                 AutoScrollToSelectedItem="True"
-                 SelectionMode="Single">
-          <!-- Two row shapes, picked by the item's type: saved snippets carry a
-               quick-code and a tag, captured clips an age and a source app. -->
-          <ListBox.DataTemplates>
-            <DataTemplate DataType="vm:SnippetViewModel" x:DataType="vm:SnippetViewModel">
-              <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
-                      Background="Transparent" Tapped="RowTapped">
+          <!-- Unmatched search: an offer to run what was typed, shown only once the list
+               has come up empty — so it appears exactly where the first row would have
+               been, and never while there is still something to copy. -->
+          <Border x:Name="OfferBand" Classes="offer"
+                  Classes.selected="{Binding IsOfferSelected}"
+                  DockPanel.Dock="Top"
+                  IsVisible="{Binding Offer, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+              <!-- The same 2px bar the list rows carry, so which of the two Enter is about
+                   to act on is answered the same way in both places. -->
+              <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
+              <Button Classes="offerRow" Command="{Binding RunOfferCommand}">
                 <DockPanel>
-                  <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
-                  <Border Classes="rowSurface" Padding="12,9,14,9">
-                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
-
-                      <!-- label + one-line preview -->
-                      <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Spacing="1">
-                        <TextBlock Classes="rowLabel" FontSize="12" FontWeight="SemiBold"
-                                   Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Classes="rowPreview mono" FontSize="11"
-                                   Text="{Binding Preview}" TextTrimming="CharacterEllipsis"
-                                   IsVisible="{Binding !IsExpanded}" />
-                      </StackPanel>
-
-                      <!-- trailing: quick-code, tag, chevron, copy glyph / enter badge -->
-                      <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
-                                  Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
-                                  VerticalAlignment="Center">
-                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Muted2Brush}" Text="md"
-                                   IsVisible="{Binding IsMarkdown}" />
-                        <Border BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
-                                CornerRadius="4" Padding="5,1" VerticalAlignment="Center"
-                                IsVisible="{Binding HasQuickCode}">
-                          <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource Muted2Brush}"
-                                     Text="{Binding QuickCode}" />
-                        </Border>
-                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Muted2Brush}" Text="{Binding Tag}" />
-                        <Button Classes="icon ghost" IsVisible="{Binding IsMultiline}"
-                                Command="{Binding ToggleExpandCommand}">
-                          <Viewbox Width="11" Height="11">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconChevronDown}"
-                                    Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
-                                    StrokeLineCap="Round" StrokeJoin="Round"
-                                    IsVisible="{Binding !IsExpanded}" />
-                              <Path Data="{StaticResource IconChevronUp}"
-                                    Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
-                                    StrokeLineCap="Round" StrokeJoin="Round"
-                                    IsVisible="{Binding IsExpanded}" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Viewbox Width="13" Height="13" VerticalAlignment="Center">
-                          <Grid Width="24" Height="24">
-                            <Path Classes="copyGlyph" Data="{StaticResource IconCopy}"
-                                  Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
-                                  StrokeLineCap="Round" StrokeJoin="Round" />
-                          </Grid>
-                        </Viewbox>
-                        <Border Classes="enterBadge"
-                                BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
-                                CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                          <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
-                        </Border>
-                      </StackPanel>
-
-                      <!-- hover: edit / delete / copy buttons -->
-                      <StackPanel Classes="hoverActions" Grid.Row="0" Grid.Column="1"
-                                  Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
-                                  VerticalAlignment="Center">
-                        <Button Classes="icon"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).EditCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconPencil}" Stroke="{StaticResource Muted3Brush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).DuplicateCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconDuplicate}" Stroke="{StaticResource Muted3Brush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).RequestDeleteCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon amber"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
-                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                      </StackPanel>
-
-                      <!-- expanded multi-line content -->
-                      <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                              IsVisible="{Binding IsExpanded}" Margin="0,7,0,0"
-                              Background="{StaticResource CodeBgBrush}"
-                              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
-                              CornerRadius="6" Padding="11,9">
-                        <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
-                                   Foreground="{StaticResource Muted3Brush}"
-                                   Text="{Binding Content}" TextWrapping="Wrap" />
-                      </Border>
+                  <!-- Play for everything that starts something; the power symbol for the
+                       one offer that closes something instead. -->
+                  <Viewbox DockPanel.Dock="Left" Width="11" Height="11"
+                           VerticalAlignment="Center" Margin="0,0,10,0">
+                    <Grid Width="24" Height="24">
+                      <Path Data="{StaticResource IconPlay}" Fill="{StaticResource AccentBrush}"
+                            IsVisible="{Binding !Offer.IsQuit}" />
+                      <Path Data="{StaticResource IconPower}" Stroke="{StaticResource AccentBrush}"
+                            StrokeThickness="2.2" StrokeLineCap="Round"
+                            IsVisible="{Binding Offer.IsQuit}" />
                     </Grid>
+                  </Viewbox>
+                  <Border DockPanel.Dock="Right" Classes="enterBadge"
+                          BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                          CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                          Margin="10,0,0,0">
+                    <TextBlock Classes="mono" FontSize="10"
+                               Foreground="{StaticResource AccentBrush}"
+                               Text="{Binding Offer.KeyBadge}" />
                   </Border>
+                  <TextBlock Classes="offerVerb" DockPanel.Dock="Left" FontSize="12"
+                             FontWeight="SemiBold" VerticalAlignment="Center"
+                             Margin="0,0,10,0" Text="{Binding Offer.Verb}" />
+                  <TextBlock Classes="offerDetail mono" FontSize="11" VerticalAlignment="Center"
+                             Text="{Binding Offer.Detail}" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
-              </Border>
-            </DataTemplate>
+              </Button>
+            </DockPanel>
+          </Border>
 
-            <!-- Captured clip -->
-            <DataTemplate DataType="vm:ClipViewModel" x:DataType="vm:ClipViewModel">
-              <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
-                      Background="Transparent" Tapped="RowTapped">
-                <DockPanel>
-                  <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
-                  <Border Classes="rowSurface" Padding="12,9,14,9">
-                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+          <!-- List over preview, with a draggable splitter between them. A Grid (not the
+               outer DockPanel) because only a Grid can host a GridSplitter. The preview
+               row's height is driven from code-behind: 0 when closed, the last dragged
+               height when open. -->
+          <Grid x:Name="ListPreviewGrid">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*" MinHeight="72" />
+              <RowDefinition Height="Auto" />
+              <!-- preview row: height owned by the code-behind (PreviewRowIndex) -->
+              <RowDefinition Height="0" />
+            </Grid.RowDefinitions>
 
-                      <!-- A clip has no name of its own: its label already *is* the first
-                           line, so a preview line underneath would only repeat it. The
-                           chevron is what offers the rest of a multi-line clip. An image
-                           row leads with a thumbnail, since a size alone identifies nothing. -->
-                      <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
-                                  Spacing="10" VerticalAlignment="Center">
-                        <Border IsVisible="{Binding IsImage}"
-                                Background="{StaticResource CodeBgBrush}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
-                                CornerRadius="4" Padding="1" VerticalAlignment="Center">
-                          <Image Source="{Binding Thumbnail}" Height="26" MaxWidth="48"
-                                 Stretch="Uniform" />
-                        </Border>
-                        <Viewbox Width="13" Height="13" VerticalAlignment="Center"
-                                 IsVisible="{Binding IsFiles}">
-                          <Grid Width="24" Height="24">
-                            <Path Data="{StaticResource IconFiles}" Stroke="{StaticResource Muted3Brush}"
-                                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                          </Grid>
-                        </Viewbox>
-                        <TextBlock Classes="rowPreview mono" FontSize="12"
-                                   VerticalAlignment="Center"
-                                   Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                      </StackPanel>
+            <!-- Snippet list -->
+            <ListBox x:Name="SnippetList" Grid.Row="0" Classes="snips desktop"
+                     ItemsSource="{Binding Filtered}"
+                     SelectedItem="{Binding SelectedSnippet}"
+                     AutoScrollToSelectedItem="True"
+                     SelectionMode="Single">
+              <!-- Two row shapes, picked by the item's type: saved snippets carry a
+                   quick-code and a tag, captured clips an age and a source app. -->
+              <ListBox.DataTemplates>
+                <DataTemplate DataType="vm:SnippetViewModel" x:DataType="vm:SnippetViewModel">
+                  <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
+                          Background="Transparent" Tapped="RowTapped">
+                    <DockPanel>
+                      <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
+                      <Border Classes="rowSurface" Padding="12,9,14,9">
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
 
-                      <!-- trailing: pin, kind marker, source app, age, chevron, copy -->
-                      <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
-                                  Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
-                                  VerticalAlignment="Center">
-                        <Viewbox Width="11" Height="11" VerticalAlignment="Center"
-                                 IsVisible="{Binding IsPinned}">
-                          <Grid Width="24" Height="24">
-                            <Path Data="{StaticResource IconPin}" Stroke="{StaticResource AccentBrush}"
-                                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                          </Grid>
-                        </Viewbox>
-                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Muted2Brush}" Text="html"
-                                   IsVisible="{Binding HasHtml}" />
-                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Muted2Brush}"
-                                   Text="{Binding KindMarker}"
-                                   IsVisible="{Binding HasKindMarker}" />
-                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Muted2Brush}"
-                                   Text="{Binding SourceApp}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                   Foreground="{StaticResource Muted2Brush}" Text="{Binding Age}" />
-                        <Button Classes="icon ghost" IsVisible="{Binding IsMultiline}"
-                                Command="{Binding ToggleExpandCommand}">
-                          <Viewbox Width="11" Height="11">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconChevronDown}"
-                                    Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
-                                    StrokeLineCap="Round" StrokeJoin="Round"
-                                    IsVisible="{Binding !IsExpanded}" />
-                              <Path Data="{StaticResource IconChevronUp}"
-                                    Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
-                                    StrokeLineCap="Round" StrokeJoin="Round"
-                                    IsVisible="{Binding IsExpanded}" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Viewbox Width="13" Height="13" VerticalAlignment="Center">
-                          <Grid Width="24" Height="24">
-                            <Path Classes="copyGlyph" Data="{StaticResource IconCopy}"
-                                  Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
-                                  StrokeLineCap="Round" StrokeJoin="Round" />
-                          </Grid>
-                        </Viewbox>
-                        <Border Classes="enterBadge"
-                                BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
-                                CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                          <TextBlock Classes="mono" FontSize="10"
-                                     Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
-                        </Border>
-                      </StackPanel>
+                          <!-- label + one-line preview -->
+                          <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Spacing="1">
+                            <TextBlock Classes="rowLabel" FontSize="12" FontWeight="SemiBold"
+                                       Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="rowPreview mono" FontSize="11"
+                                       Text="{Binding Preview}" TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding !IsExpanded}" />
+                          </StackPanel>
 
-                      <!-- hover: pin / save as snippet / delete / copy -->
-                      <StackPanel Classes="hoverActions" Grid.Row="0" Grid.Column="1"
-                                  Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
-                                  VerticalAlignment="Center">
-                        <Button Classes="icon"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).TogglePinCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconPin}" StrokeThickness="2"
-                                    StrokeLineCap="Round" StrokeJoin="Round"
-                                    Stroke="{StaticResource Muted3Brush}"
-                                    IsVisible="{Binding !IsPinned}" />
-                              <Path Data="{StaticResource IconPin}" StrokeThickness="2"
-                                    StrokeLineCap="Round" StrokeJoin="Round"
-                                    Stroke="{StaticResource AccentBrush}"
-                                    IsVisible="{Binding IsPinned}" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon" IsVisible="{Binding !IsImage}"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).PromoteToSnippetCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconBookmark}" Stroke="{StaticResource Muted3Brush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).DeleteClipCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
-                                    StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                        <Button Classes="icon amber"
-                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
-                                CommandParameter="{Binding}">
-                          <Viewbox Width="12" Height="12">
-                            <Grid Width="24" Height="24">
-                              <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
-                                    StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
-                            </Grid>
-                          </Viewbox>
-                        </Button>
-                      </StackPanel>
+                          <!-- trailing: quick-code, tag, chevron, copy glyph / enter badge -->
+                          <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
+                                      Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
+                                      VerticalAlignment="Center">
+                            <!-- what Enter will do, said on the row rather than found out
+                                 by pressing it -->
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentBrush}" Text="run"
+                                       IsVisible="{Binding IsExecutable}" />
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}" Text="md"
+                                       IsVisible="{Binding IsMarkdown}" />
+                            <Border BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="5,1" VerticalAlignment="Center"
+                                    IsVisible="{Binding HasQuickCode}">
+                              <TextBlock Classes="mono" FontSize="10"
+                                         Foreground="{StaticResource Muted2Brush}"
+                                         Text="{Binding QuickCode}" />
+                            </Border>
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}" Text="{Binding Tag}" />
+                            <Button Classes="icon ghost" IsVisible="{Binding IsMultiline}"
+                                    Command="{Binding ToggleExpandCommand}">
+                              <Viewbox Width="11" Height="11">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconChevronDown}"
+                                        Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
+                                        StrokeLineCap="Round" StrokeJoin="Round"
+                                        IsVisible="{Binding !IsExpanded}" />
+                                  <Path Data="{StaticResource IconChevronUp}"
+                                        Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
+                                        StrokeLineCap="Round" StrokeJoin="Round"
+                                        IsVisible="{Binding IsExpanded}" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                              <Grid Width="24" Height="24">
+                                <Path Classes="copyGlyph" Data="{StaticResource IconCopy}"
+                                      Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
+                                      StrokeLineCap="Round" StrokeJoin="Round" />
+                              </Grid>
+                            </Viewbox>
+                            <Border Classes="enterBadge"
+                                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                              <!-- one badge rather than two, so a row that cannot be run is
+                                   not left with the gap where a second one would have sat -->
+                              <TextBlock Classes="mono" FontSize="10"
+                                         Foreground="{StaticResource AccentBrush}"
+                                         Text="{Binding EnterHint}" />
+                            </Border>
+                          </StackPanel>
 
-                      <!-- expanded multi-line content -->
-                      <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                              IsVisible="{Binding IsExpanded}" Margin="0,7,0,0"
-                              Background="{StaticResource CodeBgBrush}"
-                              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
-                              CornerRadius="6" Padding="11,9">
-                        <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
-                                   Foreground="{StaticResource Muted3Brush}"
-                                   Text="{Binding Content}" TextWrapping="Wrap" />
+                          <!-- hover: edit / delete / copy buttons -->
+                          <StackPanel Classes="hoverActions" Grid.Row="0" Grid.Column="1"
+                                      Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
+                                      VerticalAlignment="Center">
+                            <Button Classes="icon"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).EditCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconPencil}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).DuplicateCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconDuplicate}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).RequestDeleteCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <!-- a marked row still has its text; this is how you get it -->
+                            <Button Classes="icon" IsVisible="{Binding IsExecutable}"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <!-- the primary action is whatever the item is marked for, so the
+                                 glyph follows the marker rather than naming a second gesture -->
+                            <Button Classes="icon amber"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ActivateCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
+                                        StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                        IsVisible="{Binding !IsExecutable}" />
+                                  <Path Data="{StaticResource IconPlay}" Stroke="{StaticResource OnAccentBrush}"
+                                        StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                                        IsVisible="{Binding IsExecutable}" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                          </StackPanel>
+
+                          <!-- expanded multi-line content -->
+                          <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                  IsVisible="{Binding IsExpanded}" Margin="0,7,0,0"
+                                  Background="{StaticResource CodeBgBrush}"
+                                  BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                  CornerRadius="6" Padding="11,9">
+                            <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
+                                       Foreground="{StaticResource Muted3Brush}"
+                                       Text="{Binding Content}" TextWrapping="Wrap" />
+                          </Border>
+                        </Grid>
                       </Border>
-                    </Grid>
+                    </DockPanel>
                   </Border>
-                </DockPanel>
-              </Border>
-            </DataTemplate>
-          </ListBox.DataTemplates>
-        </ListBox>
+                </DataTemplate>
 
-        <!-- Drag to trade height between the list and the preview. Hidden with the
-             pane, so its Auto row collapses to nothing while the preview is closed. -->
-        <GridSplitter x:Name="PreviewSplitter" Grid.Row="1"
-                      Classes="previewSplitter"
-                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
-                      IsVisible="{Binding IsPreviewOpen}" />
+                <!-- Captured clip -->
+                <DataTemplate DataType="vm:ClipViewModel" x:DataType="vm:ClipViewModel">
+                  <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
+                          Background="Transparent" Tapped="RowTapped">
+                    <DockPanel>
+                      <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
+                      <Border Classes="rowSurface" Padding="12,9,14,9">
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
 
-        <!-- Preview pane: full content of the selected row. Collapsed by default;
-             toggled by its header, the footer link, or Ctrl/Cmd+P. -->
-        <Border x:Name="PreviewPane" Grid.Row="2"
-                IsVisible="{Binding IsPreviewOpen}"
-                Background="{StaticResource CodeBgBrush}">
-          <DockPanel>
+                          <!-- A clip has no name of its own: its label already *is* the first
+                               line, so a preview line underneath would only repeat it. The
+                               chevron is what offers the rest of a multi-line clip. An image
+                               row leads with a thumbnail, since a size alone identifies nothing. -->
+                          <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                                      Spacing="10" VerticalAlignment="Center">
+                            <Border IsVisible="{Binding IsImage}"
+                                    Background="{StaticResource CodeBgBrush}"
+                                    BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="1" VerticalAlignment="Center">
+                              <Image Source="{Binding Thumbnail}" Height="26" MaxWidth="48"
+                                     Stretch="Uniform" />
+                            </Border>
+                            <Viewbox Width="13" Height="13" VerticalAlignment="Center"
+                                     IsVisible="{Binding IsFiles}">
+                              <Grid Width="24" Height="24">
+                                <Path Data="{StaticResource IconFiles}" Stroke="{StaticResource Muted3Brush}"
+                                      StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                              </Grid>
+                            </Viewbox>
+                            <TextBlock Classes="rowPreview mono" FontSize="12"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
 
-            <!-- header doubles as the close affordance -->
-            <Button DockPanel.Dock="Top" Classes="previewHeader" Focusable="False"
-                    Command="{Binding TogglePreviewCommand}">
+                          <!-- trailing: pin, kind marker, source app, age, chevron, copy -->
+                          <StackPanel Classes="trailing" Grid.Row="0" Grid.Column="1"
+                                      Orientation="Horizontal" Spacing="12" Margin="12,0,0,0"
+                                      VerticalAlignment="Center">
+                            <Viewbox Width="11" Height="11" VerticalAlignment="Center"
+                                     IsVisible="{Binding IsPinned}">
+                              <Grid Width="24" Height="24">
+                                <Path Data="{StaticResource IconPin}" Stroke="{StaticResource AccentBrush}"
+                                      StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                              </Grid>
+                            </Viewbox>
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}" Text="html"
+                                       IsVisible="{Binding HasHtml}" />
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}"
+                                       Text="{Binding KindMarker}"
+                                       IsVisible="{Binding HasKindMarker}" />
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}"
+                                       Text="{Binding SourceApp}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}" Text="{Binding Age}" />
+                            <Button Classes="icon ghost" IsVisible="{Binding IsMultiline}"
+                                    Command="{Binding ToggleExpandCommand}">
+                              <Viewbox Width="11" Height="11">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconChevronDown}"
+                                        Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
+                                        StrokeLineCap="Round" StrokeJoin="Round"
+                                        IsVisible="{Binding !IsExpanded}" />
+                                  <Path Data="{StaticResource IconChevronUp}"
+                                        Stroke="{StaticResource Muted3Brush}" StrokeThickness="2.4"
+                                        StrokeLineCap="Round" StrokeJoin="Round"
+                                        IsVisible="{Binding IsExpanded}" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                              <Grid Width="24" Height="24">
+                                <Path Classes="copyGlyph" Data="{StaticResource IconCopy}"
+                                      Stroke="{StaticResource MutedBrush}" StrokeThickness="2"
+                                      StrokeLineCap="Round" StrokeJoin="Round" />
+                              </Grid>
+                            </Viewbox>
+                            <Border Classes="enterBadge"
+                                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                    CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                              <!-- one badge rather than two, so a row that cannot be run is
+                                   not left with the gap where a second one would have sat -->
+                              <TextBlock Classes="mono" FontSize="10"
+                                         Foreground="{StaticResource AccentBrush}"
+                                         Text="{Binding EnterHint}" />
+                            </Border>
+                          </StackPanel>
+
+                          <!-- hover: pin / save as snippet / delete / copy -->
+                          <StackPanel Classes="hoverActions" Grid.Row="0" Grid.Column="1"
+                                      Orientation="Horizontal" Spacing="4" Margin="12,0,0,0"
+                                      VerticalAlignment="Center">
+                            <Button Classes="icon"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).TogglePinCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconPin}" StrokeThickness="2"
+                                        StrokeLineCap="Round" StrokeJoin="Round"
+                                        Stroke="{StaticResource Muted3Brush}"
+                                        IsVisible="{Binding !IsPinned}" />
+                                  <Path Data="{StaticResource IconPin}" StrokeThickness="2"
+                                        StrokeLineCap="Round" StrokeJoin="Round"
+                                        Stroke="{StaticResource AccentBrush}"
+                                        IsVisible="{Binding IsPinned}" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon" IsVisible="{Binding !IsImage}"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).PromoteToSnippetCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconBookmark}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).DeleteClipCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon amber"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).CopyCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconCopy}" Stroke="{StaticResource OnAccentBrush}"
+                                        StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                          </StackPanel>
+
+                          <!-- expanded multi-line content -->
+                          <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                  IsVisible="{Binding IsExpanded}" Margin="0,7,0,0"
+                                  Background="{StaticResource CodeBgBrush}"
+                                  BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                  CornerRadius="6" Padding="11,9">
+                            <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
+                                       Foreground="{StaticResource Muted3Brush}"
+                                       Text="{Binding Content}" TextWrapping="Wrap" />
+                          </Border>
+                        </Grid>
+                      </Border>
+                    </DockPanel>
+                  </Border>
+                </DataTemplate>
+              </ListBox.DataTemplates>
+            </ListBox>
+
+            <!-- Drag to trade height between the list and the preview. Hidden with the
+                 pane, so its Auto row collapses to nothing while the preview is closed. -->
+            <GridSplitter x:Name="PreviewSplitter" Grid.Row="1"
+                          Classes="previewSplitter"
+                          ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                          IsVisible="{Binding IsPreviewOpen}" />
+
+            <!-- Preview pane: full content of the selected row. Collapsed by default;
+                 toggled by its header, the footer link, or Ctrl/Cmd+P. -->
+            <Border x:Name="PreviewPane" Grid.Row="2"
+                    IsVisible="{Binding IsPreviewOpen}"
+                    Background="{StaticResource CodeBgBrush}">
               <DockPanel>
-                <Viewbox DockPanel.Dock="Right" Width="11" Height="11" VerticalAlignment="Center"
-                         Margin="10,0,0,0">
-                  <Grid Width="24" Height="24">
-                    <Path Data="{StaticResource IconChevronDown}" Stroke="{StaticResource Muted3Brush}"
-                          StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round" />
-                  </Grid>
-                </Viewbox>
-                <TextBlock Classes="mono" DockPanel.Dock="Right" FontSize="10"
-                           VerticalAlignment="Center"
+
+                <!-- header doubles as the close affordance -->
+                <Button DockPanel.Dock="Top" Classes="previewHeader" Focusable="False"
+                        Command="{Binding TogglePreviewCommand}">
+                  <DockPanel>
+                    <Viewbox DockPanel.Dock="Right" Width="11" Height="11" VerticalAlignment="Center"
+                             Margin="10,0,0,0">
+                      <Grid Width="24" Height="24">
+                        <Path Data="{StaticResource IconChevronDown}" Stroke="{StaticResource Muted3Brush}"
+                              StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round" />
+                      </Grid>
+                    </Viewbox>
+                    <TextBlock Classes="mono" DockPanel.Dock="Right" FontSize="10"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="{Binding PreviewKeyHint}" />
+                    <TextBlock Classes="mono" DockPanel.Dock="Left" FontSize="10"
+                               VerticalAlignment="Center" Margin="0,0,10,0"
+                               Foreground="{StaticResource MutedBrush}" Text="preview" />
+                    <TextBlock FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Margin="0,0,10,0"
+                               Foreground="{StaticResource AccentBrush}"
+                               Text="{Binding SelectedSnippet.Label}"
+                               TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </Button>
+
+                <!-- empty state: nothing matches the filter -->
+                <TextBlock Classes="mono" DockPanel.Dock="Top" FontSize="11" Margin="14,12"
                            Foreground="{StaticResource MutedBrush}"
-                           Text="{Binding PreviewKeyHint}" />
-                <TextBlock Classes="mono" DockPanel.Dock="Left" FontSize="10"
-                           VerticalAlignment="Center" Margin="0,0,10,0"
-                           Foreground="{StaticResource MutedBrush}" Text="preview" />
-                <TextBlock FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
-                           Margin="0,0,10,0"
-                           Foreground="{StaticResource AccentBrush}"
-                           Text="{Binding SelectedSnippet.Label}"
-                           TextTrimming="CharacterEllipsis" />
+                           Text="No snippet selected"
+                           IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                <ScrollViewer Padding="14,10"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto"
+                              IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
+                             Foreground="{StaticResource Muted3Brush}"
+                             Text="{Binding SelectedSnippet.Content}" TextWrapping="Wrap" />
+                </ScrollViewer>
               </DockPanel>
-            </Button>
+            </Border>
+          </Grid>
 
-            <!-- empty state: nothing matches the filter -->
-            <TextBlock Classes="mono" DockPanel.Dock="Top" FontSize="11" Margin="14,12"
-                       Foreground="{StaticResource MutedBrush}"
-                       Text="No snippet selected"
-                       IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNull}}" />
+        </DockPanel>
 
-            <ScrollViewer Padding="14,10"
-                          HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto"
-                          IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNotNull}}">
-              <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
-                         Foreground="{StaticResource Muted3Brush}"
-                         Text="{Binding SelectedSnippet.Content}" TextWrapping="Wrap" />
-            </ScrollViewer>
+        <!-- Recent commands (the MRU). Newest first, filtered to what the search box
+             could still become; ↑/↓ browse it and write the highlighted line into the
+             box, so the row underneath already shows what Enter will do. -->
+        <Border x:Name="CommandsPanel" VerticalAlignment="Top" Margin="14,0,14,0"
+                IsVisible="{Binding IsCommandsOpen}"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                CornerRadius="0,0,6,6" BoxShadow="0 8 24 #6612141A">
+          <DockPanel>
+            <Border DockPanel.Dock="Top" Padding="10,6,10,5"
+                    BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+              <DockPanel>
+                <TextBlock Classes="mono" DockPanel.Dock="Right" FontSize="10"
+                           Foreground="{StaticResource MutedBrush}"
+                           Text="↑↓ browse · Esc close" />
+                <TextBlock Classes="mono" FontSize="10"
+                           Foreground="{StaticResource MutedBrush}" Text="recent" />
+              </DockPanel>
+            </Border>
+            <ListBox x:Name="CommandsList" Classes="commands" MaxHeight="188"
+                     ItemsSource="{Binding Commands}"
+                     SelectedItem="{Binding SelectedCommand}"
+                     AutoScrollToSelectedItem="True"
+                     SelectionMode="Single">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <Border Background="Transparent" Padding="10,5" Tapped="CommandTapped">
+                    <TextBlock Classes="mono" FontSize="11" Text="{Binding}"
+                               TextTrimming="CharacterEllipsis" />
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
           </DockPanel>
         </Border>
-      </Grid>
+      </Panel>
     </DockPanel>
 
     <!-- Toast -->
@@ -488,16 +607,22 @@
         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
           <Grid Width="24" Height="24">
             <Path Data="{StaticResource IconCheck}" Stroke="{StaticResource AccentBrush}"
-                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round" />
+                  StrokeThickness="3" StrokeLineCap="Round" StrokeJoin="Round"
+                  IsVisible="{Binding !IsToastError}" />
+            <Path Data="{StaticResource IconAlert}" Stroke="{StaticResource DangerBrush}"
+                  StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                  IsVisible="{Binding IsToastError}" />
           </Grid>
         </Viewbox>
-        <TextBlock Text="Copied to clipboard" FontSize="11"
+        <TextBlock Text="{Binding ToastText}" FontSize="11" MaxWidth="420"
+                   TextWrapping="Wrap"
                    Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
       </StackPanel>
     </Border>
 
     <views:EditorOverlay />
     <views:ConfirmOverlay />
+    <views:OfferConfirmOverlay />
     <views:TransferOverlay />
     <views:SettingsOverlay />
   </Panel>

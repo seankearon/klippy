@@ -35,9 +35,16 @@ let WindowsRuntime = "win-x64"
 /// emulators. A second ABI would double the APK count for no one.
 let AndroidAbi = "android-arm64"
 
-/// Both mac architectures: Parcel merges them into one universal bundle with lipo, so a
-/// single .dmg runs natively on Apple Silicon and Intel alike.
-let MacRuntimes = [ "osx-arm64"; "osx-x64" ]
+/// Apple Silicon only. `parcel pack` does not merge architectures - `--runtimes` is a
+/// packaging matrix, one output per runtime, and the universal/lipo path is the separate
+/// opt-in `parcel step merge-mac` pipeline that `pack` never touches. Packing both RIDs
+/// therefore produced two independent DMGs sharing one PackageName-derived file name in
+/// the drop folder, so the osx-x64 one landed last and shipped: installed copies ran
+/// under Rosetta and macOS 26 warned about ending Intel support. Going arm64-only gives
+/// one native DMG. Intel Macs are dropped deliberately - Apple is retiring them, and a
+/// universal build would mean rewriting the Package stage around `parcel step` for
+/// roughly double the download.
+let MacRuntimes = [ "osx-arm64" ]
 
 // --- arguments -------------------------------------------------------------
 
@@ -141,6 +148,85 @@ module ShineEnv =
 
 // --- code signing ----------------------------------------------------------
 
+/// Reads a configuration value from the environment, treating blank as absent.
+let private setting name =
+    Environment.GetEnvironmentVariable name
+    |> Option.ofObj
+    |> Option.filter (String.IsNullOrWhiteSpace >> not)
+
+/// Developer ID signing and notarization for the macOS bundles.
+///
+/// The release runs on Windows, so the Keychain is not an option: Parcel signs with
+/// rcodesign from a P12 export of the "Developer ID Application" certificate, and
+/// notarizes with an Apple ID plus an app-specific password. All five values live in
+/// shine.env beside the Azure ones and are injected into the copied .parcel project the
+/// same way, for the same reason (Parcel's env: prefix is not reliable for these).
+///
+/// Optional, unlike Azure signing: with none of the keys set the bundles stay ad-hoc
+/// signed, which runs on the build machine after a right-click > Open but shows every
+/// other Mac Apple's "could not verify" dialog. A partial set is an error - it can only
+/// be a typo, and finding out after the Windows packaging is the expensive way.
+///
+/// Whichever identity is used, SignDeep in the checked-in project is what matters for
+/// the app to start at all: without it rcodesign re-signs the apphost alone, the .NET
+/// runtime dylibs keep Microsoft's Team ID, and dyld refuses libhostfxr with "mapping
+/// process and mapped file have different Team IDs" - a Dock bounce and no window.
+/// Entitlements.plist does the rest: the hardened runtime that comes with a Developer ID
+/// signature needs the CLR allowed to JIT, to map executable memory and to load dylibs
+/// signed by someone else. Parcel exposes no setting for it and finds the file beside the
+/// project it is given, so writeSignedParcelProject copies it next to the generated
+/// project - see there.
+module MacSigning =
+    let P12Path     = "MacSigning__P12Path"
+    let P12Password = "MacSigning__P12Password"
+    let AppleId     = "MacSigning__AppleId"
+    let TeamId      = "MacSigning__TeamId"
+    let AppPassword = "MacSigning__AppPassword"
+
+    let Required = [ P12Path; P12Password; AppleId; TeamId; AppPassword ]
+
+    /// True when the release should be Developer ID signed and notarized.
+    let isConfigured () = Required |> List.forall (setting >> Option.isSome)
+
+    let ensureConfigurationIsCoherent () =
+        match Required |> List.filter (setting >> Option.isNone) with
+        | [] ->
+            let p12 = setting P12Path |> Option.get
+
+            if not (File.Exists p12) then
+                failwith $"The macOS signing certificate {P12Path} points at {p12}, which does not exist."
+
+            Write.line "macOS signing configuration present (Developer ID + notarization)"
+        | missing when missing.Length = Required.Length ->
+            Write.line "WARNING: no macOS signing configuration - the disk images will be ad-hoc signed."
+        | missing ->
+            failwith
+                $"""macOS signing configuration is incomplete: {String.Join(", ", missing)} missing.
+Set all of {String.Join(", ", Required)} in {ShineEnv.Path}, or none of them for an ad-hoc build."""
+
+    /// Adds Developer ID signing and notarization to a Parcel project's MacOsSettings.
+    /// Leaves the block alone when nothing is configured, so the ad-hoc defaults apply.
+    let addTo (project: JsonObject) =
+        if isConfigured () then
+            let mac =
+                match project["MacOsSettings"] with
+                | null ->
+                    let o = JsonObject()
+                    project["MacOsSettings"] <- o
+                    o
+                | node -> node.AsObject()
+
+            let value name = setting name |> Option.defaultValue ""
+            mac["SigningCredentialsType"] <- JsonValue.Create "P12Certificate"
+            mac["SigningP12Certificate"]  <- JsonValue.Create(Path.GetFullPath(value P12Path))
+            mac["SigningP12Password"]     <- JsonValue.Create(value P12Password)
+            mac["SignDeep"]               <- JsonValue.Create true
+            mac["NotaryCredentialsType"]  <- JsonValue.Create "AppleAccount"
+            mac["NotaryAppleId"]          <- JsonValue.Create(value AppleId)
+            mac["TeamId"]                 <- JsonValue.Create(value TeamId)
+            mac["NotaryAppPassword"]      <- JsonValue.Create(value AppPassword)
+            Write.line "Added Developer ID signing and notarization to the macOS settings"
+
 /// Azure Trusted Signing (formerly Azure Code Signing).
 ///
 /// Parcel does the signing itself - the app exe, the NSIS uninstaller and the installer,
@@ -171,10 +257,7 @@ module AzureSigning =
 
     let Required = [ TenantId; ClientId; ClientSecret; Endpoint; AccountName; ProfileName ]
 
-    let get name =
-        Environment.GetEnvironmentVariable name
-        |> Option.ofObj
-        |> Option.filter (String.IsNullOrWhiteSpace >> not)
+    let get = setting
 
     /// Checked up front rather than left to Parcel, which would only fail after the
     /// NativeAOT publish it runs first - several minutes in, with an Azure error that
@@ -196,10 +279,11 @@ and certificate profile of the Trusted Signing resource)."""
         si.EnvironmentVariables["AZURE_CLIENT_ID"]     <- value ClientId
         si.EnvironmentVariables["AZURE_CLIENT_SECRET"] <- value ClientSecret
 
-    /// Writes a copy of the .parcel project with the Trusted Signing block added and
-    /// returns its path. Paths in the project are relative to the file, so the copy,
-    /// living elsewhere, gets them as absolute. Only the two that exist today are
-    /// rewritten; Parcel would say soon enough if another appeared.
+    /// Writes a copy of the .parcel project with the Trusted Signing block added (and
+    /// the macOS Developer ID block, when MacSigning is configured) and returns its
+    /// path. Paths in the project are relative to the file, so the copy, living
+    /// elsewhere, gets them as absolute. Only the two that exist today are rewritten;
+    /// Parcel would say soon enough if another appeared.
     let writeSignedParcelProject (source: string) (destination: string) =
         let sourceDir = Path.GetDirectoryName source
         let project = JsonNode.Parse(File.ReadAllText source).AsObject()
@@ -225,7 +309,23 @@ and certificate profile of the Trusted Signing resource)."""
         win32["ArtifactSigningCodeSigningAccountName"] <- JsonValue.Create(value AccountName)
         win32["ArtifactSigningCertificateProfileName"] <- JsonValue.Create(value ProfileName)
 
-        ensureFolder (Path.GetDirectoryName destination) |> ignore
+        MacSigning.addTo project
+
+        let destinationDir = Path.GetDirectoryName destination
+        ensureFolder destinationDir |> ignore
+
+        // Parcel has no setting for entitlements: it picks up Entitlements.plist by
+        // convention, from the directory of the project file it is handed. This copy
+        // lives in _build, so the plist has to travel with it. Without it the bundles
+        // are signed with Parcel's own defaults - which carry neither
+        // disable-library-validation nor allow-unsigned-executable-memory - and under
+        // the hardened runtime that comes with a Developer ID signature the CLR dies
+        // before Main: a Dock bounce and no window.
+        let entitlements = sourceDir +/ "Entitlements.plist"
+
+        if File.Exists entitlements then
+            File.Copy(entitlements, destinationDir +/ "Entitlements.plist", true)
+
         File.WriteAllText(destination, project.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
         Write.line $"Wrote signed Parcel project to {destination}"
         destination
@@ -287,7 +387,8 @@ let buildKlippy () =
                    $"The build expects to run on the {ReleaseBranch} branch, but is on {gitBranchName RepoFolder}."
 
             ShineEnv.load ()
-            AzureSigning.ensureCredentialsArePresent ())
+            AzureSigning.ensureCredentialsArePresent ()
+            MacSigning.ensureConfigurationIsCoherent ())
 
         stage "Update" (fun () ->
             workingDir RepoFolder

@@ -1,14 +1,47 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
+using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Klippy.Models;
 using Klippy.Services;
+using Klippy.ViewModels;
 using Xunit;
 
 namespace Klippy.Tests;
 
+// Some of these point AppSettings.Current at a variables file of their own, which is
+// process-wide while it is in force. Same collection as the other tests that move
+// Klippy's files about, so the two cannot be mid-swap at the same moment.
+[Collection("storage-locations")]
 public class VariablesTests
 {
     private static KlippyVariables Vars(string text) => KlippyVariables.Parse(text);
+
+    /// <summary>
+    /// Points <see cref="AppSettings.Current"/> at a throwaway variables file holding
+    /// <paramref name="text"/>, and puts the suite's own back afterwards. The copy path
+    /// reads <see cref="KlippyVariables.Current"/>, so a test that wants variables in force
+    /// has to give the app a file rather than an object.
+    /// </summary>
+    private sealed class VariablesFileScope : IDisposable
+    {
+        private readonly string _previous = AppSettings.Current.VariablesFile;
+        private readonly string _path =
+            Path.Combine(Path.GetTempPath(), $"klippy-scope-{Guid.NewGuid():N}.vars");
+
+        public VariablesFileScope(string text)
+        {
+            File.WriteAllText(_path, text);
+            AppSettings.Current.VariablesFile = _path;
+        }
+
+        public void Dispose()
+        {
+            AppSettings.Current.VariablesFile = _previous;
+            File.Delete(_path);
+        }
+    }
 
     // ---- parsing ----
 
@@ -145,9 +178,10 @@ public class VariablesTests
     [Fact]
     public void Expand_AdjacentAndRepeatedPairsRoundTrip()
     {
-        var vars = Vars("a=1\nb=2\nc=3");
-        Assert.Equal("123", vars.Expand("%a%%b%%c%"));
-        Assert.Equal("x1y2z3", vars.Expand("x%a%y%b%z%c%"));
+        // Not "c": that one belongs to the %C% macro - see below.
+        var vars = Vars("a=1\nb=2\nz=3");
+        Assert.Equal("123", vars.Expand("%a%%b%%z%"));
+        Assert.Equal("x1y2z3", vars.Expand("x%a%y%b%z%z%"));
     }
 
     [Fact]
@@ -239,26 +273,95 @@ public class VariablesTests
     }
 
     // ---- what a copy actually gets ----
+    //
+    // Expansion lives in MainViewModel.Copy, beside the macro resolution it has to run
+    // before, so these drive the real copy path rather than a helper's own idea of it.
 
-    [Fact]
-    public void Copy_ExpandsAPlainSnippet()
+    /// <summary>
+    /// A view model over one snippet, with the variables file pointed at
+    /// <paramref name="varsText"/> and the clipboard captured instead of written.
+    /// </summary>
+    private static (MainViewModel Vm, Func<string?> Copied, IDisposable Scope) CopyVm(
+        Snippet snippet, string varsText)
     {
-        var vars = Vars("ws=C:\\tools\\webstorm64.exe");
-        var snippet = new Snippet { Label = "Open shine", Content = "%ws% D:\\src\\shine" };
+        var scope = new VariablesFileScope(varsText);
+        var store = new SnippetStore(
+            Path.Combine(Path.GetTempPath(), $"klippy-vars-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+        store.Add(snippet);
 
-        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings(), vars);
-
-        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\shine", payload.Plain);
-        Assert.Null(payload.Html);
+        string? copied = null;
+        var vm = new MainViewModel(store)
+        {
+            ClipboardWriter = payload => { copied = payload.Plain; return Task.CompletedTask; },
+        };
+        return (vm, () => copied, scope);
     }
 
+    private static string? CopyFirst(Snippet snippet, string varsText, string? filter = null)
+    {
+        var (vm, copied, scope) = CopyVm(snippet, varsText);
+        using (scope)
+        {
+            if (filter is not null) vm.FilterText = filter;
+            vm.CopyCommand.Execute(vm.Filtered[0]);
+            Dispatcher.UIThread.RunJobs();
+            return copied();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Copy_ExpandsAPlainSnippet()
+    {
+        var snippet = new Snippet { Label = "Open shine", Content = "%ws% D:\\src\\shine" };
+
+        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\shine",
+            CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe"));
+    }
+
+    [AvaloniaFact]
+    public void Copy_LeavesTheStoredSnippetAlone()
+    {
+        // The store keeps %ws%, or the snippet would only ever be right on the machine that
+        // last saved it - and an export would carry one machine's paths to another.
+        var snippet = new Snippet { Content = "%ws% D:\\src" };
+
+        CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe");
+
+        Assert.Equal("%ws% D:\\src", snippet.Content);
+    }
+
+    [AvaloniaFact]
+    public void Copy_ExpandsVariablesBeforeMacrosAreFilled()
+    {
+        // The order that matters: %ws% is a name the item asked to have resolved, and the
+        // argument typed after the quick-code is data. Data is never re-read for names.
+        var snippet = new Snippet
+        {
+            Label = "Open in WebStorm",
+            Content = "%ws% %P%",
+            QuickCode = "ws",
+        };
+
+        Assert.Equal("C:\\tools\\webstorm64.exe %notavariable%",
+            CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe", filter: "ws %notavariable%"));
+    }
+
+    [AvaloniaFact]
+    public void WithNoVariablesAtAll_ContentIsUntouched()
+    {
+        var snippet = new Snippet { Content = "docker system prune -af --volumes  # 100% sure" };
+        Assert.Equal(snippet.Content, CopyFirst(snippet, ""));
+    }
+
+    // ---- both flavours, through the helper the copy path hands its content to ----
+
     [Fact]
-    public void Copy_ExpandsBothFlavoursOfAMarkdownSnippet()
+    public void BothFlavoursOfAMarkdownSnippet_CarryTheExpansion()
     {
         var vars = Vars("docs=https://docs.example.com");
-        var snippet = new Snippet { Label = "Docs", Content = "See [the docs](%docs%/logs).", IsMarkdown = true };
+        var content = vars.Expand("See [the docs](%docs%/logs).");
 
-        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings(), vars);
+        var payload = RichTextClipboard.BuildPayload(content, isMarkdown: true, new AppSettings());
 
         Assert.Contains("https://docs.example.com/logs", payload.Plain);
         Assert.Contains("https://docs.example.com/logs", payload.Html);
@@ -266,35 +369,79 @@ public class VariablesTests
     }
 
     [Fact]
-    public void Copy_ExpandsBeforeLinksAreSanitised()
+    public void ExpansionHappensBeforeLinksAreSanitised()
     {
         var vars = Vars("docs=https://docs.example.com");
         var settings = new AppSettings { MarkdownSanitiseLinks = true, MarkdownToHtml = false };
-        var snippet = new Snippet { Content = "[docs](%docs%/logs)", IsMarkdown = true };
+        var content = vars.Expand("[docs](%docs%/logs)");
 
         Assert.Equal("https://docs.example.com/logs",
-            RichTextClipboard.BuildPayload(snippet, settings, vars).Plain);
+            RichTextClipboard.BuildPayload(content, isMarkdown: true, settings).Plain);
     }
 
+    // ---- macros are not variables ----
+
     [Fact]
-    public void Copy_LeavesTheStoredSnippetAlone()
+    public void MacrosAreNeverSwallowed_EvenByAFileThatDefinesThem()
     {
-        // The store keeps %ws%, or the snippet would only ever be right on the machine that
-        // last saved it - and an export would carry one machine's paths to another.
+        // %C% and %P% belong to the item, and nobody writing one meant a variable named C.
+        var vars = Vars("c=CLIPBOARD\np=POSITIONAL\nws=WEBSTORM");
+        Assert.Equal("%C% %P% WEBSTORM", vars.Expand("%C% %P% %ws%"));
+        Assert.Equal("%c% %p%", vars.Expand("%c% %p%"));
+    }
+
+    // ---- the run path ----
+
+    [Fact]
+    public void Ahead_PutsTheFileInFrontOfTheMachine()
+    {
         var vars = Vars("ws=C:\\tools\\webstorm64.exe");
-        var snippet = new Snippet { Content = "%ws% D:\\src" };
+        var machine = new EnvironmentProbe(name => name == "HOMEDRIVE" ? "C:" : null, () => "/home/sam");
 
-        RichTextClipboard.BuildPayload(snippet, new AppSettings(), vars);
+        var probe = vars.Ahead(machine);
 
-        Assert.Equal("%ws% D:\\src", snippet.Content);
+        Assert.Equal("C:\\tools\\webstorm64.exe", probe.Expand("%ws%"));  // the file answers
+        Assert.Equal("C:", probe.Expand("%HOMEDRIVE%"));                  // the machine still does
+        Assert.Equal("%nope%", probe.Expand("%nope%"));                   // neither: left as written
+        Assert.Equal("/home/sam/src", probe.Expand("~/src"));             // Home comes through untouched
     }
 
     [Fact]
-    public void WithNoVariablesAtAll_ContentIsUntouched()
+    public void Ahead_WinsOverTheMachineOnTheSameName()
     {
-        var snippet = new Snippet { Content = "docker system prune -af --volumes  # 100% sure" };
-        var payload = RichTextClipboard.BuildPayload(snippet, new AppSettings(), KlippyVariables.Parse(""));
-        Assert.Equal(snippet.Content, payload.Plain);
+        // The file is the local answer, and being local is the point of it.
+        var vars = Vars("ws=FROM THE FILE");
+        var machine = new EnvironmentProbe(_ => "FROM THE MACHINE", () => "");
+
+        Assert.Equal("FROM THE FILE", vars.Ahead(machine).Expand("%ws%"));
+    }
+
+    [Fact]
+    public void TheTypedRoute_ReadsTheSameVariables()
+    {
+        // Two routes to the same launcher must not disagree about what %ws% means.
+        var vars = Vars("ws=C:\\tools\\webstorm64.exe");
+        var plan = UnmatchedSearch.Plan(
+            "%ws%",
+            verifyPaths: false,
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
+        Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
+    }
+
+    [Fact]
+    public void Execute_ResolvesAVariableInTheFirstWord()
+    {
+        // The issue's own example: "%ws% <some folder>" opens that folder in WebStorm.
+        var vars = Vars("ws=C:\\tools\\webstorm64.exe");
+        var plan = ExecutionPolicy.Plan(
+            "%ws% D:\\src\\shine",
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
+        Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
     }
 
     // ---- the file on disk ----

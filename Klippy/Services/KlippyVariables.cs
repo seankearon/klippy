@@ -65,6 +65,18 @@ public sealed class KlippyVariables
     /// </summary>
     public string Expand(string? text) => Expand(text, Get);
 
+    /// <summary>
+    /// These variables in front of <paramref name="machine"/>: a name is looked up here
+    /// first and in the environment after.
+    ///
+    /// What the execute path resolves a path against, so <c>%ws%</c> names WebStorm there
+    /// exactly as <c>%LOCALAPPDATA%</c> names a folder — one rule for what a percent pair
+    /// in a path means, rather than two that disagree. Copying keeps the narrower rule:
+    /// see <see cref="Resolve"/> for why a snippet's own text never reads the environment.
+    /// </summary>
+    public EnvironmentProbe Ahead(EnvironmentProbe machine) =>
+        machine with { Value = name => Get(name) ?? machine.Value(name) };
+
     // ---- where the file is ----
 
     /// <summary>
@@ -248,7 +260,13 @@ public sealed class KlippyVariables
             }
 
             var name = text[(open + 1)..close];
-            if (name.Length > 0 && lookup(name) is { } value)
+
+            // %C% and %P% are an item's placeholders, filled from the clipboard and from
+            // typed arguments. Nobody writing one meant a variable named C, so a file that
+            // happens to define one does not get to swallow them — the same exemption
+            // EnvironmentProbe makes.
+            if (name.Length > 0 && !Macros.IsPresent(text[open..(close + 1)]) &&
+                lookup(name) is { } value)
             {
                 built ??= new StringBuilder(text.Length);
                 built.Append(text, copied, open - copied).Append(value);

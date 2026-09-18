@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Klippy ships the CoreCLR on macOS (NativeAOT cannot be cross-compiled from the
+         Windows release machine), and a Developer ID signature enables the hardened
+         runtime. Under it the CLR needs permission to JIT and to map executable memory,
+         or the process dies before Main. Library validation is relaxed too: Parcel's
+         deep signing re-signs the bundled dylibs with our identity, but the runtime and
+         SkiaSharp/HarfBuzz/AvaloniaNative libraries were built and signed elsewhere, and
+         this keeps a stray one from killing the app at dlopen. Parcel picks this file up
+         from the project directory. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+</dict>
+</plist>

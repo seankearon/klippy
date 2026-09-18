@@ -53,7 +53,13 @@ internal sealed class LauncherHost : IDisposable
         }
 
         if (_lifetime.MainWindow is Klippy.Views.MainWindow main)
+        {
             main.HideRequested = () => main.Hide();
+            // The in-app quit ends exactly where the tray menu's does: closing the window
+            // only hides it, so without this there is no way out that does not need the
+            // tray icon — and on a crowded notification area that can be a hunt.
+            main.QuitRequested = Quit;
+        }
 
         // The first appearance is a summon too. Nothing has been anywhere yet, so there is
         // nothing for Remembered to remember, and a user who asked for Centre means it from
@@ -165,6 +171,19 @@ internal sealed class LauncherHost : IDisposable
         // reveal it, so there is no flash.
         if (window.WindowState == WindowState.Minimized)
             window.WindowState = WindowState.Normal;
+
+        // A window is assigned to a virtual desktop when it becomes visible, and stays
+        // there. One left showing on another desktop is therefore *found* rather than
+        // summoned: Activate takes you to it instead of bringing it to you, which is the
+        // opposite of what a hotkey means. Hiding it first drops that assignment, so the
+        // Show below puts it on the desktop you are actually looking at.
+        //
+        // Only while summoning, and only when it is already visible: the ordinary
+        // dismissed-and-recalled case is hidden anyway, so the path this is used on most
+        // pays nothing for it. A second press on a window that is in front and focused
+        // never reaches here — Toggle has already dismissed it.
+        if (summoning && window.IsVisible)
+            window.Hide();
 
         // Computed once and assigned twice. Asking twice would re-read the cursor, and the
         // window would jump if it had moved a pixel in between.

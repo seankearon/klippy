@@ -108,18 +108,19 @@ public static partial class RichTextClipboard
         InlineLink().Replace(markdown ?? "", m => m.Groups["url"].Value);
 
     /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
-    /// <param name="variables">Defaults to <see cref="KlippyVariables.Current"/>; passed in by tests.</param>
-    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null, KlippyVariables? variables = null)
+    public static CopyPayload BuildPayload(Snippet snippet, AppSettings? settings = null) =>
+        BuildPayload(snippet.Content, snippet.IsMarkdown, settings);
+
+    /// <param name="content">
+    /// The text to copy, which is the snippet's own unless its macros have just been
+    /// resolved — a copy puts the expansion on the clipboard, not the placeholders.
+    /// </param>
+    /// <param name="settings">Defaults to <see cref="AppSettings.Current"/>; passed in by tests.</param>
+    public static CopyPayload BuildPayload(string content, bool isMarkdown, AppSettings? settings = null)
     {
         settings ??= AppSettings.Current;
 
-        // Variables are expanded once, before either flavour is built, so the HTML and the
-        // plain text say the same thing. Copy time rather than save time: %ws% has to stay
-        // %ws% in the store, or the snippet would only ever be right on the machine that
-        // last saved it — which is the whole point of having a local variables file.
-        var content = (variables ?? KlippyVariables.Current).Expand(snippet.Content);
-
-        if (!snippet.IsMarkdown)
+        if (!isMarkdown)
             return new CopyPayload(content, null);
 
         // The HTML is rendered from the source as written, never the sanitised text: a

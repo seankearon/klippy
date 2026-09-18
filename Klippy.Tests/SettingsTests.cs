@@ -300,6 +300,75 @@ public class SettingsTests
     }
 
     [Fact]
+    public void LaunchPreferences_DefaultToTheCautiousAnswer()
+    {
+        var settings = new AppSettings();
+
+        // On, because the offer only ever appears once the list is empty and still takes a
+        // deliberate Enter...
+        Assert.True(settings.ExecuteUnmatched);
+        // ...and the two guards around it start on, because this is the one feature that
+        // runs things.
+        Assert.True(settings.ExecuteVerifyPaths);
+        Assert.True(settings.ExecuteConfirmSystemActions);
+    }
+
+    [Fact]
+    public void LaunchPreferences_SurviveASaveAndLoad()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            new AppSettings
+            {
+                ExecuteUnmatched = false,
+                ExecuteVerifyPaths = false,
+                ExecuteConfirmSystemActions = false,
+            }.Save(path);
+
+            var loaded = AppSettings.Load(path);
+            Assert.False(loaded.ExecuteUnmatched);
+            Assert.False(loaded.ExecuteVerifyPaths);
+            Assert.False(loaded.ExecuteConfirmSystemActions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void SettingsViewModel_LaunchTogglesWriteThroughAndSave()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var settings = AppSettings.Load(path);
+            var vm = new SettingsViewModel(settings, close: () => { });
+
+            Assert.True(vm.ExecuteUnmatched);
+            Assert.True(vm.ExecuteVerifyPaths);
+            Assert.True(vm.ExecuteConfirmSystemActions);
+
+            vm.ExecuteVerifyPaths = false;
+            vm.ExecuteConfirmSystemActions = false;
+
+            // Has to reach the instance the main view model reads, or the very next search
+            // would still be checked and the next "restart" would still ask.
+            Assert.False(settings.ExecuteVerifyPaths);
+            Assert.False(settings.ExecuteConfirmSystemActions);
+
+            var reloaded = AppSettings.Load(path);
+            Assert.False(reloaded.ExecuteVerifyPaths);
+            Assert.False(reloaded.ExecuteConfirmSystemActions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void MainViewModel_OpenAndEscapeCloseTheSettingsOverlay()
     {
         var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}.json"));

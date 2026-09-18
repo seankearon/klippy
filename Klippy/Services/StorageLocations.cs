@@ -60,6 +60,13 @@ public static class StorageLocations
     /// </summary>
     public static string HistoryPath => Path.Combine(Directory, "history.json");
 
+    /// <summary>
+    /// The command MRU. Always the normal directory, for the reason the settings are:
+    /// the "wipe on uninstall" choice is about snippet data, and a list of lines typed
+    /// into the search box is not that.
+    /// </summary>
+    public static string CommandsPath => Path.Combine(Directory, "commands.json");
+
     public static string? BackupExemptPath =>
         BackupExemptDirectory is { } dir ? Path.Combine(dir, FileName) : null;
 
@@ -72,8 +79,8 @@ public static class StorageLocations
     /// <summary>
     /// Resolves a configured file name: a bare name (or relative path) lands in
     /// <see cref="Directory"/> beside the snippets, an absolute one is taken as given.
-    /// Environment variables and a leading <c>~</c> are expanded first, because that is
-    /// how people write paths into a file by hand.
+    /// <see cref="ExpandPath"/> runs over it first, because a hand-edited path is written
+    /// with the shorthands rather than spelled out.
     /// </summary>
     public static string Resolve(string fileName)
     {
@@ -83,21 +90,16 @@ public static class StorageLocations
     }
 
     /// <summary>
-    /// <c>%APPDATA%\Klippy</c> and <c>~/Klippy</c> are how a hand-edited path is written,
-    /// and .NET expands neither on its own. Environment variables only — Klippy's own
-    /// variables file lives *inside* the folder this decides, so it cannot help name it.
+    /// <c>%APPDATA%\Klippy</c>, <c>$HOME/Klippy</c> and <c>~/Klippy</c> are how a
+    /// hand-edited path is written, and .NET expands none of them on its own.
+    ///
+    /// Through <see cref="EnvironmentProbe"/>, so a path in settings.json reads exactly as
+    /// one typed into the search box or written into an item. The environment only —
+    /// Klippy's own variables file lives *inside* the folder this decides, so it cannot
+    /// help name it.
     /// </summary>
-    public static string ExpandPath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return "";
-
-        var expanded = Environment.ExpandEnvironmentVariables(path.Trim());
-        if (expanded == "~")
-            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (expanded.StartsWith("~/", StringComparison.Ordinal) || expanded.StartsWith(@"~\", StringComparison.Ordinal))
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), expanded[2..]);
-        return expanded;
-    }
+    public static string ExpandPath(string? path) =>
+        string.IsNullOrWhiteSpace(path) ? "" : EnvironmentProbe.Real.Expand(path.Trim());
 
     /// <summary>
     /// Points snippets, history, clip blobs and the variables file at
