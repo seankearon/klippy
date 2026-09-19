@@ -557,6 +557,67 @@ public class VariablesTests
             PlanFor("%r% %P:folder%", "r klippy", vars).Arguments);
     }
 
+    // ---- an item that says its argument is never a name ----
+
+    [AvaloniaFact]
+    public void Copy_AnExactPlaceholder_PassesTheWordAsTyped()
+    {
+        // The collision the switch is for, both ways round: the same line, the same file,
+        // and the placeholder is all that differs.
+        const string vars = "src=D:\\src";
+
+        Assert.Equal("https://www.google.com/search?q=src",
+            CopyFirst(new Snippet { Content = "https://www.google.com/search?q=%P:exact%", QuickCode = "?" },
+                vars, filter: "? src"));
+
+        Assert.Equal("https://www.google.com/search?q=D:\\src",
+            CopyFirst(new Snippet { Content = "https://www.google.com/search?q=%P%", QuickCode = "?" },
+                vars, filter: "? src"));
+    }
+
+    [AvaloniaFact]
+    public void TheRow_ShowsTheWordAsTyped_UnderAnExactPlaceholder()
+    {
+        // The row previews the argument either way, so which kind of placeholder an item
+        // carries is visible while you type rather than discovered on Enter.
+        var snippet = new Snippet { Content = "%r% %P:exact%", QuickCode = "r", IsExecutable = true };
+        var (vm, _, scope) = CopyVm(snippet, RiderAndSolution);
+        using (scope)
+        {
+            vm.FilterText = "r pir";
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("%r% pir", vm.Filtered[0].Content);
+        }
+    }
+
+    [Fact]
+    public void Execute_AnExactPlaceholder_ReachesTheProcessAsTyped()
+    {
+        Assert.Equal(new[] { "klippy" },
+            PlanFor("%r% %P:exact%", "r klippy", Vars(TwoFlavours)).Arguments);
+
+        // The item's own %r% is not an argument and resolves as it always has: this says
+        // nothing about the text around it, only about what fills the placeholder.
+        Assert.Equal("C:\\tools\\rider64.exe",
+            PlanFor("%r% %P:exact%", "r klippy", Vars(TwoFlavours)).Target);
+    }
+
+    [Fact]
+    public void ValueOf_AnswersNothingAtAllForExact()
+    {
+        // Where the switch lives: the lookup itself declines, so no caller can route
+        // around it by asking a different way.
+        var vars = Vars(TwoFlavours);
+
+        Assert.Null(vars.ValueOf("r", "exact"));
+        Assert.Null(vars.ValueOf("klippy:file", "exact"));
+
+        // The same two words asked for on any other terms.
+        Assert.Equal("C:\\tools\\rider64.exe", vars.ValueOf("r"));
+        Assert.Equal("D:\\dev\\klippy\\klippy.slnx", vars.ValueOf("klippy:file"));
+    }
+
     // ---- quotes, on the way to a process and on the way to the clipboard ----
 
     [Fact]

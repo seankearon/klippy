@@ -154,6 +154,7 @@ marker decides which of those happens, the macros work either way:
 |---|---|
 | `%P%` | A positional argument — what you typed after the quick-code |
 | `%P:file%` | The same, saying which [flavour](#one-name-two-flavours) of a define it wants when the argument names one |
+| `%P:exact%` | The same, saying the argument is never a name — the word reaches the item as typed |
 | `%C%` | Whatever text is on the clipboard right now |
 
 Environment variables are not macros and the asymmetry is real: a `%VAR%` in the first
@@ -177,7 +178,9 @@ leaves `%P%` on the clipboard.
 An argument may *name* something rather than spell it out: where `klippy.vars` defines
 `pir` as a solution file, `r pir` passes that path, and `r "pir"` passes the word `pir`.
 A name defined once per [flavour](#one-name-two-flavours) lets the item pick — `%P:file%`
-against `%P:folder%` — so the same word means the right thing at either of them. See
+against `%P:folder%` — so the same word means the right thing at either of them, and an
+item whose arguments are never names says so once with `%P:exact%` instead of asking
+whoever invokes it to quote them every time. See
 [Variables as arguments](#variables-as-arguments).
 
 A line is only read as an invocation when its first word is **exactly** somebody's
@@ -588,6 +591,12 @@ The rule is deliberately narrow:
   while `? "src"` googles "src". The quotes cost nothing to spend this way — a name can hold
   no whitespace, so it never needed them to stay one argument, and a *value* with a space in
   it resolves after the line has been split and stays one argument without them.
+- **Or say it once, on the item.** `%P:exact%` takes its argument exactly as typed at every
+  invocation, so a snippet reading `https://www.google.com/search?q=%P:exact%` googles `src`
+  however many paths the file names. The same answer the quotes give, reached from the other
+  side: the item settles it for good, the quotes for one line, and where both are used they
+  agree. Per placeholder rather than per item — `%P:exact% %P%` resolves the second word and
+  not the first.
 - **A name that is not defined is passed as typed**, so nothing changes until you define one
   that collides. The quick-code itself is never resolved either, or a file defining `r`
   would put the item behind `r` out of reach of the very line that invokes it.
@@ -662,6 +671,12 @@ The rest of the rules:
 - **Where one `%P%` swallows the rest**, its flavour covers everything it swallows — the
   last placeholder takes every argument still unused, so they are all asked for on its
   terms.
+- **`exact` is not a flavour**, and is the one qualifier the prompt does not overrule.
+  `%P:file%` names the meaning it wants; `%P:exact%` says the word has no meaning to want,
+  so `r klippy:file` against one passes `klippy:file` itself — an item that promises to hand
+  on what you typed would be worth nothing if a line could talk it out of that. It is also
+  the one flavour name you cannot invent, though a define written as `x:exact` still answers
+  to `%x:exact%` in a snippet like any other name.
 
 ### Getting at the file
 

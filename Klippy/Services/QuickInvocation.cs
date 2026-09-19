@@ -16,7 +16,8 @@ namespace Klippy.Services;
 /// <c>r pir</c> opens the solution <c>pir</c> names. Quoting it — <c>r "pir"</c> —
 /// passes the word itself, and where a name is defined once per flavour either side can
 /// say which is wanted: <c>%P:file%</c> on the item, <c>r pir:file</c> at the prompt.
-/// See <see cref="ValuesFor"/>.
+/// An item whose arguments are never names says so once, with <c>%P:exact%</c>, rather
+/// than asking whoever invokes it to quote them every time. See <see cref="ValuesFor"/>.
 /// </summary>
 /// <param name="Code">The first word typed, matched against quick-codes exactly.</param>
 /// <param name="Arguments">
@@ -68,6 +69,10 @@ public readonly record struct QuickInvocation(string Code, TypedArgument[] Argum
     /// The item's own text, which says what its placeholders want: a <c>%P:file%</c>
     /// picks the <c>file</c> flavour of whatever name fills it, so the person invoking it
     /// types <c>klippy</c> and not <c>klippy:file</c>. Null asks for no flavour at all.
+    ///
+    /// A <see cref="Macros.Exact">%P:exact%</see> asks for no lookup at all, which is the
+    /// same answer quoting gives and reaches it from the other side: the item settles it
+    /// for every invocation, the quotes for this one.
     /// </param>
     /// <param name="variables">
     /// What a word may name, or null for a line read with none in force — a machine with
