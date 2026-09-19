@@ -191,14 +191,29 @@ public class HistoryModeTests
     }
 
     [AvaloniaFact]
-    public void SummoningAViewClearsAFilterMeantForTheOther()
+    public void SwitchingViewsKeepsWhatWasTyped()
     {
-        // "docker" typed against snippets means nothing against clips, so arriving in the
-        // history with it still in the box would show a puzzlingly empty list.
+        // You are looking for the same thing either way, so the other half of the answer
+        // is one chip away rather than one chip and a retype.
+        var (vm, _) = NewVm("a clip");
+        vm.FilterText = "clip";
+
+        vm.ShowHistory();
+        Assert.Equal("clip", vm.FilterText);
+
+        vm.ShowSnippets();
+        Assert.Equal("clip", vm.FilterText);
+    }
+
+    [AvaloniaFact]
+    public void ChoosingATagStillClearsTheFilter()
+    {
+        // A tag chip narrows the mode you are already in rather than changing it, and a
+        // search drops the tag filter the moment you type — so the two cannot both stand.
         var (vm, _) = NewVm("a clip");
         vm.FilterText = "docker";
 
-        vm.ShowHistory();
+        vm.SelectTagCommand.Execute(vm.Tags.First(t => t.Name == MainViewModel.AllTag));
 
         Assert.Equal("", vm.FilterText);
     }

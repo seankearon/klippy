@@ -107,10 +107,7 @@ public static class UnmatchedSearch
     /// always resolved here and never in a marked item, and two routes to the same
     /// launcher should not disagree about that either.
     /// </summary>
-    public static string Unquote(string text) =>
-        text.Length >= 2 && text[0] == '"' && text[^1] == '"'
-            ? text[1..^1].Trim()
-            : text;
+    public static string Unquote(string text) => ExecutionPolicy.Unquote(text);
 
     /// <summary>
     /// The machine control a search names, matched as the whole line and nothing else.

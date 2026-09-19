@@ -97,6 +97,64 @@ public class VariablesTests
     }
 
     [Fact]
+    public void ANameMayBeGivenMoreThanOnce()
+    {
+        // The reported file: one name, two meanings, nothing on the left to tell them
+        // apart. Both lines are kept.
+        var vars = Vars("klippy=D:\\main\\Klippy\\Klippy.slnx\nklippy=D:\\main\\Klippy");
+
+        Assert.Equal(2, vars.Count);                            // lines, not names
+        Assert.Equal("D:\\main\\Klippy", vars.Get("klippy"));   // the last answers on its own
+        Assert.Equal("D:\\main\\Klippy\\Klippy.slnx", vars.ValueOf("klippy", "file"));
+        Assert.Equal("D:\\main\\Klippy", vars.ValueOf("klippy", "folder"));
+    }
+
+    [Fact]
+    public void WhatCountsAsAFile_IsADotInTheLastSegment()
+    {
+        var vars = Vars(
+            "a=D:\\src\\shine\n" +            // a folder
+            "a=D:\\src\\shine\\App.sln\n" +   // a file
+            "b=\"D:\\my src\\bin\\\"\n" +     // quoted, trailing separator: still a folder
+            "b=\"D:\\my src\\go.ps1\"");
+
+        Assert.Equal("D:\\src\\shine\\App.sln", vars.ValueOf("a", "file"));
+        Assert.Equal("D:\\src\\shine", vars.ValueOf("a", "folder"));
+        Assert.Equal("\"D:\\my src\\go.ps1\"", vars.ValueOf("b", "file"));
+        Assert.Equal("\"D:\\my src\\bin\\\"", vars.ValueOf("b", "folder"));
+    }
+
+    [Fact]
+    public void WhereTheValueReadsWrong_TheFileCanSayWhichIsWhich()
+    {
+        // A folder with a dot in its name reads as a file, and Klippy is reading the value
+        // rather than the disk, so it gets this one wrong...
+        var byShape = Vars("n=D:\\src\\node_modules.bak\nn=D:\\src\\x.sln");
+        Assert.Equal("D:\\src\\node_modules.bak", byShape.ValueOf("n", "file"));
+
+        // ...and an explicit define is found first, which is how you settle it.
+        var byName = Vars("n:folder=D:\\src\\node_modules.bak\nn:file=D:\\src\\x.sln");
+        Assert.Equal("D:\\src\\x.sln", byName.ValueOf("n", "file"));
+        Assert.Equal("D:\\src\\node_modules.bak", byName.ValueOf("n", "folder"));
+    }
+
+    [Fact]
+    public void OnlyFileAndFolderAreReadOffAValue()
+    {
+        // Every other flavour is a name you write out in full. Until you do, it picks
+        // nothing: asked for by an item it falls back to the bare name like any flavour
+        // the file cannot answer, and named at the prompt it is taken at its word.
+        var vars = Vars("n=D:\\src\\readme.md\nn=D:\\src");
+
+        Assert.Equal("D:\\src", vars.ValueOf("n", "docs"));
+        Assert.Null(vars.ValueOf("n:docs"));
+
+        // Written out, it is an ordinary name and needs no reading of anything.
+        Assert.Equal("D:\\src\\readme.md", Vars("n:docs=D:\\src\\readme.md").ValueOf("n", "docs"));
+        Assert.Equal("D:\\src\\readme.md", Vars("n:docs=D:\\src\\readme.md").ValueOf("n:docs"));
+    }
+
+    [Fact]
     public void NamesThatCouldNeverBeReferenced_AreIgnored()
     {
         // %my var% never matches - the scan stops at whitespace - so accepting the define
@@ -333,8 +391,9 @@ public class VariablesTests
     [AvaloniaFact]
     public void Copy_ExpandsVariablesBeforeMacrosAreFilled()
     {
-        // The order that matters: %ws% is a name the item asked to have resolved, and the
-        // argument typed after the quick-code is data. Data is never re-read for names.
+        // The order that matters: %ws% is a name the item asked to have resolved, and what
+        // arrives through a %P% is already a value. A value is never re-read for names, so
+        // this argument keeps its percent signs whether or not it happens to name one.
         var snippet = new Snippet
         {
             Label = "Open in WebStorm",
@@ -344,6 +403,220 @@ public class VariablesTests
 
         Assert.Equal("C:\\tools\\webstorm64.exe %notavariable%",
             CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe", filter: "ws %notavariable%"));
+    }
+
+    // ---- a typed argument may name a define ----
+    //
+    // The one place a piece of data is read for a name, and the asymmetry is the reason:
+    // a %C% is what the machine handed over, while this is a word somebody stood at the
+    // prompt and typed. The word has to *be* the name, and quoting it takes the escape.
+
+    private const string RiderAndSolution =
+        "r=C:\\tools\\rider64.exe\npir=D:\\src\\shine\\Shine.sln";
+
+    private static Snippet OpenInRider() => new()
+    {
+        Label = "Open in Rider",
+        Content = "%r% %P%",
+        QuickCode = "r",
+        IsExecutable = true,
+    };
+
+    [AvaloniaFact]
+    public void Copy_AnArgumentThatNamesADefine_CarriesItsValue()
+    {
+        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\shine\\Shine.sln",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r pir"));
+    }
+
+    [AvaloniaFact]
+    public void Copy_AQuotedArgument_IsTheWordItself()
+    {
+        Assert.Equal("C:\\tools\\rider64.exe pir",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r \"pir\""));
+    }
+
+    [AvaloniaFact]
+    public void Copy_AnArgumentThatNamesNothing_IsPassedAsTyped()
+    {
+        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\other\\Other.sln",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r D:\\src\\other\\Other.sln"));
+    }
+
+    [AvaloniaFact]
+    public void TheRow_ShowsWhatTheArgumentResolvedTo()
+    {
+        // Which is how you can tell the name was found before pressing Enter. The item's
+        // own %r% still shows as written - that value is the same every time, and the row
+        // is what you would edit.
+        var (vm, _, scope) = CopyVm(OpenInRider(), RiderAndSolution);
+        using (scope)
+        {
+            vm.FilterText = "r pir";
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("%r% D:\\src\\shine\\Shine.sln", vm.Filtered[0].Content);
+        }
+    }
+
+    /// <summary>
+    /// What running <paramref name="template"/> means when <paramref name="line"/> is
+    /// typed at it: the real path from the search box to the process, since the item is
+    /// half of what an argument means and a helper that skipped it would prove nothing.
+    /// </summary>
+    private static ExecutionPlan PlanFor(string template, string line, KlippyVariables vars)
+    {
+        Assert.True(QuickInvocation.TryParse(line, out var invocation));
+        return ExecutionPolicy.Plan(
+            template,
+            invocation.ValuesFor(template, vars),
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+    }
+
+    [Fact]
+    public void Execute_AnArgumentThatNamesADefine_ReachesTheProcessAsItsValue()
+    {
+        // End to end over the ask: "%r% %P%" behind the code r, invoked as "r pir".
+        var plan = PlanFor("%r% %P%", "r pir", Vars(RiderAndSolution));
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("C:\\tools\\rider64.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\src\\shine\\Shine.sln" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ADefineWorthAWholePathWithSpaces_StaysOneArgument()
+    {
+        // It resolves after the line has been split, so a value with a space in it needs
+        // no quotes - and could not have had them, since quoting is the escape.
+        var plan = PlanFor(
+            "%r% %P%", "r big", Vars("r=C:\\tools\\rider64.exe\nbig=D:\\my src\\Big.sln"));
+
+        Assert.Equal(new[] { "D:\\my src\\Big.sln" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ABatFileStillRefusesWhatCmdWouldReRead_WhateverNameItArrivedBy()
+    {
+        // The refusal judges the value that is about to be passed, so a define worth an
+        // ampersand is refused on the ampersand rather than waved through on the strength
+        // of the short name it was reached by.
+        var plan = PlanFor("deploy.bat %P%", "go bad", Vars("bad=a&b"));
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Contains("cannot be passed", plan.Problem);
+    }
+
+    // ---- one name, two flavours ----
+    //
+    // A name is defined once per flavour, and the item says which of them it wants:
+    // opening the folder and opening the solution are two items, and "klippy" is what you
+    // type at both of them.
+
+    private const string TwoFlavours =
+        "r=C:\\tools\\rider64.exe\n" +
+        "code=C:\\tools\\code.exe\n" +
+        "klippy:folder=D:\\dev\\klippy\n" +
+        "klippy:file=D:\\dev\\klippy\\klippy.slnx";
+
+    [Fact]
+    public void Execute_TheItemPicksTheFlavour()
+    {
+        Assert.Equal(new[] { "D:\\dev\\klippy" },
+            PlanFor("%code% %P:folder%", "c klippy", Vars(TwoFlavours)).Arguments);
+
+        Assert.Equal(new[] { "D:\\dev\\klippy\\klippy.slnx" },
+            PlanFor("%r% %P:file%", "r klippy", Vars(TwoFlavours)).Arguments);
+    }
+
+    [Fact]
+    public void Execute_ThePromptMayPickTheFlavourInstead()
+    {
+        // Typed wins: the item's qualifier is a default, not a veto.
+        Assert.Equal(new[] { "D:\\dev\\klippy" },
+            PlanFor("%r% %P:file%", "r klippy:folder", Vars(TwoFlavours)).Arguments);
+
+        // And it works where the item asked for nothing at all.
+        Assert.Equal(new[] { "D:\\dev\\klippy\\klippy.slnx" },
+            PlanFor("%r% %P%", "r klippy:file", Vars(TwoFlavours)).Arguments);
+    }
+
+    [Fact]
+    public void Execute_TheReportedFileWorksEndToEnd()
+    {
+        // klippy.vars exactly as it was written - one name twice, values quoted.
+        var vars = Vars(
+            "r=C:\\tools\\rider64.exe\n" +
+            "klippy=\"D:\\main\\Klippy\\Klippy.slnx\"\n" +
+            "klippy=\"D:\\main\\Klippy\"");
+
+        Assert.Equal(new[] { "D:\\main\\Klippy\\Klippy.slnx" },
+            PlanFor("%r% %P:file%", "r klippy", vars).Arguments);
+        Assert.Equal(new[] { "D:\\main\\Klippy" },
+            PlanFor("%r% %P:folder%", "r klippy", vars).Arguments);
+    }
+
+    // ---- quotes, on the way to a process and on the way to the clipboard ----
+
+    [Fact]
+    public void Execute_AQuotedValueLosesItsQuotesOnTheWayToTheProcess()
+    {
+        // The arguments are passed as arguments, and .NET puts back whatever quoting the
+        // OS needs - so a pair that survived from the file would reach the program as part
+        // of the name it is looking for.
+        var plan = PlanFor("%r% %P%", "r big", Vars(
+            "r=\"C:\\Program Files\\JetBrains\\rider64.exe\"\nbig=\"D:\\my src\\Big.sln\""));
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("C:\\Program Files\\JetBrains\\rider64.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\my src\\Big.sln" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_AQuoteAnywhereElseIsStillRefused()
+    {
+        // Only a pair wrapping the whole word comes off. One in the middle would decide
+        // what starts behind the allow-list's back, and is refused as it always was.
+        var plan = PlanFor("%bad% x", "r x", Vars("bad=C:\\x\\payload.scr\"y.exe"));
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Contains("paths carry no quotes", plan.Problem);
+    }
+
+    [AvaloniaFact]
+    public void Copy_AQuotedValueKeepsItsQuotes()
+    {
+        // The other half of the same rule: what you paste at a prompt still needs them.
+        var snippet = new Snippet { Content = "%r% %P%", QuickCode = "r" };
+
+        Assert.Equal("\"C:\\Program Files\\x.exe\" \"D:\\my src\\Big.sln\"",
+            CopyFirst(snippet, "r=\"C:\\Program Files\\x.exe\"\nbig=\"D:\\my src\\Big.sln\"",
+                filter: "r big"));
+    }
+
+    [Fact]
+    public void AFlavouredNameReadsLikeAnyOtherEverywhereElse()
+    {
+        // Nothing new in the file format: a colon is an ordinary character in a name, so
+        // a snippet and a value may both name a flavour directly.
+        var vars = Vars(TwoFlavours);
+
+        Assert.Equal("D:\\dev\\klippy\\klippy.slnx", vars.Expand("%klippy:file%"));
+        Assert.Equal("C:\\tools\\rider64.exe D:\\dev\\klippy\\klippy.slnx",
+            vars.Expand("%r% %klippy:file%"));
+
+        // An undefined flavour is left as written, like any undefined name.
+        Assert.Equal("%klippy:docs%", vars.Expand("%klippy:docs%"));
+    }
+
+    [AvaloniaFact]
+    public void Copy_TheItemsFlavourReachesTheClipboard()
+    {
+        var snippet = new Snippet { Content = "%r% %P:file%", QuickCode = "r" };
+
+        Assert.Equal("C:\\tools\\rider64.exe D:\\dev\\klippy\\klippy.slnx",
+            CopyFirst(snippet, TwoFlavours, filter: "r klippy"));
     }
 
     [AvaloniaFact]

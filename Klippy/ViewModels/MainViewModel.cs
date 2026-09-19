@@ -436,6 +436,13 @@ public partial class MainViewModel : ViewModelBase
     /// Shows just the snippet whose quick-code was typed, carrying whatever was typed
     /// after it. False when the line is not an invocation — no whitespace yet, or no
     /// snippet answers to that exact code — and the ordinary search runs instead.
+    ///
+    /// The variables file comes along, so an argument can name a define rather than
+    /// spelling a path out: "r pir" is the solution pir names. Against the snippet as
+    /// stored, because the item is half of the question — its %P:file% is what says which
+    /// flavour of a name it wants. Resolved once, here, so the row's preview, a copy and a
+    /// run all see the same argument: having them disagree about what a word meant would
+    /// be worse than not resolving it at all.
     /// </summary>
     private bool TryInvoke()
     {
@@ -447,7 +454,7 @@ public partial class MainViewModel : ViewModelBase
         if (!ReferenceEquals(_invoked, row)) ClearArguments();
 
         _invoked = row;
-        row.SetArguments(invocation.Arguments);
+        row.SetArguments(invocation.ValuesFor(snippet.Content, KlippyVariables.Current));
 
         Filtered.Clear();
         Filtered.Add(row);
@@ -547,11 +554,26 @@ public partial class MainViewModel : ViewModelBase
 
     private void ShowMode(bool history, string tag)
     {
-        CloseCommands(restore: false); // the MRU belongs to the snippet command line
+        // The MRU belongs to the snippet command line, and leaving it this way is leaving
+        // it empty-handed: the box goes back to what was actually typed rather than to
+        // whichever recalled command was under the cursor when the view changed.
+        CloseCommands(restore: true);
+
+        // Whether this changes what the list holds or only narrows it. Asked before
+        // IsHistoryMode moves, or the answer would always be "only narrows it".
+        bool narrowing = history == IsHistoryMode;
+
         IsHistoryMode = history;
         ActivateTag(tag);
-        // A filter typed against snippets means nothing against clips, and vice versa.
-        FilterText = "";
+
+        // What is in the box survives a change of mode: you are looking for the same
+        // thing either way — "that connection string" is a question for the clips and for
+        // the snippets alike — and retyping it to ask the other half is an errand. A tag
+        // chip is not a change of mode but a narrowing of the one you are already in, and
+        // it still clears, because a search drops the tag filter the moment you type and
+        // the chips have to keep describing what the list is doing.
+        if (narrowing) FilterText = "";
+
         Refresh(); // FilterText may already have been empty, so nothing fired above
     }
 

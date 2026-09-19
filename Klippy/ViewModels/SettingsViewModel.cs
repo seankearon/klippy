@@ -342,6 +342,14 @@ public partial class SettingsViewModel : ViewModelBase
         #
         # Then a snippet reading "%ws% %src%\shine" opens that folder in WebStorm.
         # Quote a path that has spaces in it — the quotes are kept.
+        #
+        # A name typed as an argument stands for its value too — "ws src" against an item
+        # reading "%ws% %P%" — and "ws \"src\"" passes the word itself. Define a name
+        # twice and an item picks between them with %P:file% or %P:folder%, by which of
+        # the values reads as a file:
+        #
+        #   klippy=D:\main\Klippy
+        #   klippy=D:\main\Klippy\Klippy.slnx
 
         """;
 
