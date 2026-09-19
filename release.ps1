@@ -119,7 +119,7 @@ if (Test-Path $shineEnv) {
     }
 }
 
-$missing = $signingKeys | Where-Object { [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value) }
+$missing = $signingKeys | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }
 if ($missing) {
     throw "Code-signing configuration is missing: $($missing -join ', '). Add them to $shineEnv."
 }
@@ -133,7 +133,7 @@ $macSigningKeys = @(
     'MacSigning__AppleId', 'MacSigning__TeamId', 'MacSigning__AppPassword'
 )
 $macSigningConfigured = -not ($macSigningKeys | Where-Object {
-    [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value)
+    [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
 })
 
 # Android signing is optional too (the SDK falls back to its debug key), and mirrored for
@@ -143,7 +143,7 @@ $androidSigningKeys = @(
     'AndroidSigning__KeyAlias', 'AndroidSigning__KeyPassword'
 )
 $androidSigningConfigured = -not ($androidSigningKeys | Where-Object {
-    [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value)
+    [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
 })
 
 # --- what is about to happen -----------------------------------------------
