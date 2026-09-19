@@ -13,6 +13,8 @@ namespace Klippy.Services;
 /// <item><c>%P%</c> — a positional argument typed after the quick-code.</item>
 /// <item><c>%P:file%</c> — the same, saying which flavour of a
 /// <see cref="KlippyVariables">define</see> it wants when the argument names one.</item>
+/// <item><c>%P:exact%</c> — the same, saying the argument names nothing at all: whatever
+/// was typed is passed as it was typed.</item>
 /// </list>
 ///
 /// With <c>https://www.google.com/search?q=%P%</c> behind the quick-code <c>?</c>,
@@ -46,6 +48,28 @@ public static partial class Macros
     /// <summary>Expands to a positional argument typed after the quick-code.</summary>
     public const string Positional = "%P%";
 
+    /// <summary>
+    /// The qualifier that says a <c>%P%</c> takes its argument exactly as typed:
+    /// <c>%P:exact%</c>. The item's half of the escape that quoting is at the prompt.
+    ///
+    /// A snippet that searches for a word has no use for a lookup at any invocation of
+    /// it, and saying so once on the item beats remembering the quotes every time —
+    /// <c>? src</c> googles "src" under a <c>%P:exact%</c>, however many paths the
+    /// variables file names.
+    ///
+    /// Not a flavour, and the one qualifier that is a veto rather than a default: where
+    /// <c>file</c> and <c>folder</c> choose between the meanings a name has, this says
+    /// the word is data and has none to choose between.
+    /// </summary>
+    public const string Exact = "exact";
+
+    /// <summary>
+    /// Whether <paramref name="qualifier"/> is <see cref="Exact"/>. Case-insensitively,
+    /// since <c>%P:EXACT%</c> is the same placeholder to the scanner.
+    /// </summary>
+    public static bool IsExact(string? qualifier) =>
+        string.Equals(qualifier, Exact, StringComparison.OrdinalIgnoreCase);
+
     // Source-generated rather than RegexOptions.Compiled, which NativeAOT cannot honour.
     //
     // A %P% may name the flavour it wants and a %C% may not: choosing between two defines
@@ -62,7 +86,8 @@ public static partial class Macros
     /// How an item says which of two defines of a name it means without the person
     /// invoking it having to — an item that opens a folder wants <c>klippy:folder</c> from
     /// <c>klippy</c>, and one that opens a solution wants <c>klippy:file</c>, and neither
-    /// is worth typing twice a day.
+    /// is worth typing twice a day. Or how it says it wants no define at all: see
+    /// <see cref="Exact"/>.
     /// </summary>
     public static string?[] PositionalQualifiers(string? text)
     {

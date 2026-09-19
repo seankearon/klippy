@@ -364,9 +364,81 @@ public class MacroTests
         // And it is a macro everywhere that asks, so no variables file swallows it.
         Assert.True(Macros.IsPresent("%P:file%"));
         Assert.Equal("%P:file%", KlippyVariables.Parse("p=NOPE").Expand("%P:file%"));
+        Assert.True(Macros.IsPresent("%P:exact%"));
+        Assert.Equal("%P:exact%", KlippyVariables.Parse("p=NOPE").Expand("%P:exact%"));
 
         // A clipboard value has nothing to choose between, so %C:file% is not a macro at
         // all - it is the text it looks like.
         Assert.False(Macros.IsPresent("%C:file%"));
+    }
+
+    // ---- an item whose argument is never a name ----
+    //
+    // The other side of the quotes: quoting says "I meant the word" for this invocation,
+    // and %P:exact% says it once, on the item, for every invocation there will ever be.
+
+    [Fact]
+    public void ExactIsReadOffTheItemLikeAnyOtherQualifier()
+    {
+        Assert.Equal(new string?[] { "exact" }, Macros.PositionalQualifiers("%r% %P:exact%"));
+        Assert.Equal(new string?[] { "exact", null }, Macros.PositionalQualifiers("%P:exact% %P%"));
+
+        Assert.True(Macros.IsExact("exact"));
+        Assert.True(Macros.IsExact("EXACT"));   // as the scanner reads the placeholder
+        Assert.False(Macros.IsExact("file"));
+        Assert.False(Macros.IsExact(null));
+    }
+
+    [Fact]
+    public void AnExactPlaceholder_TakesTheWordAsTyped()
+    {
+        // The collision this is for: "? src" googles "src" rather than D:\src, and the
+        // person invoking it does not have to remember the quotes to get that.
+        Assert.Equal(new[] { "pir" }, Values("r pir", template: "%r% %P:exact%"));
+
+        // Per placeholder rather than per item: the one beside it still resolves.
+        Assert.Equal(new[] { "pir", @"D:\src\shine\Shine.sln" },
+            Values("r pir pir", template: "%code% %P:exact% %P%"));
+
+        // Case follows the placeholder, which is read without regard to it.
+        Assert.Equal(new[] { "pir" }, Values("r pir", template: "%r% %P:EXACT%"));
+    }
+
+    [Fact]
+    public void Exact_IsAVetoRatherThanADefault()
+    {
+        // The one qualifier the prompt does not overrule. A flavour picks between the
+        // meanings a name has, and this says the word has none to pick between - so an
+        // item that promised to pass what was typed is not talked out of it from the line.
+        Assert.Equal(new[] { "klippy:file" }, Values("r klippy:file", template: "%r% %P:exact%"));
+
+        // Written out in full is the same word, and under an exact placeholder it stays
+        // the text it is: a value is never read for names, and this argument is a value
+        // the moment it is typed.
+        Assert.Equal(new[] { "%pir%" }, Values("r %pir%", template: "%r% %P:exact%"));
+
+        // The quotes say the same thing from the other side, so the two never disagree.
+        Assert.Equal(new[] { "pir" }, Values("r \"pir\"", template: "%r% %P:exact%"));
+    }
+
+    [Fact]
+    public void Exact_IsNotAFlavourTheFileCanAnswerFor()
+    {
+        // A define of that name is still a define - %pir:exact% in a snippet finds it -
+        // but it is not what a %P:exact% is asking for, or the switch would be off for
+        // whoever wrote the line.
+        const string reserved = Defines + "\npir:exact=D:\\nope\\Nope.sln";
+
+        Assert.Equal(new[] { "pir" }, Values("r pir", reserved, "%r% %P:exact%"));
+        Assert.Equal("D:\\nope\\Nope.sln", KlippyVariables.Parse(reserved).Expand("%pir:exact%"));
+    }
+
+    [Fact]
+    public void Exact_CoversEveryArgumentTheLastPlaceholderSwallows()
+    {
+        // The last %P% takes everything still unused, so its terms cover all of them -
+        // which is what lets one exact placeholder hold a whole typed phrase.
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln", "pir", "pir" },
+            Values("r pir pir pir", template: "%code% %P% %P:exact%"));
     }
 }

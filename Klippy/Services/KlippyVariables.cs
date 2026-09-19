@@ -102,10 +102,22 @@ public sealed class KlippyVariables
     /// flavour, as <c>klippy:folder</c> and <c>klippy:file</c>, and this is what lets the
     /// item say which of them it meant so the person invoking it need only type
     /// <c>klippy</c>.
+    ///
+    /// <see cref="Macros.Exact"/> is the one that asks for nothing: a <c>%P:exact%</c>
+    /// answers null whatever the word is, so the caller keeps what was typed.
     /// </param>
     public string? ValueOf(string? word, string? qualifier = null)
     {
         if (string.IsNullOrEmpty(word)) return null;
+
+        // %P:exact% wanted no lookup, so there is nothing here to find. The one qualifier
+        // that is a veto rather than a default: a flavour picks between the meanings a
+        // name has, and this says the word is data with none to pick between — an item
+        // that searches for a word cannot have that undone by the word happening to be
+        // defined, or by a flavour typed after it, without its promise being worth
+        // nothing. The prompt's own escape is still the quotes, per argument rather than
+        // per placeholder, and the two agree wherever both are used.
+        if (Macros.IsExact(qualifier)) return null;
 
         // A pair around the whole word, and only there. "100%off%x" is a word with
         // percent signs in it, not a name, and Get would turn it down anyway — a name
