@@ -153,6 +153,7 @@ marker decides which of those happens, the macros work either way:
 | Macro | Expands to |
 |---|---|
 | `%P%` | A positional argument — what you typed after the quick-code |
+| `%P:file%` | The same, saying which [flavour](#one-name-two-flavours) of a define it wants when the argument names one |
 | `%C%` | Whatever text is on the clipboard right now |
 
 Environment variables are not macros and the asymmetry is real: a `%VAR%` in the first
@@ -175,7 +176,9 @@ leaves `%P%` on the clipboard.
 
 An argument may *name* something rather than spell it out: where `klippy.vars` defines
 `pir` as a solution file, `r pir` passes that path, and `r "pir"` passes the word `pir`.
-See [Variables as arguments](#variables-as-arguments).
+A name defined once per [flavour](#one-name-two-flavours) lets the item pick — `%P:file%`
+against `%P:folder%` — so the same word means the right thing at either of them. See
+[Variables as arguments](#variables-as-arguments).
 
 A line is only read as an invocation when its first word is **exactly** somebody's
 quick-code and something follows it. Otherwise it is the ordinary search it has always
@@ -499,7 +502,8 @@ The rest of the rules are short:
 - The value is everything after the first `=`, trimmed — **quotes included**. Quote a path
   with spaces, because the shell you paste into will need them.
 - Names are case-insensitive (`%ws%` and `%WS%` are one variable) and may not contain
-  whitespace or a percent sign, since neither could be written as `%name%`.
+  whitespace or a percent sign, since neither could be written as `%name%`. A colon is
+  ordinary, and is what [flavours](#one-name-two-flavours) are written with.
 - A value may use other variables, and anything the file does not define falls through to
   the **process environment** — which is what makes the `%localappdata%` line above resolve
   to a real path. On the copy path that fallback is confined to values: a *snippet*
@@ -591,6 +595,49 @@ word somebody stood at the prompt and typed, and asking for it by name is the on
 they can have meant by it. A copy and a run read the same line, so both get the same
 answer — and a `.bat` still refuses an argument `cmd.exe` would re-read, judged on the
 value that is about to be passed rather than on the short name it arrived by.
+
+### One name, two flavours
+
+`klippy` is the folder to some items and the solution file to others, and both want to be
+typed as `klippy`. A name may therefore be defined once per **flavour** — a `:qualifier`
+on the end of it — and the item says which one it means:
+
+```ini
+# klippy.vars
+klippy:folder=D:\dev\klippy
+klippy:file=D:\dev\klippy\klippy.slnx
+```
+
+| Item | Typed | Opens |
+|---|---|---|
+| `%code% %P:folder%` | `c klippy` | `D:\dev\klippy` |
+| `%r% %P:file%` | `r klippy` | `D:\dev\klippy\klippy.slnx` |
+
+A `%P%` may name the flavour it wants, and you may name one at the prompt instead —
+`r klippy:file` — which **overrules** the item. The item's qualifier is a default for
+whoever invokes it, not a veto on what they ask for. `%C%` takes no qualifier: a clipboard
+value is text that has already been fetched, with nothing left to choose between.
+
+Nothing new in the file format. A colon is an ordinary character in a name, so
+`%klippy:file%` works in a snippet and in another define's value exactly as any name does,
+and the Settings screen counts the flavours as the separate defines they are.
+
+The rest of the rules:
+
+- **The bare name still answers** where a flavour is not defined. `%P:file%` against a
+  plain `pir=…` finds `pir`, so putting a qualifier on an item does not stop it working
+  with the defines that have no flavours. Add a bare `klippy=…` line if you want one of
+  them to be the answer when no flavour is asked for; without it, a plain `%P%` and a bare
+  `klippy` find nothing and the word is passed as typed.
+- **A flavour named at the prompt is taken at its word.** `r pir:file` looks for exactly
+  that, and passes `pir:file` as typed if it is not defined — Klippy does not quietly hand
+  back `pir` when you asked for one of its flavours.
+- **A colon does not make a flavour.** `C:\temp` and `https://example.com` are looked up
+  whole, find nothing, and are passed as typed, under a `%P:file%` or not. A qualifier
+  carries no colon of its own, so where one ends is never a matter of opinion.
+- **Where one `%P%` swallows the rest**, its flavour covers everything it swallows — the
+  last placeholder takes every argument still unused, so they are all asked for on its
+  terms.
 
 ### Getting at the file
 
@@ -746,8 +793,9 @@ There are two keys, one per half of the app:
 Each means *show me this view*. Pressing a key while its view is already in front
 dismisses the window, as the single key always did; pressing the **other** key switches
 views rather than hiding, which is the point of having two. `Esc` still dismisses once
-the filter and any overlay are cleared. Arriving in a view clears the search box, since
-a filter typed against snippets means nothing against clips.
+the filter and any overlay are cleared. Switching views keeps what is in the search box:
+you are looking for the same thing either way, and the other half of the answer should be
+one keystroke away rather than one keystroke and a retype.
 
 They register independently, so one losing the race for its combination leaves the other
 working, and Klippy says on stderr which one it could not claim. The history key is only
@@ -829,7 +877,11 @@ search term.
 Klippy also keeps what you copy. `Ctrl+Alt+J` summons it directly (see
 [Global hotkeys](#global-hotkeys-desktop)), or the **History** chip, first in the chip
 row, switches the list from saved snippets to captured clips — newest first, searchable with the same
-prefix matching, and copied back with the same Enter or click. A clip carries the app it
+prefix matching, and copied back with the same Enter or click. Whatever is in the search
+box comes with you, in both directions, so "that connection string" can be asked of the
+snippets and of the clips without being typed twice. A *tag* chip is a narrowing of the
+view you are already in rather than a change of view, and still clears the box: a search
+drops the tag filter the moment you type, so the two never stand together. A clip carries the app it
 came from and its age instead of a tag and a quick-code, and keeps whatever flavours it
 was captured with, so pasting one back into a rich-text editor gives what the original
 copy would have.

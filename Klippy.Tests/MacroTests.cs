@@ -150,7 +150,7 @@ public class MacroTests
     {
         Assert.True(QuickInvocation.TryParse("? stuff", out var invocation));
         Assert.Equal("?", invocation.Code);
-        Assert.Equal(new[] { "stuff" }, invocation.Arguments);
+        Assert.Equal(new[] { new TypedArgument("stuff", false) }, invocation.Arguments);
     }
 
     [Fact]
@@ -175,103 +175,169 @@ public class MacroTests
         Assert.Empty(invocation.Arguments);
     }
 
+    // ---- splitting keeps what the quotes said ----
+
+    [Fact]
+    public void SplitTypedArguments_RemembersWhichWordsWereQuoted()
+    {
+        Assert.Equal(
+            new[] { new TypedArgument("pir", false), new TypedArgument("pir", true) },
+            Macros.SplitTypedArguments("pir \"pir\""));
+
+        // A quote anywhere settles it: half a quoted word is still somebody reaching for
+        // the escape.
+        Assert.Equal(new[] { new TypedArgument("pir", true) }, Macros.SplitTypedArguments("pi\"r\""));
+
+        // And the plain split still agrees about where the words are.
+        Assert.Equal(new[] { "deploy.ps1", "two words", "three" },
+            Macros.SplitArguments("deploy.ps1 \"two words\" three"));
+    }
+
     // ---- an argument that names something ----
 
-    private static string? Lookup(string word) => word switch
-    {
-        "pir" => @"D:\src\shine\Shine.sln",
-        "two" => "TWO",
-        _ => null,
-    };
+    private const string Defines =
+        "pir=D:\\src\\shine\\Shine.sln\n" +
+        "klippy=D:\\dev\\klippy\n" +
+        "klippy:folder=D:\\dev\\klippy\n" +
+        "klippy:file=D:\\dev\\klippy\\klippy.slnx";
 
-    [Fact]
-    public void SplitArguments_ResolvesWhatAnUnquotedArgumentNames()
+    /// <summary>What the item behind the code receives, for a line typed against it.</summary>
+    private static string[] Values(string line, string? vars = Defines, string? template = null)
     {
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Macros.SplitArguments("pir", Lookup));
-
-        // A word that names nothing is the word, and with no resolver nothing is asked at
-        // all — which is every caller splitting an item's own text.
-        Assert.Equal(new[] { "elsewhere" }, Macros.SplitArguments("elsewhere", Lookup));
-        Assert.Equal(new[] { "pir" }, Macros.SplitArguments("pir"));
+        Assert.True(QuickInvocation.TryParse(line, out var invocation));
+        return invocation.ValuesFor(template, vars is null ? null : KlippyVariables.Parse(vars));
     }
 
     [Fact]
-    public void SplitArguments_QuotingIsHowYouSayYouMeantTheWord()
+    public void AnArgumentThatNamesADefine_StandsForItsValue()
     {
-        Assert.Equal(new[] { "pir" }, Macros.SplitArguments("\"pir\"", Lookup));
-
-        // A quote anywhere in the argument settles it: half a quoted word is still the
-        // user reaching for the escape.
-        Assert.Equal(new[] { "pir" }, Macros.SplitArguments("pi\"r\"", Lookup));
-
-        // And it is per argument, not per line.
-        Assert.Equal(new[] { "pir", "TWO" }, Macros.SplitArguments("\"pir\" two", Lookup));
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln", "two" }, Macros.SplitArguments("pir \"two\"", Lookup));
-    }
-
-    [Fact]
-    public void SplitArguments_QuotesStillGroupWords()
-    {
-        // The quotes were always for this, and a name holds no whitespace — so spending
-        // them on the escape costs a multi-word argument nothing.
-        Assert.Equal(new[] { "deploy.ps1", "two words", "three" },
-            Macros.SplitArguments("deploy.ps1 \"two words\" three", Lookup));
-    }
-
-    [Fact]
-    public void Invocation_AnArgumentMayNameAVariable()
-    {
-        // The ask itself: "%r% %P%" behind the code r, invoked as "r pir".
-        var vars = KlippyVariables.Parse("r=C:\\tools\\rider64.exe\npir=D:\\src\\shine\\Shine.sln");
-
-        Assert.True(QuickInvocation.TryParse("r pir", out var invocation, vars));
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, invocation.Arguments);
+        // The ask: "%r% %P%" behind the code r, invoked as "r pir".
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir"));
 
         // %pir% is the same request written the other way.
-        Assert.True(QuickInvocation.TryParse("r %pir%", out invocation, vars));
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, invocation.Arguments);
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r %pir%"));
 
-        // Quoted, it is the word.
-        Assert.True(QuickInvocation.TryParse("r \"pir\"", out invocation, vars));
-        Assert.Equal(new[] { "pir" }, invocation.Arguments);
-
-        // And with no variables in force nothing is looked up, as on a machine with no file.
-        Assert.True(QuickInvocation.TryParse("r pir", out invocation));
-        Assert.Equal(new[] { "pir" }, invocation.Arguments);
+        // A word that names nothing is the word, and with no file in force nothing is
+        // looked up at all.
+        Assert.Equal(new[] { "elsewhere" }, Values("r elsewhere"));
+        Assert.Equal(new[] { "pir" }, Values("r pir", vars: null));
     }
 
     [Fact]
-    public void Invocation_TheQuickCodeItselfIsNeverResolved()
+    public void QuotingIsHowYouSayYouMeantTheWord()
+    {
+        Assert.Equal(new[] { "pir" }, Values("r \"pir\""));
+
+        // Per argument, not per line.
+        Assert.Equal(new[] { "pir", @"D:\src\shine\Shine.sln" }, Values("r \"pir\" pir"));
+    }
+
+    [Fact]
+    public void TheQuickCodeItselfIsNeverResolved()
     {
         // The item behind the code r is reached by typing r, and a file that happens to
         // define r must not put it out of reach of its own invocation.
-        var vars = KlippyVariables.Parse("r=C:\\tools\\rider64.exe");
-
-        Assert.True(QuickInvocation.TryParse("r pir", out var invocation, vars));
-        Assert.Equal("r", invocation.Code);
+        Assert.True(QuickInvocation.TryParse("pir x", out var invocation));
+        Assert.Equal("pir", invocation.Code);
     }
 
     [Fact]
-    public void Invocation_AnArgumentIsNotReadForNamesInsideIt()
+    public void AnArgumentIsNotReadForNamesInsideIt()
     {
         // Only a word that *is* a name. One with a name buried in it keeps its percent
         // signs, exactly as it always has - which is what a script reading %TEMP% needs.
-        var vars = KlippyVariables.Parse("src=D:\\src\ntemp=NOPE");
-
-        Assert.True(QuickInvocation.TryParse("q %src%\\shine", out var invocation, vars));
-        Assert.Equal(new[] { @"%src%\shine" }, invocation.Arguments);
-
-        Assert.True(QuickInvocation.TryParse("q 100%temp%off", out invocation, vars));
-        Assert.Equal(new[] { "100%temp%off" }, invocation.Arguments);
+        Assert.Equal(new[] { @"%klippy%\src" }, Values(@"r %klippy%\src"));
+        Assert.Equal(new[] { "100%klippy%off" }, Values("r 100%klippy%off"));
     }
 
     [Fact]
-    public void Invocation_MacrosAreNotSwallowed_EvenByAFileThatDefinesThem()
+    public void MacrosAreNotSwallowed_EvenByAFileThatDefinesThem()
     {
-        // %C% and %P% belong to the item; nobody typing one meant a variable named C.
-        var vars = KlippyVariables.Parse("c=CLIPBOARD\np=POSITIONAL");
+        // %C% and %P% belong to the item; nobody typing one meant a define called C.
+        Assert.Equal(new[] { "%C%", "%P%" }, Values("r %C% %P%", vars: "c=CLIPBOARD\np=POSITIONAL"));
+    }
 
-        Assert.True(QuickInvocation.TryParse("q %C% %P%", out var invocation, vars));
-        Assert.Equal(new[] { "%C%", "%P%" }, invocation.Arguments);
+    // ---- one name, two flavours ----
+
+    [Fact]
+    public void PositionalQualifiers_AreReadOffTheItemInOrder()
+    {
+        Assert.Equal(new string?[] { null }, Macros.PositionalQualifiers("%r% %P%"));
+        Assert.Equal(new string?[] { "file" }, Macros.PositionalQualifiers("%r% %P:file%"));
+        Assert.Equal(new string?[] { "folder", null }, Macros.PositionalQualifiers("%x% %P:folder% %P%"));
+
+        // A %C% asks nothing, and neither does text with no placeholders in it.
+        Assert.Equal(new string?[] { "file" }, Macros.PositionalQualifiers("%C% %P:file%"));
+        Assert.Empty(Macros.PositionalQualifiers("deploy.ps1 --now"));
+        Assert.Empty(Macros.PositionalQualifiers(null));
+    }
+
+    [Fact]
+    public void TheItemSaysWhichFlavourItWants()
+    {
+        // One name defined once per flavour, and the item picks - so the person invoking
+        // it types "klippy" either way.
+        Assert.Equal(new[] { @"D:\dev\klippy" }, Values("x klippy", template: "%code% %P:folder%"));
+        Assert.Equal(new[] { @"D:\dev\klippy\klippy.slnx" }, Values("x klippy", template: "%r% %P:file%"));
+
+        // With no flavour asked for, the bare name answers.
+        Assert.Equal(new[] { @"D:\dev\klippy" }, Values("x klippy", template: "%r% %P%"));
+    }
+
+    [Fact]
+    public void ThePromptMaySayWhichFlavourItWants_AndOverrulesTheItem()
+    {
+        Assert.Equal(new[] { @"D:\dev\klippy\klippy.slnx" }, Values("r klippy:file"));
+
+        // What was typed wins: the item's idea of what it wanted is a default, not a veto.
+        Assert.Equal(new[] { @"D:\dev\klippy" },
+            Values("r klippy:folder", template: "%r% %P:file%"));
+    }
+
+    [Fact]
+    public void AFlavourFallsBackToTheBareName_ButOnlyWhenTheItemAskedForIt()
+    {
+        // pir has no flavours, so a %P:file% still finds it: adding a qualifier to an item
+        // must not stop it working with the defines that have none.
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir", template: "%r% %P:file%"));
+
+        // Typed, though, it is taken at its word - and an undefined name is passed as
+        // typed, as every undefined name is.
+        Assert.Equal(new[] { "pir:file" }, Values("r pir:file"));
+    }
+
+    [Fact]
+    public void AWindowsPathIsNotAFlavour()
+    {
+        // "C:\temp" carries a colon without naming anything, under a %P:file% or not.
+        Assert.Equal(new[] { @"C:\temp" }, Values(@"r C:\temp"));
+        Assert.Equal(new[] { @"C:\temp" }, Values(@"r C:\temp", template: "%r% %P:file%"));
+        Assert.Equal(new[] { "https://example.com" },
+            Values("r https://example.com", template: "%r% %P:file%"));
+    }
+
+    [Fact]
+    public void TheLastPlaceholdersFlavour_CoversTheArgumentsItSwallows()
+    {
+        // The last %P% takes everything still unused, so everything from it on is asked
+        // for on its terms.
+        Assert.Equal(new[] { @"D:\dev\klippy", @"D:\dev\klippy\klippy.slnx" },
+            Values("x klippy klippy", template: "%code% %P:folder% %P:file%"));
+        Assert.Equal(new[] { @"D:\dev\klippy", @"D:\dev\klippy\klippy.slnx", @"D:\dev\klippy\klippy.slnx" },
+            Values("x klippy klippy klippy", template: "%code% %P:folder% %P:file%"));
+    }
+
+    [Fact]
+    public void AQualifiedPlaceholder_FillsLikeAnyOther()
+    {
+        Assert.Equal("rider64.exe D:\\x.sln", Macros.Expand("rider64.exe %P:file%", new[] { "D:\\x.sln" }));
+
+        // And it is a macro everywhere that asks, so no variables file swallows it.
+        Assert.True(Macros.IsPresent("%P:file%"));
+        Assert.Equal("%P:file%", KlippyVariables.Parse("p=NOPE").Expand("%P:file%"));
+
+        // A clipboard value has nothing to choose between, so %C:file% is not a macro at
+        // all - it is the text it looks like.
+        Assert.False(Macros.IsPresent("%C:file%"));
     }
 }

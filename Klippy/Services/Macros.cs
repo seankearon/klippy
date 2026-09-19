@@ -11,6 +11,8 @@ namespace Klippy.Services;
 /// <list type="bullet">
 /// <item><c>%C%</c> — whatever text is on the clipboard right now.</item>
 /// <item><c>%P%</c> — a positional argument typed after the quick-code.</item>
+/// <item><c>%P:file%</c> — the same, saying which flavour of a
+/// <see cref="KlippyVariables">define</see> it wants when the argument names one.</item>
 /// </list>
 ///
 /// With <c>https://www.google.com/search?q=%P%</c> behind the quick-code <c>?</c>,
@@ -30,6 +32,12 @@ namespace Klippy.Services;
 /// path a line names rather than to the item, and <see cref="EnvironmentProbe"/> is what
 /// reads them, on the run path only.
 /// </summary>
+/// <summary>
+/// One argument as it was typed: the word, and whether the quotes around it said to take
+/// it as written rather than as the name of a <see cref="KlippyVariables">define</see>.
+/// </summary>
+public readonly record struct TypedArgument(string Word, bool AsWritten);
+
 public static partial class Macros
 {
     /// <summary>Expands to the clipboard's current text.</summary>
@@ -39,8 +47,37 @@ public static partial class Macros
     public const string Positional = "%P%";
 
     // Source-generated rather than RegexOptions.Compiled, which NativeAOT cannot honour.
-    [GeneratedRegex("%[cp]%", RegexOptions.IgnoreCase)]
+    //
+    // A %P% may name the flavour it wants and a %C% may not: choosing between two defines
+    // of a name is a question about an argument, and a clipboard value is text that has
+    // already been fetched with nothing left to choose. The qualifier carries no colon of
+    // its own, so where one ends is never a matter of opinion.
+    [GeneratedRegex(@"%(?:c|p(?::(?<qualifier>[^%\s:]+))?)%", RegexOptions.IgnoreCase)]
     private static partial Regex AnyMacro();
+
+    /// <summary>
+    /// What each <c>%P%</c> in <paramref name="text"/> asks its argument to be, in the
+    /// order they appear: <c>file</c> for a <c>%P:file%</c>, and null for a plain one.
+    ///
+    /// How an item says which of two defines of a name it means without the person
+    /// invoking it having to — an item that opens a folder wants <c>klippy:folder</c> from
+    /// <c>klippy</c>, and one that opens a solution wants <c>klippy:file</c>, and neither
+    /// is worth typing twice a day.
+    /// </summary>
+    public static string?[] PositionalQualifiers(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return Array.Empty<string?>();
+
+        var found = new List<string?>();
+        foreach (Match match in AnyMacro().Matches(text))
+        {
+            if (IsClipboard(match)) continue;
+            var qualifier = match.Groups["qualifier"];
+            found.Add(qualifier.Success ? qualifier.Value : null);
+        }
+
+        return found.ToArray();
+    }
 
     /// <summary>Whether <paramref name="text"/> carries any macro at all.</summary>
     public static bool IsPresent(string? text) =>
@@ -149,42 +186,47 @@ public static partial class Macros
     /// Splits a line into arguments on whitespace, double quotes grouping the words that
     /// belong together: <c>deploy.ps1 "two words" three</c> is three arguments, not four.
     /// </summary>
-    /// <param name="resolve">
-    /// Asked what each <em>unquoted</em> argument stands for; null back from it — or no
-    /// resolver at all — means the word itself. That is what lets an argument typed after
-    /// a quick-code name a <see cref="KlippyVariables">local define</see>, and quoting it
-    /// is how you say you meant the word rather than the name. The quotes cost nothing
-    /// to spend that way: a name can hold no whitespace, so it never needed them to stay
-    /// one argument.
-    ///
-    /// Only a caller splitting a <em>typed</em> line passes one. An item's own text is
-    /// split with nothing here, because a word written into an item is not somebody
-    /// standing at the prompt asking for a name.
-    /// </param>
-    public static string[] SplitArguments(string? text, Func<string, string?>? resolve = null)
+    public static string[] SplitArguments(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
+        var typed = SplitTypedArguments(text);
+        var words = new string[typed.Length];
+        for (int i = 0; i < typed.Length; i++) words[i] = typed[i].Word;
+        return words;
+    }
 
-        var parts = new List<string>();
+    /// <summary>
+    /// The same split, keeping what the quotes said. Only the splitter can still tell:
+    /// once it is a word in a list, <c>"pir"</c> and <c>pir</c> are the same three
+    /// letters, and one of them was somebody saying they meant the letters.
+    ///
+    /// A quote anywhere in an argument settles it. Half a quoted word is still somebody
+    /// reaching for the escape, and picking over which half they meant would be a second
+    /// rule to learn for no gain.
+    /// </summary>
+    public static TypedArgument[] SplitTypedArguments(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return Array.Empty<TypedArgument>();
+
+        var parts = new List<TypedArgument>();
         var current = new StringBuilder();
-        bool quoted = false;  // inside a pair right now
-        bool literal = false; // this argument carried a quote, so it is taken as written
-        bool started = false; // distinguishes "" (an empty argument) from no argument
+        bool quoted = false;     // inside a pair right now
+        bool asWritten = false;  // this argument carried a quote
+        bool started = false;    // distinguishes "" (an empty argument) from no argument
 
         foreach (var c in text)
         {
             if (c == '"')
             {
                 quoted = !quoted;
-                literal = true;
+                asWritten = true;
                 started = true;
             }
             else if (!quoted && char.IsWhiteSpace(c))
             {
-                if (started) parts.Add(Stands(current.ToString(), literal, resolve));
+                if (started) parts.Add(new TypedArgument(current.ToString(), asWritten));
                 current.Clear();
                 started = false;
-                literal = false;
+                asWritten = false;
             }
             else
             {
@@ -193,18 +235,9 @@ public static partial class Macros
             }
         }
 
-        if (started) parts.Add(Stands(current.ToString(), literal, resolve));
+        if (started) parts.Add(new TypedArgument(current.ToString(), asWritten));
         return parts.ToArray();
     }
-
-    /// <summary>
-    /// What one split-out argument stands for. A quote anywhere in it settles the
-    /// question before the resolver is asked: half a quoted argument is still the user
-    /// reaching for the escape, and picking over which half they meant would be a second
-    /// rule to learn for no gain.
-    /// </summary>
-    private static string Stands(string argument, bool literal, Func<string, string?>? resolve) =>
-        literal || resolve is null ? argument : resolve(argument) ?? argument;
 
     /// <summary>
     /// The first argument of a line, without splitting the rest of it. Same rules as

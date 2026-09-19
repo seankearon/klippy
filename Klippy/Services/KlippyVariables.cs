@@ -74,7 +74,14 @@ public sealed class KlippyVariables
     /// the environment: <c>%PATH%</c> has no business arriving as an argument because
     /// somebody typed <c>path</c>.
     /// </summary>
-    public string? ValueOf(string? word)
+    /// <param name="qualifier">
+    /// The flavour the <c>%P%</c> about to be filled asked for — <c>file</c> from a
+    /// <c>%P:file%</c> — or null where it asked for none. A name may be defined once per
+    /// flavour, as <c>klippy:folder</c> and <c>klippy:file</c>, and this is what lets the
+    /// item say which of them it meant so the person invoking it need only type
+    /// <c>klippy</c>.
+    /// </param>
+    public string? ValueOf(string? word, string? qualifier = null)
     {
         if (string.IsNullOrEmpty(word)) return null;
 
@@ -89,7 +96,15 @@ public sealed class KlippyVariables
             word = word[1..^1];
         }
 
-        return Get(word);
+        // A word that names its own flavour is taken at it: "pir:file" is the whole name,
+        // and what the item would have asked for does not overrule what somebody typed.
+        // The same test keeps a Windows path out of this — "C:\temp" carries a colon
+        // without naming a flavour, and looking it up whole is the right answer anyway.
+        if (string.IsNullOrEmpty(qualifier) || word.Contains(':')) return Get(word);
+
+        // The flavour asked for, then the bare name: putting a %P:file% on an item must
+        // not stop it working with the defines that have no flavours at all.
+        return Get(word + ':' + qualifier) ?? Get(word);
     }
 
     /// <summary>

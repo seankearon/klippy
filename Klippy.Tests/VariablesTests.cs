@@ -401,18 +401,26 @@ public class VariablesTests
         }
     }
 
+    /// <summary>
+    /// What running <paramref name="template"/> means when <paramref name="line"/> is
+    /// typed at it: the real path from the search box to the process, since the item is
+    /// half of what an argument means and a helper that skipped it would prove nothing.
+    /// </summary>
+    private static ExecutionPlan PlanFor(string template, string line, KlippyVariables vars)
+    {
+        Assert.True(QuickInvocation.TryParse(line, out var invocation));
+        return ExecutionPolicy.Plan(
+            template,
+            invocation.ValuesFor(template, vars),
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+    }
+
     [Fact]
     public void Execute_AnArgumentThatNamesADefine_ReachesTheProcessAsItsValue()
     {
         // End to end over the ask: "%r% %P%" behind the code r, invoked as "r pir".
-        var vars = Vars(RiderAndSolution);
-        Assert.True(QuickInvocation.TryParse("r pir", out var invocation, vars));
-
-        var plan = ExecutionPolicy.Plan(
-            OpenInRider().Content,
-            invocation.Arguments,
-            platform: ExecutionPlatform.Windows,
-            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+        var plan = PlanFor("%r% %P%", "r pir", Vars(RiderAndSolution));
 
         Assert.Equal(ExecutionKind.Application, plan.Kind);
         Assert.Equal("C:\\tools\\rider64.exe", plan.Target);
@@ -424,14 +432,8 @@ public class VariablesTests
     {
         // It resolves after the line has been split, so a value with a space in it needs
         // no quotes - and could not have had them, since quoting is the escape.
-        var vars = Vars("r=C:\\tools\\rider64.exe\nbig=D:\\my src\\Big.sln");
-        Assert.True(QuickInvocation.TryParse("r big", out var invocation, vars));
-
-        var plan = ExecutionPolicy.Plan(
-            "%r% %P%",
-            invocation.Arguments,
-            platform: ExecutionPlatform.Windows,
-            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+        var plan = PlanFor(
+            "%r% %P%", "r big", Vars("r=C:\\tools\\rider64.exe\nbig=D:\\my src\\Big.sln"));
 
         Assert.Equal(new[] { "D:\\my src\\Big.sln" }, plan.Arguments);
     }
@@ -442,17 +444,68 @@ public class VariablesTests
         // The refusal judges the value that is about to be passed, so a define worth an
         // ampersand is refused on the ampersand rather than waved through on the strength
         // of the short name it was reached by.
-        var vars = Vars("bad=a&b");
-        Assert.True(QuickInvocation.TryParse("go bad", out var invocation, vars));
-
-        var plan = ExecutionPolicy.Plan(
-            "deploy.bat %P%",
-            invocation.Arguments,
-            platform: ExecutionPlatform.Windows,
-            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+        var plan = PlanFor("deploy.bat %P%", "go bad", Vars("bad=a&b"));
 
         Assert.Equal(ExecutionKind.None, plan.Kind);
         Assert.Contains("cannot be passed", plan.Problem);
+    }
+
+    // ---- one name, two flavours ----
+    //
+    // A name is defined once per flavour, and the item says which of them it wants:
+    // opening the folder and opening the solution are two items, and "klippy" is what you
+    // type at both of them.
+
+    private const string TwoFlavours =
+        "r=C:\\tools\\rider64.exe\n" +
+        "code=C:\\tools\\code.exe\n" +
+        "klippy:folder=D:\\dev\\klippy\n" +
+        "klippy:file=D:\\dev\\klippy\\klippy.slnx";
+
+    [Fact]
+    public void Execute_TheItemPicksTheFlavour()
+    {
+        Assert.Equal(new[] { "D:\\dev\\klippy" },
+            PlanFor("%code% %P:folder%", "c klippy", Vars(TwoFlavours)).Arguments);
+
+        Assert.Equal(new[] { "D:\\dev\\klippy\\klippy.slnx" },
+            PlanFor("%r% %P:file%", "r klippy", Vars(TwoFlavours)).Arguments);
+    }
+
+    [Fact]
+    public void Execute_ThePromptMayPickTheFlavourInstead()
+    {
+        // Typed wins: the item's qualifier is a default, not a veto.
+        Assert.Equal(new[] { "D:\\dev\\klippy" },
+            PlanFor("%r% %P:file%", "r klippy:folder", Vars(TwoFlavours)).Arguments);
+
+        // And it works where the item asked for nothing at all.
+        Assert.Equal(new[] { "D:\\dev\\klippy\\klippy.slnx" },
+            PlanFor("%r% %P%", "r klippy:file", Vars(TwoFlavours)).Arguments);
+    }
+
+    [Fact]
+    public void AFlavouredNameReadsLikeAnyOtherEverywhereElse()
+    {
+        // Nothing new in the file format: a colon is an ordinary character in a name, so
+        // a snippet and a value may both name a flavour directly.
+        var vars = Vars(TwoFlavours);
+
+        Assert.Equal("D:\\dev\\klippy\\klippy.slnx", vars.Expand("%klippy:file%"));
+        Assert.Equal("C:\\tools\\rider64.exe D:\\dev\\klippy\\klippy.slnx",
+            vars.Expand("%r% %klippy:file%"));
+
+        // An undefined flavour is left as written, like any undefined name.
+        Assert.Equal("%klippy:docs%", vars.Expand("%klippy:docs%"));
+    }
+
+    [AvaloniaFact]
+    public void Copy_TheItemsFlavourReachesTheClipboard()
+    {
+        var snippet = new Snippet { Content = "%r% %P:file%", QuickCode = "r" };
+
+        Assert.Equal("C:\\tools\\rider64.exe D:\\dev\\klippy\\klippy.slnx",
+            CopyFirst(snippet, TwoFlavours, filter: "r klippy"));
     }
 
     [AvaloniaFact]
