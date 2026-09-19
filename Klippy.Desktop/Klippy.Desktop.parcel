@@ -12,7 +12,7 @@
             "property": "Version"
         },
         "Icon": "../Klippy/Assets/klippy.ico",
-        "Company": "Sean Kearon"
+        "Company": "Atlantic Business Solutions Ltd"
     },
     "LinuxSettings": {
         "CreateBinSymlink": "True"
