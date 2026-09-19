@@ -333,8 +333,9 @@ public class VariablesTests
     [AvaloniaFact]
     public void Copy_ExpandsVariablesBeforeMacrosAreFilled()
     {
-        // The order that matters: %ws% is a name the item asked to have resolved, and the
-        // argument typed after the quick-code is data. Data is never re-read for names.
+        // The order that matters: %ws% is a name the item asked to have resolved, and what
+        // arrives through a %P% is already a value. A value is never re-read for names, so
+        // this argument keeps its percent signs whether or not it happens to name one.
         var snippet = new Snippet
         {
             Label = "Open in WebStorm",
@@ -344,6 +345,114 @@ public class VariablesTests
 
         Assert.Equal("C:\\tools\\webstorm64.exe %notavariable%",
             CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe", filter: "ws %notavariable%"));
+    }
+
+    // ---- a typed argument may name a define ----
+    //
+    // The one place a piece of data is read for a name, and the asymmetry is the reason:
+    // a %C% is what the machine handed over, while this is a word somebody stood at the
+    // prompt and typed. The word has to *be* the name, and quoting it takes the escape.
+
+    private const string RiderAndSolution =
+        "r=C:\\tools\\rider64.exe\npir=D:\\src\\shine\\Shine.sln";
+
+    private static Snippet OpenInRider() => new()
+    {
+        Label = "Open in Rider",
+        Content = "%r% %P%",
+        QuickCode = "r",
+        IsExecutable = true,
+    };
+
+    [AvaloniaFact]
+    public void Copy_AnArgumentThatNamesADefine_CarriesItsValue()
+    {
+        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\shine\\Shine.sln",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r pir"));
+    }
+
+    [AvaloniaFact]
+    public void Copy_AQuotedArgument_IsTheWordItself()
+    {
+        Assert.Equal("C:\\tools\\rider64.exe pir",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r \"pir\""));
+    }
+
+    [AvaloniaFact]
+    public void Copy_AnArgumentThatNamesNothing_IsPassedAsTyped()
+    {
+        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\other\\Other.sln",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r D:\\src\\other\\Other.sln"));
+    }
+
+    [AvaloniaFact]
+    public void TheRow_ShowsWhatTheArgumentResolvedTo()
+    {
+        // Which is how you can tell the name was found before pressing Enter. The item's
+        // own %r% still shows as written - that value is the same every time, and the row
+        // is what you would edit.
+        var (vm, _, scope) = CopyVm(OpenInRider(), RiderAndSolution);
+        using (scope)
+        {
+            vm.FilterText = "r pir";
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("%r% D:\\src\\shine\\Shine.sln", vm.Filtered[0].Content);
+        }
+    }
+
+    [Fact]
+    public void Execute_AnArgumentThatNamesADefine_ReachesTheProcessAsItsValue()
+    {
+        // End to end over the ask: "%r% %P%" behind the code r, invoked as "r pir".
+        var vars = Vars(RiderAndSolution);
+        Assert.True(QuickInvocation.TryParse("r pir", out var invocation, vars));
+
+        var plan = ExecutionPolicy.Plan(
+            OpenInRider().Content,
+            invocation.Arguments,
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("C:\\tools\\rider64.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\src\\shine\\Shine.sln" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ADefineWorthAWholePathWithSpaces_StaysOneArgument()
+    {
+        // It resolves after the line has been split, so a value with a space in it needs
+        // no quotes - and could not have had them, since quoting is the escape.
+        var vars = Vars("r=C:\\tools\\rider64.exe\nbig=D:\\my src\\Big.sln");
+        Assert.True(QuickInvocation.TryParse("r big", out var invocation, vars));
+
+        var plan = ExecutionPolicy.Plan(
+            "%r% %P%",
+            invocation.Arguments,
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
+        Assert.Equal(new[] { "D:\\my src\\Big.sln" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ABatFileStillRefusesWhatCmdWouldReRead_WhateverNameItArrivedBy()
+    {
+        // The refusal judges the value that is about to be passed, so a define worth an
+        // ampersand is refused on the ampersand rather than waved through on the strength
+        // of the short name it was reached by.
+        var vars = Vars("bad=a&b");
+        Assert.True(QuickInvocation.TryParse("go bad", out var invocation, vars));
+
+        var plan = ExecutionPolicy.Plan(
+            "deploy.bat %P%",
+            invocation.Arguments,
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Contains("cannot be passed", plan.Problem);
     }
 
     [AvaloniaFact]

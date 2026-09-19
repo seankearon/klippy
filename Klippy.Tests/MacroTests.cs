@@ -174,4 +174,104 @@ public class MacroTests
         Assert.Equal("slf", invocation.Code);
         Assert.Empty(invocation.Arguments);
     }
+
+    // ---- an argument that names something ----
+
+    private static string? Lookup(string word) => word switch
+    {
+        "pir" => @"D:\src\shine\Shine.sln",
+        "two" => "TWO",
+        _ => null,
+    };
+
+    [Fact]
+    public void SplitArguments_ResolvesWhatAnUnquotedArgumentNames()
+    {
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Macros.SplitArguments("pir", Lookup));
+
+        // A word that names nothing is the word, and with no resolver nothing is asked at
+        // all — which is every caller splitting an item's own text.
+        Assert.Equal(new[] { "elsewhere" }, Macros.SplitArguments("elsewhere", Lookup));
+        Assert.Equal(new[] { "pir" }, Macros.SplitArguments("pir"));
+    }
+
+    [Fact]
+    public void SplitArguments_QuotingIsHowYouSayYouMeantTheWord()
+    {
+        Assert.Equal(new[] { "pir" }, Macros.SplitArguments("\"pir\"", Lookup));
+
+        // A quote anywhere in the argument settles it: half a quoted word is still the
+        // user reaching for the escape.
+        Assert.Equal(new[] { "pir" }, Macros.SplitArguments("pi\"r\"", Lookup));
+
+        // And it is per argument, not per line.
+        Assert.Equal(new[] { "pir", "TWO" }, Macros.SplitArguments("\"pir\" two", Lookup));
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln", "two" }, Macros.SplitArguments("pir \"two\"", Lookup));
+    }
+
+    [Fact]
+    public void SplitArguments_QuotesStillGroupWords()
+    {
+        // The quotes were always for this, and a name holds no whitespace — so spending
+        // them on the escape costs a multi-word argument nothing.
+        Assert.Equal(new[] { "deploy.ps1", "two words", "three" },
+            Macros.SplitArguments("deploy.ps1 \"two words\" three", Lookup));
+    }
+
+    [Fact]
+    public void Invocation_AnArgumentMayNameAVariable()
+    {
+        // The ask itself: "%r% %P%" behind the code r, invoked as "r pir".
+        var vars = KlippyVariables.Parse("r=C:\\tools\\rider64.exe\npir=D:\\src\\shine\\Shine.sln");
+
+        Assert.True(QuickInvocation.TryParse("r pir", out var invocation, vars));
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, invocation.Arguments);
+
+        // %pir% is the same request written the other way.
+        Assert.True(QuickInvocation.TryParse("r %pir%", out invocation, vars));
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, invocation.Arguments);
+
+        // Quoted, it is the word.
+        Assert.True(QuickInvocation.TryParse("r \"pir\"", out invocation, vars));
+        Assert.Equal(new[] { "pir" }, invocation.Arguments);
+
+        // And with no variables in force nothing is looked up, as on a machine with no file.
+        Assert.True(QuickInvocation.TryParse("r pir", out invocation));
+        Assert.Equal(new[] { "pir" }, invocation.Arguments);
+    }
+
+    [Fact]
+    public void Invocation_TheQuickCodeItselfIsNeverResolved()
+    {
+        // The item behind the code r is reached by typing r, and a file that happens to
+        // define r must not put it out of reach of its own invocation.
+        var vars = KlippyVariables.Parse("r=C:\\tools\\rider64.exe");
+
+        Assert.True(QuickInvocation.TryParse("r pir", out var invocation, vars));
+        Assert.Equal("r", invocation.Code);
+    }
+
+    [Fact]
+    public void Invocation_AnArgumentIsNotReadForNamesInsideIt()
+    {
+        // Only a word that *is* a name. One with a name buried in it keeps its percent
+        // signs, exactly as it always has - which is what a script reading %TEMP% needs.
+        var vars = KlippyVariables.Parse("src=D:\\src\ntemp=NOPE");
+
+        Assert.True(QuickInvocation.TryParse("q %src%\\shine", out var invocation, vars));
+        Assert.Equal(new[] { @"%src%\shine" }, invocation.Arguments);
+
+        Assert.True(QuickInvocation.TryParse("q 100%temp%off", out invocation, vars));
+        Assert.Equal(new[] { "100%temp%off" }, invocation.Arguments);
+    }
+
+    [Fact]
+    public void Invocation_MacrosAreNotSwallowed_EvenByAFileThatDefinesThem()
+    {
+        // %C% and %P% belong to the item; nobody typing one meant a variable named C.
+        var vars = KlippyVariables.Parse("c=CLIPBOARD\np=POSITIONAL");
+
+        Assert.True(QuickInvocation.TryParse("q %C% %P%", out var invocation, vars));
+        Assert.Equal(new[] { "%C%", "%P%" }, invocation.Arguments);
+    }
 }

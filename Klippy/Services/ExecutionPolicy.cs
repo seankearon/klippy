@@ -152,9 +152,11 @@ public static class ExecutionPolicy
     /// carrying one of these could start a second command inside a .bat run. Refusing is
     /// the honest answer; pretending to escape it would not be.
     ///
-    /// Judged on the argument as it was typed, before anything resolves: a variable's own
-    /// value can carry an ampersand, and the argument this is here to refuse is the one
-    /// the user wrote.
+    /// Judged on the argument as it stands here, which is the string cmd.exe will be
+    /// handed: a <c>%APPDATA%</c> written into an argument still carries its percent signs
+    /// and is refused, and an argument that named a variable was resolved before it
+    /// arrived, so a define worth <c>a&amp;b</c> is refused on the ampersand rather than
+    /// passed on the strength of the short name it was reached by.
     /// </summary>
     private const string CmdMetaCharacters = "&|<>^\"%";
 
@@ -183,6 +185,12 @@ public static class ExecutionPolicy
     /// signs are still the user's own. Never throws: anything it cannot run comes back as
     /// <see cref="ExecutionKind.None"/> with a <see cref="ExecutionPlan.Problem"/>.
     /// </summary>
+    /// <param name="arguments">
+    /// Values for the item's <c>%P%</c> placeholders, as they are to be passed. Already
+    /// standing for whatever they named, since only the caller reading the typed line can
+    /// tell a name from a word in quotes; here they are values, and nothing re-reads a
+    /// value for a name.
+    /// </param>
     /// <param name="environment">
     /// The environment the first word is resolved against, described by the caller so a
     /// test need not arrange a real one. Null is the machine Klippy is running on — not

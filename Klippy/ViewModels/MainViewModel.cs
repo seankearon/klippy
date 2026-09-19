@@ -436,10 +436,16 @@ public partial class MainViewModel : ViewModelBase
     /// Shows just the snippet whose quick-code was typed, carrying whatever was typed
     /// after it. False when the line is not an invocation — no whitespace yet, or no
     /// snippet answers to that exact code — and the ordinary search runs instead.
+    ///
+    /// The variables file comes along, so an argument can name a define rather than
+    /// spelling a path out: "r pir" is the solution pir names. Read here, where the line
+    /// is read, so the row's preview, a copy and a run all see the same argument —
+    /// having them disagree about what a word meant would be worse than not resolving it
+    /// at all.
     /// </summary>
     private bool TryInvoke()
     {
-        if (!QuickInvocation.TryParse(FilterText, out var invocation) ||
+        if (!QuickInvocation.TryParse(FilterText, out var invocation, KlippyVariables.Current) ||
             _store.FindByQuickCode(invocation.Code) is not { } snippet)
             return false;
 

@@ -149,13 +149,26 @@ public static partial class Macros
     /// Splits a line into arguments on whitespace, double quotes grouping the words that
     /// belong together: <c>deploy.ps1 "two words" three</c> is three arguments, not four.
     /// </summary>
-    public static string[] SplitArguments(string? text)
+    /// <param name="resolve">
+    /// Asked what each <em>unquoted</em> argument stands for; null back from it — or no
+    /// resolver at all — means the word itself. That is what lets an argument typed after
+    /// a quick-code name a <see cref="KlippyVariables">local define</see>, and quoting it
+    /// is how you say you meant the word rather than the name. The quotes cost nothing
+    /// to spend that way: a name can hold no whitespace, so it never needed them to stay
+    /// one argument.
+    ///
+    /// Only a caller splitting a <em>typed</em> line passes one. An item's own text is
+    /// split with nothing here, because a word written into an item is not somebody
+    /// standing at the prompt asking for a name.
+    /// </param>
+    public static string[] SplitArguments(string? text, Func<string, string?>? resolve = null)
     {
         if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
 
         var parts = new List<string>();
         var current = new StringBuilder();
-        bool quoted = false;
+        bool quoted = false;  // inside a pair right now
+        bool literal = false; // this argument carried a quote, so it is taken as written
         bool started = false; // distinguishes "" (an empty argument) from no argument
 
         foreach (var c in text)
@@ -163,13 +176,15 @@ public static partial class Macros
             if (c == '"')
             {
                 quoted = !quoted;
+                literal = true;
                 started = true;
             }
             else if (!quoted && char.IsWhiteSpace(c))
             {
-                if (started) parts.Add(current.ToString());
+                if (started) parts.Add(Stands(current.ToString(), literal, resolve));
                 current.Clear();
                 started = false;
+                literal = false;
             }
             else
             {
@@ -178,9 +193,18 @@ public static partial class Macros
             }
         }
 
-        if (started) parts.Add(current.ToString());
+        if (started) parts.Add(Stands(current.ToString(), literal, resolve));
         return parts.ToArray();
     }
+
+    /// <summary>
+    /// What one split-out argument stands for. A quote anywhere in it settles the
+    /// question before the resolver is asked: half a quoted argument is still the user
+    /// reaching for the escape, and picking over which half they meant would be a second
+    /// rule to learn for no gain.
+    /// </summary>
+    private static string Stands(string argument, bool literal, Func<string, string?>? resolve) =>
+        literal || resolve is null ? argument : resolve(argument) ?? argument;
 
     /// <summary>
     /// The first argument of a line, without splitting the rest of it. Same rules as

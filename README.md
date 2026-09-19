@@ -128,7 +128,9 @@ deliberately does **not** touch:
 
 - **Arguments.** Only the first word resolves. An argument keeps its percent signs, so the
   `.bat` refusal below still sees what `cmd.exe` would see, and a child process inherits
-  the environment and can read its own `%APPDATA%` anyway.
+  the environment and can read its own `%APPDATA%` anyway. A whole argument that *is* the
+  name of a [local define](#variables-as-arguments) is the one exception — the file's own
+  names, never the machine's, so typing `path` gets you the word `path`.
 - **A macro's value.** `%C%` holding a path with a `%VAR%` in it is left as it stands: a
   macro's value is data rather than more text to read, the same rule that keeps it from
   becoming a second command. It also means a clipboard holding `C:\100%discount%off\tool.exe`
@@ -170,6 +172,10 @@ exactly that text if it is not. The *last* `%P%` takes every argument still unus
 `? cats and dogs` searches for the phrase rather than throwing two thirds of it away. A
 placeholder with nothing to fill it expands to nothing: half a typed invocation never
 leaves `%P%` on the clipboard.
+
+An argument may *name* something rather than spell it out: where `klippy.vars` defines
+`pir` as a solution file, `r pir` passes that path, and `r "pir"` passes the word `pir`.
+See [Variables as arguments](#variables-as-arguments).
 
 A line is only read as an invocation when its first word is **exactly** somebody's
 quick-code and something follows it. Otherwise it is the ordinary search it has always
@@ -517,11 +523,14 @@ Variables resolve **before** [macros](#macros), on both routes:
 |---|---|
 | **Copy** | Variables over the whole text, then `%C%` and `%P%` |
 | **Execute** | Variables and [environment variables](#environment-variables) over the first word, then `%C%` and `%P%` |
+| **Either** | A typed argument that [names one](#variables-as-arguments), as the line is read — before it fills a `%P%` |
 
 That order is the point rather than an accident: `%ws%` is a name the item asked to have
-resolved, while a clipboard value or a typed argument is data — and data is never re-read
-for names. A path off the clipboard keeps its middle, exactly as
-[Environment variables](#environment-variables) describes.
+resolved, while a clipboard value is data — and data is never re-read for names. A path off
+the clipboard keeps its middle, exactly as
+[Environment variables](#environment-variables) describes. A typed argument is the one
+thing read for a name at all, and only ever as a whole word: see
+[Variables as arguments](#variables-as-arguments) for where that line is drawn and why.
 
 On the run path the variables file simply sits in front of the machine's own environment,
 so `%ws%` names WebStorm there the way `%LOCALAPPDATA%` names a folder — on a marked item
@@ -531,7 +540,57 @@ the environment both define one, the file wins: being the local answer is what i
 
 The row itself keeps showing `%ws%`, with only its typed arguments filled in. Unlike a
 `%P%`, whose value you have just typed and want to check, a variable's value is the same
-every time and is usually a long path — and the row is what you would edit.
+every time and is usually a long path — and the row is what you would edit. An argument
+that named a define *does* show its value there, for the same reason: it is the half you
+have just typed and want to check.
+
+### Variables as arguments
+
+A define is as useful on the other side of a quick-code. Say `klippy.vars` holds
+
+```ini
+r=%localappdata%\Programs\Rider\bin\rider64.exe
+pir=D:\src\shine\Shine.sln
+```
+
+and a snippet marked Execute holds `%r% %P%` behind the quick-code `r`. Then
+
+```
+r pir
+```
+
+starts Rider on that solution. `%r%` is the item's own name for the exe; `pir` is an
+argument that names the file. The row shows `%r% D:\src\shine\Shine.sln` while you type
+it, so a name that was *not* found is visible as itself rather than as a launch that opens
+the wrong thing.
+
+The rule is deliberately narrow:
+
+- **The whole argument, or nothing.** `pir` is a name. `%src%\shine` is a path that happens
+  to mention one, and keeps its percent signs exactly as it always has — which is what lets
+  a `%TEMP%\build` reach a script meaning what it says. Only a word that *is* the name is
+  looked up, written bare or in full as `%pir%`: with nothing either side of it there is
+  nothing to delimit it from, so the two read the same.
+- **The file's names, never the machine's.** `%PATH%` has no business arriving as an
+  argument because somebody typed `path`. The environment answers for a *value* in the file
+  and for the first word of something you run; an argument is neither.
+- **Quote it and it is the word itself.** `r "pir"` passes `pir`. That is the escape for the
+  day a define collides with something you meant to search for: `? src` googles `D:\src`
+  while `? "src"` googles "src". The quotes cost nothing to spend this way — a name can hold
+  no whitespace, so it never needed them to stay one argument, and a *value* with a space in
+  it resolves after the line has been split and stays one argument without them.
+- **A name that is not defined is passed as typed**, so nothing changes until you define one
+  that collides. The quick-code itself is never resolved either, or a file defining `r`
+  would put the item behind `r` out of reach of the very line that invokes it.
+- `%C%` and `%P%` are still [macros](#macros): an argument of `%C%` is the text `%C%`, not a
+  define called C.
+
+This is the one place Klippy reads data for a name, and the asymmetry with `%C%` is the
+whole of the reason. A clipboard value is what the machine handed over; an argument is a
+word somebody stood at the prompt and typed, and asking for it by name is the only thing
+they can have meant by it. A copy and a run read the same line, so both get the same
+answer — and a `.bat` still refuses an argument `cmd.exe` would re-read, judged on the
+value that is about to be passed rather than on the short name it arrived by.
 
 ### Getting at the file
 

@@ -59,6 +59,40 @@ public sealed class KlippyVariables
         name.Length > 0 && _values.TryGetValue(name, out var value) ? value : null;
 
     /// <summary>
+    /// What a whole word stands for, or null when it stands for nothing: the lookup an
+    /// argument typed after a quick-code gets, where the word <em>is</em> a name rather
+    /// than merely containing one.
+    ///
+    /// <c>pir</c> and <c>%pir%</c> are the same request. With nothing either side of the
+    /// name there is nothing to delimit it from, so the percent signs are optional here
+    /// in the way both dialects are optional in a path — the cost of writing the one a
+    /// reader did not expect should be nothing.
+    ///
+    /// Deliberately not <see cref="Expand(string?)"/>. A word with a name buried in the
+    /// middle of it keeps its percent signs exactly as it always has, which is what lets
+    /// <c>%TEMP%\build</c> reach a script meaning what it says. And the file only, never
+    /// the environment: <c>%PATH%</c> has no business arriving as an argument because
+    /// somebody typed <c>path</c>.
+    /// </summary>
+    public string? ValueOf(string? word)
+    {
+        if (string.IsNullOrEmpty(word)) return null;
+
+        // A pair around the whole word, and only there. "100%off%x" is a word with
+        // percent signs in it, not a name, and Get would turn it down anyway — a name
+        // that contains one could never have been written as %name%.
+        if (word.Length >= 2 && word[0] == '%' && word[^1] == '%')
+        {
+            // %C% and %P% are the item's placeholders. A file that defines c or p does
+            // not get to swallow them here any more than it does in Expand.
+            if (Macros.IsPresent(word)) return null;
+            word = word[1..^1];
+        }
+
+        return Get(word);
+    }
+
+    /// <summary>
     /// Replaces every <c>%name%</c> this file defines with its value. Everything else is
     /// left byte for byte as it was written — an undefined name, a lone percent sign, a
     /// pair with a space between them.
