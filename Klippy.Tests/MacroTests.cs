@@ -297,13 +297,42 @@ public class MacroTests
     [Fact]
     public void AFlavourFallsBackToTheBareName_ButOnlyWhenTheItemAskedForIt()
     {
-        // pir has no flavours, so a %P:file% still finds it: adding a qualifier to an item
-        // must not stop it working with the defines that have none.
+        // pir has no flavours of its own, and reads as a file, so both sides find it.
         Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir", template: "%r% %P:file%"));
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir:file"));
 
-        // Typed, though, it is taken at its word - and an undefined name is passed as
-        // typed, as every undefined name is.
-        Assert.Equal(new[] { "pir:file" }, Values("r pir:file"));
+        // A flavour the file cannot answer parts the two sides. Asked for by the item, the
+        // bare name still answers - putting a qualifier on an item must not stop it
+        // working with the defines that have none.
+        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir", template: "%r% %P:folder%"));
+
+        // Typed, it is taken at its word, and passed on as typed like any name that
+        // answers to nothing.
+        Assert.Equal(new[] { "pir:folder" }, Values("r pir:folder"));
+        Assert.Equal(new[] { "pir:docs" }, Values("r pir:docs"));
+    }
+
+    [Fact]
+    public void ANameGivenTwice_IsToldApartByFlavour()
+    {
+        // The file as it was written: one name, twice, and nothing on the left to say
+        // which is which.
+        const string twice =
+            "klippy=\"D:\\main\\Klippy\\Klippy.slnx\"\n" +
+            "klippy=\"D:\\main\\Klippy\"";
+
+        Assert.Equal(new[] { "\"D:\\main\\Klippy\\Klippy.slnx\"" },
+            Values("r klippy", twice, "%r% %P:file%"));
+        Assert.Equal(new[] { "\"D:\\main\\Klippy\"" },
+            Values("r klippy", twice, "%r% %P:folder%"));
+
+        // The prompt may say it instead.
+        Assert.Equal(new[] { "\"D:\\main\\Klippy\\Klippy.slnx\"" }, Values("r klippy:file", twice));
+
+        // On its own the name is the last line, as a file read top to bottom ends on it.
+        // (The quotes come off at the last stop before the process, not here: a copy still
+        // wants them. See ExecutionPolicy.Unquote.)
+        Assert.Equal(new[] { "\"D:\\main\\Klippy\"" }, Values("r klippy", twice));
     }
 
     [Fact]

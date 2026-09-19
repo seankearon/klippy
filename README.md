@@ -223,10 +223,12 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   is refused too. **The `.bat` file's own path faces the same rule**, minus the `%`: it
   rides the same line cmd.exe re-reads, and .NET quotes only what carries a space, so a
   folder genuinely called `R&D` would start a second command.
-- **A path carrying a double quote is refused.** Windows stops the program name at the
-  quote while the allow-list reads the extension off the end, so `payload.scr"x.exe`
-  would pass as an `.exe` and start the `.scr`. A Windows path cannot contain a quote
-  anyway — the same fact that lets a pasted *Copy as path* be unwrapped safely.
+- **A path carrying a double quote is refused** — anywhere but wrapping the whole of it.
+  Windows stops the program name at the quote while the allow-list reads the extension off
+  the end, so `payload.scr"x.exe` would pass as an `.exe` and start the `.scr`. A matched
+  pair around the whole word is the one safe case and comes off first, since that is how a
+  *Copy as path* paste and a variable written for a shell both arrive; a Windows path
+  cannot contain a quote at all, which is what makes both rules sound.
 - `-File` rather than `-Command` for PowerShell, for the same reason: the arguments stay
   arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
   with it, since the script is one you keep in Klippy and have just asked for by name.
@@ -500,7 +502,10 @@ The rest of the rules are short:
 - `name=value`, one per line. `#` and `;` start a whole-line comment; a line that is not a
   define is skipped rather than rejected, so one typo costs one variable.
 - The value is everything after the first `=`, trimmed — **quotes included**. Quote a path
-  with spaces, because the shell you paste into will need them.
+  with spaces, because the shell you paste into will need them. Running takes a pair that
+  wraps the whole value back off: arguments are passed as arguments and .NET supplies
+  whatever quoting the OS needs, so a pair left in would reach the program as part of the
+  name it is looking for. Copying keeps them, which is what you quoted them for.
 - Names are case-insensitive (`%ws%` and `%WS%` are one variable) and may not contain
   whitespace or a percent sign, since neither could be written as `%name%`. A colon is
   ordinary, and is what [flavours](#one-name-two-flavours) are written with.
@@ -599,42 +604,61 @@ value that is about to be passed rather than on the short name it arrived by.
 ### One name, two flavours
 
 `klippy` is the folder to some items and the solution file to others, and both want to be
-typed as `klippy`. A name may therefore be defined once per **flavour** — a `:qualifier`
-on the end of it — and the item says which one it means:
+typed as `klippy`. So define it twice:
 
 ```ini
 # klippy.vars
-klippy:folder=D:\dev\klippy
-klippy:file=D:\dev\klippy\klippy.slnx
+klippy=D:\main\Klippy
+klippy=D:\main\Klippy\Klippy.slnx
 ```
+
+and let the item say which of them it means:
 
 | Item | Typed | Opens |
 |---|---|---|
-| `%code% %P:folder%` | `c klippy` | `D:\dev\klippy` |
-| `%r% %P:file%` | `r klippy` | `D:\dev\klippy\klippy.slnx` |
+| `%code% %P:folder%` | `c klippy` | `D:\main\Klippy` |
+| `%r% %P:file%` | `r klippy` | `D:\main\Klippy\Klippy.slnx` |
 
-A `%P%` may name the flavour it wants, and you may name one at the prompt instead —
-`r klippy:file` — which **overrules** the item. The item's qualifier is a default for
-whoever invokes it, not a veto on what they ask for. `%C%` takes no qualifier: a clipboard
-value is text that has already been fetched, with nothing left to choose between.
+A name given more than once keeps every line. On its own it means the **last** of them — a
+file read top to bottom ends on the answer — and `%P:file%` and `%P:folder%` are what reach
+the others. You can name the flavour at the prompt instead, `r klippy:file`, which
+**overrules** the item: its qualifier is a default for whoever invokes it, not a veto on
+what they ask for. `%C%` takes no qualifier — a clipboard value is text that has already
+been fetched, with nothing left to choose between.
 
-Nothing new in the file format. A colon is an ordinary character in a name, so
-`%klippy:file%` works in a snippet and in another define's value exactly as any name does,
-and the Settings screen counts the flavours as the separate defines they are.
+**Which line is the file is read off the value, not off the disk**: a dot in the last
+segment names a file, and anything else names a folder. That is how a person reading the
+file tells them apart, and it costs no disk access on a keystroke, answers the same on a
+machine where the checkout is not cloned yet, and cannot stall on a share that is not
+there.
+
+Where that reading would be wrong — a file with no extension, a folder with a dot in its
+name — put the flavour in the name instead. An explicit define is found first and settles
+it, and it is also how you invent flavours of your own, since `file` and `folder` are the
+only two Klippy can work out for itself:
+
+```ini
+klippy:folder=D:\main\node_modules.bak
+klippy:file=D:\main\Makefile
+klippy:docs=D:\main\docs\README.md
+```
+
+A colon is an ordinary character in a name, so `%klippy:file%` works in a snippet and in
+another define's value exactly as any name does, and the count under the Settings box is of
+lines rather than names — three defines, however many of them share one.
 
 The rest of the rules:
 
-- **The bare name still answers** where a flavour is not defined. `%P:file%` against a
-  plain `pir=…` finds `pir`, so putting a qualifier on an item does not stop it working
-  with the defines that have no flavours. Add a bare `klippy=…` line if you want one of
-  them to be the answer when no flavour is asked for; without it, a plain `%P%` and a bare
-  `klippy` find nothing and the word is passed as typed.
-- **A flavour named at the prompt is taken at its word.** `r pir:file` looks for exactly
-  that, and passes `pir:file` as typed if it is not defined — Klippy does not quietly hand
-  back `pir` when you asked for one of its flavours.
+- **The bare name still answers** where a flavour cannot be found. `%P:file%` against a
+  plain `pir=…` finds `pir`, so putting a qualifier on an item never stops it working with
+  the defines that have only the one meaning.
+- **A flavour named at the prompt is taken at its word.** `r klippy:docs` looks for exactly
+  that, and passes `klippy:docs` as typed if nothing answers — Klippy does not quietly hand
+  back `klippy` when you asked for one of its flavours.
 - **A colon does not make a flavour.** `C:\temp` and `https://example.com` are looked up
-  whole, find nothing, and are passed as typed, under a `%P:file%` or not. A qualifier
-  carries no colon of its own, so where one ends is never a matter of opinion.
+  whole, find nothing, and are passed as typed, under a `%P:file%` or not: their tails are
+  no flavour Klippy knows. A qualifier carries no colon of its own, so where one ends is
+  never a matter of opinion.
 - **Where one `%P%` swallows the rest**, its flavour covers everything it swallows — the
   last placeholder takes every argument still unused, so they are all asked for on its
   terms.

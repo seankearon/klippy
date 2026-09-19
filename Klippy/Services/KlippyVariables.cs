@@ -30,17 +30,28 @@ public sealed class KlippyVariables
     /// <summary>The file Klippy looks for beside the snippets unless settings name another.</summary>
     public const string DefaultFileName = "klippy.vars";
 
-    private readonly Dictionary<string, string> _values;
+    private readonly Dictionary<string, string[]> _defines;
     private readonly DateTime _stamp;
     private readonly long _length;
 
-    private KlippyVariables(Dictionary<string, string> values, string filePath, bool exists, DateTime stamp, long length)
+    private KlippyVariables(Dictionary<string, string[]> defines, string filePath, bool exists, DateTime stamp, long length)
     {
-        _values = values;
+        _defines = defines;
         FilePath = filePath;
         Exists = exists;
         _stamp = stamp;
         _length = length;
+
+        int count = 0;
+        var effective = new Dictionary<string, string>(defines.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, values) in defines)
+        {
+            count += values.Length;
+            effective[name] = values[^1];
+        }
+
+        Count = count;
+        Values = effective;
     }
 
     /// <summary>The file these came from, whether or not it is there.</summary>
@@ -49,14 +60,25 @@ public sealed class KlippyVariables
     /// <summary>Whether that file exists. An empty file and a missing one both define nothing.</summary>
     public bool Exists { get; }
 
-    public int Count => _values.Count;
+    /// <summary>
+    /// How many defines the file holds — lines rather than names, since a name may be
+    /// given more than once and both lines are kept.
+    /// </summary>
+    public int Count { get; }
 
-    /// <summary>Names and their fully expanded values, for display and tests.</summary>
-    public IReadOnlyDictionary<string, string> Values => _values;
+    /// <summary>
+    /// Names and the value each one resolves to, for display and tests. One entry per
+    /// name: where a name is defined twice this is the line that answers for it.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Values { get; }
 
-    /// <summary>The value of <paramref name="name"/>, or null when it is not defined.</summary>
+    /// <summary>
+    /// The value of <paramref name="name"/>, or null when it is not defined. Where a name
+    /// is given more than once the last line wins, as it always has — a file read top to
+    /// bottom ends on the answer. <see cref="ValueOf"/> is what tells the others apart.
+    /// </summary>
     public string? Get(string name) =>
-        name.Length > 0 && _values.TryGetValue(name, out var value) ? value : null;
+        name.Length > 0 && _defines.TryGetValue(name, out var values) ? values[^1] : null;
 
     /// <summary>
     /// What a whole word stands for, or null when it stands for nothing: the lookup an
@@ -96,16 +118,78 @@ public sealed class KlippyVariables
             word = word[1..^1];
         }
 
-        // A word that names its own flavour is taken at it: "pir:file" is the whole name,
-        // and what the item would have asked for does not overrule what somebody typed.
-        // The same test keeps a Windows path out of this — "C:\temp" carries a colon
-        // without naming a flavour, and looking it up whole is the right answer anyway.
-        if (string.IsNullOrEmpty(qualifier) || word.Contains(':')) return Get(word);
+        // A flavour named in the word itself is taken at its word: what the item would
+        // have asked for does not overrule what somebody typed, and there is no falling
+        // back to the bare name from it either. It is also what keeps a Windows path out
+        // of trouble — the tail of "C:\temp" is no flavour Klippy knows, so the word is
+        // looked up whole and passed on as typed, which is the right answer anyway.
+        int colon = word.LastIndexOf(':');
+        if (colon >= 0) return Get(word) ?? OfFlavour(word[..colon], word[(colon + 1)..]);
+
+        if (string.IsNullOrEmpty(qualifier)) return Get(word);
 
         // The flavour asked for, then the bare name: putting a %P:file% on an item must
         // not stop it working with the defines that have no flavours at all.
-        return Get(word + ':' + qualifier) ?? Get(word);
+        return Get(word + ':' + qualifier) ?? OfFlavour(word, qualifier) ?? Get(word);
     }
+
+    /// <summary>
+    /// The define of <paramref name="name"/> that is a file, or the one that is a folder —
+    /// which is how a name given twice is told apart:
+    ///
+    /// <code>
+    /// klippy=D:\main\Klippy
+    /// klippy=D:\main\Klippy\Klippy.slnx
+    /// </code>
+    ///
+    /// Null for every other flavour. <c>file</c> and <c>folder</c> are the two Klippy can
+    /// work out for itself; anything else is a name you write out in full, as
+    /// <c>klippy:docs</c>, and <see cref="Get"/> finds that without help.
+    ///
+    /// Read off the value and not off the disk. A path whose last segment carries a dot
+    /// names a file and one that does not names a folder, which is how a person reading
+    /// the file tells them apart — and it costs no I/O on a keystroke, answers the same on
+    /// a machine where the checkout is not cloned yet, and cannot stall on a share that is
+    /// not there. Where that reading would be wrong — a file with no extension, a folder
+    /// with a dot in its name — say which is which in the file: an explicit
+    /// <c>klippy:file=…</c> is found first and settles it.
+    /// </summary>
+    private string? OfFlavour(string name, string flavour)
+    {
+        bool wantFile = string.Equals(flavour, FileFlavour, StringComparison.OrdinalIgnoreCase);
+        if (!wantFile && !string.Equals(flavour, FolderFlavour, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (name.Length == 0 || !_defines.TryGetValue(name, out var values)) return null;
+
+        foreach (var value in values)
+            if (NamesAFile(value) == wantFile) return value;
+
+        return null;
+    }
+
+    /// <summary>The two flavours a value can be read for. Everything else is written out in full.</summary>
+    private const string FileFlavour = "file";
+    private const string FolderFlavour = "folder";
+
+    /// <summary>
+    /// Whether a value names a file rather than a folder: a dot in its last segment.
+    /// Quotes come off first, since a value is kept exactly as it was written and a quoted
+    /// path is still a path, and so does a trailing separator, which is a folder however it
+    /// is spelled and is what a shell's tab-completion leaves behind.
+    /// </summary>
+    private static bool NamesAFile(string value)
+    {
+        var path = value.Trim();
+        if (path.Length >= 2 && path[0] == '"' && path[^1] == '"') path = path[1..^1].Trim();
+
+        path = path.TrimEnd('\\', '/');
+        int cut = path.LastIndexOfAny(PathSeparators);
+
+        return (cut < 0 ? path : path[(cut + 1)..]).Contains('.');
+    }
+
+    private static readonly char[] PathSeparators = { '\\', '/' };
 
     /// <summary>
     /// Replaces every <c>%name%</c> this file defines with its value. Everything else is
@@ -205,7 +289,7 @@ public sealed class KlippyVariables
 
     // ---- parsing ----
 
-    private static Dictionary<string, string> NewMap() => new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, string[]> NewMap() => new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// <c>name=value</c> per line; <c>#</c> and <c>;</c> start a whole-line comment. The
@@ -213,10 +297,14 @@ public sealed class KlippyVariables
     /// with spaces needs its quotes to survive into the shell you paste it at.
     /// A line that isn't a definition is skipped rather than rejected: one typo must not
     /// cost the rest of the file.
+    ///
+    /// A name given more than once keeps every line, in the order they were written. The
+    /// last of them is what the name means on its own; the others are reached by flavour —
+    /// see <see cref="ValueOf"/>.
     /// </summary>
-    private static Dictionary<string, string> ParseLines(string text)
+    private static Dictionary<string, List<string>> ParseLines(string text)
     {
-        var raw = NewMap();
+        var raw = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var rawLine in text.Split('\n'))
         {
             var line = rawLine.Trim();
@@ -228,7 +316,8 @@ public sealed class KlippyVariables
             var name = line[..eq].TrimEnd();
             if (!IsUsableName(name)) continue;
 
-            raw[name] = line[(eq + 1)..].TrimStart();
+            if (!raw.TryGetValue(name, out var values)) raw[name] = values = new List<string>(1);
+            values.Add(line[(eq + 1)..].TrimStart());
         }
         return raw;
     }
@@ -258,18 +347,23 @@ public sealed class KlippyVariables
     /// written for this, whereas a snippet may have contained <c>%TEMP%</c> since long
     /// before Klippy had variables and must keep meaning what it says.
     /// </summary>
-    private static Dictionary<string, string> Resolve(Dictionary<string, string> raw)
+    private static Dictionary<string, string[]> Resolve(Dictionary<string, List<string>> raw)
     {
-        var resolved = new Dictionary<string, string>(raw.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, value) in raw)
+        var resolved = new Dictionary<string, string[]>(raw.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, values) in raw)
         {
-            var open = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { name };
-            resolved[name] = ResolveValue(value, raw, open);
+            var expanded = new string[values.Count];
+            for (int i = 0; i < values.Count; i++)
+            {
+                var open = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { name };
+                expanded[i] = ResolveValue(values[i], raw, open);
+            }
+            resolved[name] = expanded;
         }
         return resolved;
     }
 
-    private static string ResolveValue(string value, Dictionary<string, string> raw, HashSet<string> open) =>
+    private static string ResolveValue(string value, Dictionary<string, List<string>> raw, HashSet<string> open) =>
         Expand(value, name =>
         {
             // A name already being expanded is a cycle, so it does not resolve against the
@@ -279,7 +373,8 @@ public sealed class KlippyVariables
             if (!open.Contains(name) && raw.TryGetValue(name, out var inner))
             {
                 open.Add(name);
-                var expanded = ResolveValue(inner, raw, open);
+                // The line the name means on its own, as Get reads it.
+                var expanded = ResolveValue(inner[^1], raw, open);
                 open.Remove(name);
                 return expanded;
             }

@@ -263,8 +263,14 @@ public static class ExecutionPolicy
             if (parts.Count == 0 || parts[0].Length == 0) return Nothing("There is nothing to run.");
         }
 
-        var command = parts[0];
-        var rest = parts.GetRange(1, parts.Count - 1).ToArray();
+        // Quotes come off here, the last stop before the process. A typed argument lost
+        // its pair when the line was split, and one that arrived through a variable or a
+        // %C% must not be left carrying one the program would read as part of the name:
+        // ArgumentList puts back whatever quoting the OS needs. A value written as
+        // klippy="D:\main\Klippy" is the way a path meant for a shell is written, and
+        // that same value still copies with its quotes intact.
+        var command = Unquote(parts[0]);
+        var rest = parts.GetRange(1, parts.Count - 1).ConvertAll(Unquote).ToArray();
 
         // Something carrying a scheme is not a path, whatever it happens to end in:
         // file:///C:/Windows/System32/cmd.exe names an .exe without being one, and
@@ -326,6 +332,20 @@ public static class ExecutionPolicy
 
         return Nothing($"\"{Ellipsis(command)}\" is not a URL, an application or a script Klippy can run.");
     }
+
+    /// <summary>
+    /// Takes off a pair of double quotes wrapping a whole word — a path pasted from
+    /// Explorer's <b>Copy as path</b>, or a value written the way one meant for a shell
+    /// is written. By the time either lands here it is one argument already, which is
+    /// what the quotes were for.
+    ///
+    /// Both quotes or neither: an unmatched one is a half-finished paste, and guessing at
+    /// it would be worse than leaving it alone. Nothing is lost by taking a matched pair
+    /// off, since a Windows path cannot contain a double quote at all — the same fact the
+    /// refusals above rest on, and they still refuse a quote anywhere else.
+    /// </summary>
+    public static string Unquote(string text) =>
+        text.Length >= 2 && text[0] == '"' && text[^1] == '"' ? text[1..^1].Trim() : text;
 
     /// <summary>
     /// Whether text has any chance of running: its first word is a URL, a script this
