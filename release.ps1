@@ -136,6 +136,16 @@ $macSigningConfigured = -not ($macSigningKeys | Where-Object {
     [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value)
 })
 
+# Android signing is optional too (the SDK falls back to its debug key), and mirrored for
+# the same reason: so the plan below can name the key the APK will actually carry.
+$androidSigningKeys = @(
+    'AndroidSigning__KeyStore', 'AndroidSigning__KeyStorePassword',
+    'AndroidSigning__KeyAlias', 'AndroidSigning__KeyPassword'
+)
+$androidSigningConfigured = -not ($androidSigningKeys | Where-Object {
+    [string]::IsNullOrWhiteSpace((Get-Item "env:$_" -ErrorAction SilentlyContinue).Value)
+})
+
 # --- what is about to happen -----------------------------------------------
 
 # Displayed so the prompt can name a version. Klippy.Build computes this itself and is
@@ -170,13 +180,19 @@ else {
     if ($macSigningConfigured) {
         Write-Host "                macOS bundles Developer ID signed and notarized"
     }
+    if ($androidSigningConfigured) {
+        Write-Host "                APK signed with the release keystore"
+    }
     Write-Host ''
     if (-not $macSigningConfigured) {
         Write-Warn 'The macOS disk images are ad-hoc signed: every other Mac will show Apple''s'
         Write-Warn '"could not verify" dialog. Add the MacSigning__* keys to shine.env to fix that.'
     }
-    Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
-    Write-Warn 'properly-signed build will refuse to install over it.'
+    if (-not $androidSigningConfigured) {
+        Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
+        Write-Warn 'properly-signed build will refuse to install over it. Add the'
+        Write-Warn 'AndroidSigning__* keys to shine.env to fix that.'
+    }
 
     if (-not $AndroidAot) {
         Write-Warn 'The APK is built without Mono AOT, so it starts more slowly than it should.'

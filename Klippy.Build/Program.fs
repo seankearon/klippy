@@ -227,6 +227,74 @@ Set all of {String.Join(", ", Required)} in {ShineEnv.Path}, or none of them for
             mac["NotaryAppPassword"]      <- JsonValue.Create(value AppPassword)
             Write.line "Added Developer ID signing and notarization to the macOS settings"
 
+/// Release signing for the Android APK.
+///
+/// Parcel has nothing to do with the APK: the Android SDK signs it during packaging, so
+/// all this does is tell MSBuild which key to use. With nothing configured the SDK falls
+/// back to its shared debug key - which installs by sideloading, but is the same key on
+/// every machine that ever built an Android app, so it proves nothing about who built
+/// this APK and no store will take it. Worse, it is a one-way door for whoever installed
+/// it: Android refuses an update signed by a different key, so a debug-key install has
+/// to be uninstalled by hand before a properly signed build will go on.
+///
+/// Optional and coherent, like MacSigning: all four keys or none, a partial set being a
+/// typo worth catching in Verify rather than after the slow packaging stages. Both
+/// passwords are named separately because the SDK has two properties for them, but
+/// keytool's default PKCS12 format has only one password: for a keystore made the way
+/// the error below suggests, KeyStorePassword and KeyPassword hold the same value.
+///
+/// The values are passed as environment variables on the publish process rather than as
+/// -p: properties, because MSBuild reads the environment as properties anyway and
+/// startInfoFor logs every command line it runs - a password given as -p: would be
+/// printed to the console and into any captured build log.
+///
+/// The keystore itself stays out of the repo, beside the macOS P12: losing it means
+/// never being able to update an installed Klippy again, which is a reason to back it up
+/// somewhere durable, not a reason to commit it.
+module AndroidSigning =
+    let KeyStore    = "AndroidSigning__KeyStore"
+    let StorePass   = "AndroidSigning__KeyStorePassword"
+    let KeyAlias    = "AndroidSigning__KeyAlias"
+    let KeyPass     = "AndroidSigning__KeyPassword"
+
+    let Required = [ KeyStore; StorePass; KeyAlias; KeyPass ]
+
+    /// True when the APK should be signed with the release key.
+    let isConfigured () = Required |> List.forall (setting >> Option.isSome)
+
+    let ensureConfigurationIsCoherent () =
+        match Required |> List.filter (setting >> Option.isNone) with
+        | [] ->
+            let store = setting KeyStore |> Option.get
+
+            if not (File.Exists store) then
+                failwith
+                    $"""The Android keystore {KeyStore} points at {store}, which does not exist.
+Create it with:
+    keytool -genkeypair -v -keystore "{store}" -alias <alias> -keyalg RSA -keysize 4096 -validity 10000"""
+
+            Write.line "Android signing configuration present (release keystore)"
+        | missing when missing.Length = Required.Length ->
+            Write.line "WARNING: no Android signing configuration - the APK will be signed with the debug key."
+        | missing ->
+            failwith
+                $"""Android signing configuration is incomplete: {String.Join(", ", missing)} missing.
+Set all of {String.Join(", ", Required)} in {ShineEnv.Path}, or none of them to sign with the debug key."""
+
+    /// Adds the signing properties to a publish process, and only there. Left alone when
+    /// nothing is configured, so the Android SDK's debug-key default applies.
+    ///
+    /// AndroidKeyStore is the switch: without it set to true the SDK ignores the other
+    /// three entirely and signs with the debug key regardless.
+    let addTo (si: ProcessStartInfo) =
+        if isConfigured () then
+            let value name = setting name |> Option.defaultValue ""
+            si.EnvironmentVariables["AndroidKeyStore"]          <- "true"
+            si.EnvironmentVariables["AndroidSigningKeyStore"]   <- Path.GetFullPath(value KeyStore)
+            si.EnvironmentVariables["AndroidSigningStorePass"]  <- value StorePass
+            si.EnvironmentVariables["AndroidSigningKeyAlias"]   <- value KeyAlias
+            si.EnvironmentVariables["AndroidSigningKeyPass"]    <- value KeyPass
+
 /// Azure Trusted Signing (formerly Azure Code Signing).
 ///
 /// Parcel does the signing itself - the app exe, the NSIS uninstaller and the installer,
@@ -346,6 +414,13 @@ let parcel (args: string list) =
 
     cmdInRedirectingWith RepoFolder "parcel" (String.Join(" ", args)) configure true
 
+// --- dotnet ----------------------------------------------------------------
+
+/// `dotnet` with the Android signing key in the child environment, for the one publish
+/// that packages an APK. See AndroidSigning for why the environment and not -p:.
+let dotnetSigned (args: string list) =
+    cmdInRedirectingWith RepoFolder "dotnet" (String.Join(" ", args)) AndroidSigning.addTo true
+
 // --- github ----------------------------------------------------------------
 
 let gh = cmd "gh"
@@ -388,7 +463,8 @@ let buildKlippy () =
 
             ShineEnv.load ()
             AzureSigning.ensureCredentialsArePresent ()
-            MacSigning.ensureConfigurationIsCoherent ())
+            MacSigning.ensureConfigurationIsCoherent ()
+            AndroidSigning.ensureConfigurationIsCoherent ())
 
         stage "Update" (fun () ->
             workingDir RepoFolder
@@ -435,11 +511,17 @@ let buildKlippy () =
         stage "Version" (fun () ->
             Write.line $"Building version {version}"
 
+            // Company is the signing identity, not the author, and deliberately so: it is
+            // the name SmartScreen and the UAC prompt put in front of someone who has just
+            // downloaded an installer from a publisher they have no reputation for. Those
+            // dialogs read it off the Authenticode certificate, so anything else here gives
+            // a cautious user two unrelated names to reconcile - Explorer's Details tab
+            // saying one thing and the signature another. Copyright stays with the author.
             createDirectoryBuildPropsFile PropsFile {
                 Product     = "Klippy"
                 Version     = version
                 Title       = "Klippy"
-                Company     = "Sean Kearon"
+                Company     = "Atlantic Business Solutions Ltd"
                 Description = "Snippet launcher and clipboard history."
                 Copyright   = $"Sean Kearon {DateTime.Now.Year}"
             }
@@ -527,7 +609,7 @@ let buildKlippy () =
 
             let publishDir = OutDir +/ AndroidAbi
 
-            dotnet [
+            dotnetSigned [
                 "publish"; doubleQuote AndroidProject
                 "--configuration Release"
                 $"-p:RuntimeIdentifier={AndroidAbi}"
@@ -562,15 +644,16 @@ let buildKlippy () =
                 copyFile source target
                 Write.line $"Copied {Path.GetFileName source} to {Path.GetFileName target} ({FileInfo(target).Length / 1024L / 1024L} MB)"
 
-                // Not a warning the build can act on, but one nobody should discover from a
-                // user: with no keystore in the repo the Android SDK falls back to its shared
-                // debug key, and a later properly-signed build will refuse to install over it.
-                let hasKeystore =
-                    File.ReadAllText(AndroidProject).Contains "AndroidSigningKeyStore"
-
-                if not hasKeystore then
+                // Said either way, because which key signed a published APK is not
+                // something to have to infer later: the choice is invisible in the file
+                // name and decides whether anyone can ever update their install.
+                if AndroidSigning.isConfigured () then
+                    Write.line "Signed with the release keystore."
+                else
                     Write.line "WARNING: the APK is signed with the Android debug key (no keystore configured)."
-                    Write.line "         It installs by sideloading, but is not fit for wider distribution.")
+                    Write.line "         It installs by sideloading, but is not fit for wider distribution."
+                    let keys = String.Join(", ", AndroidSigning.Required)
+                    Write.line $"         Set {keys} in {ShineEnv.Path} to sign it.")
 
         stage "Revert Generated Files" (fun () ->
             workingDir RepoFolder

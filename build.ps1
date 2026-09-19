@@ -195,13 +195,17 @@ if ($Android) {
     Write-Ok "size     : $([math]::Round($apk.Length / 1MB, 1)) MB"
     Write-Ok "duration : $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1))s"
 
-    # No keystore is configured anywhere in the repo, so the Android SDK falls back to
-    # its shared debug key. Fine for sideloading; not distributable, and a later
-    # release-signed build will refuse to install over it.
-    $signingConfigured = Select-String -Path (Join-Path $root 'Klippy.Android\Klippy.Android.csproj') `
-        -Pattern 'AndroidSigningKeyStore' -Quiet -ErrorAction SilentlyContinue
-    if (-not $signingConfigured) {
-        Write-Warn 'Signed with the Android debug key (no keystore configured) - sideload only.'
+    # Development builds sign with the Android SDK's shared debug key. The release
+    # keystore lives outside the repo, in shine.env, and only release.ps1 reads it -
+    # the one place that publishes an APK. MSBuild takes its signing properties from the
+    # environment too, though, so a shell that has set them signs for real here as well.
+    # Reported either way: the file name looks identical whichever key was used.
+    if ($env:AndroidKeyStore -eq 'true' -and $env:AndroidSigningKeyStore) {
+        Write-Ok "Signed with $($env:AndroidSigningKeyStore)"
+    }
+    else {
+        Write-Warn 'Signed with the Android debug key - sideload only, and a later'
+        Write-Warn 'release-signed build will refuse to install over it. Use release.ps1 to publish.'
     }
 
     if ($Install) {
