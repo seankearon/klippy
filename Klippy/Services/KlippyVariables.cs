@@ -6,9 +6,10 @@ using System.Text;
 namespace Klippy.Services;
 
 /// <summary>
-/// Local defines a snippet expands on copy, so one snippet can work on two machines:
-/// <c>%ws% C:\src\shine</c> copies as the real WebStorm command line because this
-/// machine's <c>klippy.vars</c> says what <c>ws</c> is.
+/// Local defines a snippet expands on its way to the clipboard or to a process, so one
+/// snippet can work on two machines: <c>%ws% C:\src\shine</c> copies as — and runs as —
+/// the real WebStorm command line because this machine's <c>klippy.vars</c> says what
+/// <c>ws</c> is.
 ///
 /// The file is a plain list of <c>name=value</c> lines, hand-edited, and deliberately
 /// *not* part of the snippet store: paths are the one thing that cannot be shared
@@ -218,9 +219,18 @@ public sealed class KlippyVariables
     /// exactly as <c>%LOCALAPPDATA%</c> names a folder — one rule for what a percent pair
     /// in a path means, rather than two that disagree. Copying keeps the narrower rule:
     /// see <see cref="Resolve"/> for why a snippet's own text never reads the environment.
+    ///
+    /// <see cref="EnvironmentProbe.ExpandDefines"/> comes with it, since the run path
+    /// gives an argument the file's own names and not the machine's. It is
+    /// <see cref="Expand(string?)"/> itself rather than something like it, so an argument
+    /// that runs and the same argument copied can never answer differently.
     /// </summary>
     public EnvironmentProbe Ahead(EnvironmentProbe machine) =>
-        machine with { Value = name => Get(name) ?? machine.Value(name) };
+        machine with
+        {
+            Value = name => Get(name) ?? machine.Value(name),
+            ExpandDefines = Expand,
+        };
 
     // ---- where the file is ----
 

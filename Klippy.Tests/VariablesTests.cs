@@ -764,18 +764,108 @@ public class VariablesTests
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
     }
 
+    /// <summary>
+    /// What pressing Enter on <paramref name="text"/> would run, with
+    /// <paramref name="vars"/> in front of a machine that is described rather than
+    /// inhabited — <paramref name="machine"/> for the tests that need it to know a name.
+    /// </summary>
+    private static ExecutionPlan Run(
+        string text,
+        KlippyVariables vars,
+        string? clipboardText = null,
+        EnvironmentProbe? machine = null) =>
+        ExecutionPolicy.Plan(
+            text,
+            clipboardText: clipboardText,
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(machine ?? new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
     [Fact]
     public void Execute_ResolvesAVariableInTheFirstWord()
     {
         // The issue's own example: "%ws% <some folder>" opens that folder in WebStorm.
-        var vars = Vars("ws=C:\\tools\\webstorm64.exe");
-        var plan = ExecutionPolicy.Plan(
-            "%ws% D:\\src\\shine",
-            platform: ExecutionPlatform.Windows,
-            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+        var plan = Run("%ws% D:\\src\\shine", Vars("ws=C:\\tools\\webstorm64.exe"));
 
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
         Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ResolvesADefineInAnArgumentToo()
+    {
+        // The line the variables page opens with, marked Execute rather than copied. The
+        // file says where the source lives and the item says which folder under it, and
+        // nothing downstream has ever heard of klippy.vars — an unresolved %src% would
+        // reach WebStorm as a path with percent signs in the middle of it.
+        var plan = Run("%ws% %src%\\shine", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"));
+
+        Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_LeavesTheMachinesOwnNamesInAnArgument()
+    {
+        // The half that does not change, and the reason it does not: a child process
+        // inherits the environment and can read %TEMP% for itself, so the argument reaches
+        // it meaning what it says. The first word still resolves against the machine.
+        var machine = new EnvironmentProbe(
+            name => name == "TEMP" ? "C:\\Temp" : null, () => "C:\\Users\\sam");
+
+        var plan = Run("%ws% %TEMP%\\build", Vars("ws=C:\\tools\\webstorm64.exe"), machine: machine);
+
+        Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
+        Assert.Equal(new[] { "%TEMP%\\build" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ADefineWrittenIntoAnArgument_IsStillOneArgumentWhenItHasASpace()
+    {
+        // It resolves per word, after the line has been split, so the space inside the
+        // value is not a place the line could have come apart.
+        var plan = Run(
+            "%ws% %src%\\shine", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\my src"));
+
+        Assert.Equal(new[] { "D:\\my src\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_DoesNotReadAMacroValueForADefine()
+    {
+        // Defines resolve before the macros are filled, which is the whole of the order:
+        // what arrives through a %C% is a value the machine handed over, and a value is
+        // never re-read for names. A clipboard holding "%src%\x" keeps its middle.
+        var plan = Run(
+            "%ws% %C%",
+            Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"),
+            clipboardText: "%src%\\shine");
+
+        Assert.Equal(new[] { "%src%\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ABatFile_StillRefusesADefineWrittenIntoItsArguments()
+    {
+        // The refusal reads the value that is about to be passed, so resolving the name
+        // first hands cmd.exe nothing it would not have been handed before.
+        var plan = Run("deploy.bat %bad%\\x", Vars("bad=a&b"));
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Contains("cannot be passed", plan.Problem);
+    }
+
+    [AvaloniaFact]
+    public void Execute_AndCopy_ReadTheSameArgumentTheSameWay()
+    {
+        // A snippet cannot mean two things depending on which key was pressed.
+        const string content = "%ws% %src%\\shine";
+        const string varsText = "ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src";
+
+        var plan = Run(content, Vars(varsText));
+
+        Assert.Equal(
+            CopyFirst(new Snippet { Label = "Open shine", Content = content }, varsText),
+            plan.Target + " " + string.Join(" ", plan.Arguments));
     }
 
     // ---- the file on disk ----

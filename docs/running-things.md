@@ -60,14 +60,19 @@ without it `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe` is a folder wit
 signs in its name and the launch fails on a path that plainly exists.
 
 A name that does not resolve is left exactly as written, so it stays a string naming
-nothing rather than quietly becoming a path with a hole in the middle of it. Two things it
-deliberately does **not** touch:
+nothing rather than quietly becoming a path with a hole in the middle of it. Two things
+the machine's names deliberately do **not** reach:
 
-- **Arguments.** Only the first word resolves. An argument keeps its percent signs, so the
-  `.bat` refusal below still sees what `cmd.exe` would see, and a child process inherits
-  the environment and can read its own `%APPDATA%` anyway. A whole argument that *is* the
-  name of a [local define](variables.md#variables-as-arguments) is the one exception — the file's own
-  names, never the machine's, so typing `path` gets you the word `path`.
+- **Arguments.** Only the first word resolves *against the machine*. An argument keeps its
+  percent signs, so the `.bat` refusal below still sees what `cmd.exe` would see, and a
+  child process inherits the environment and can read its own `%APPDATA%` anyway.
+  Klippy's own [defines](variables.md) are not in that boat — nothing downstream has ever
+  heard of `klippy.vars`, so an unresolved `%pir%` would arrive as a path with percent
+  signs in the middle of it, naming nothing. Those resolve in every word, exactly as
+  copying the same line has always done. A whole argument *typed* after a quick-code is
+  the third case, and [names a define](variables.md#variables-as-arguments) rather than
+  containing one: the file's own names, never the machine's, so typing `path` gets you the
+  word `path`.
 - **A macro's value.** `%C%` holding a path with a `%VAR%` in it is left as it stands: a
   macro's value is data rather than more text to read, the same rule that keeps it from
   becoming a second command. It also means a clipboard holding `C:\100%discount%off\tool.exe`
@@ -80,7 +85,9 @@ launcher should not disagree about what a variable means.
 Klippy's own [variables file](variables.md) sits in front of the machine here:
 a name defined in `klippy.vars` answers first, and the environment answers everything else.
 So `%ws%` names WebStorm on this machine with no environment variable to set, and
-`%LOCALAPPDATA%` keeps working exactly as above.
+`%LOCALAPPDATA%` keeps working exactly as above. It also reaches further than the machine
+does — a define resolves in an argument as well as in the first word, so
+`%ws% %src%\shine` runs as the line it copies as.
 
 ## Macros
 

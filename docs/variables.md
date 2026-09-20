@@ -57,7 +57,7 @@ Variables resolve **before** [macros](running-things.md#macros), on both routes:
 | Route | What resolves |
 |---|---|
 | **Copy** | Variables over the whole text, then `%C%` and `%P%` |
-| **Execute** | Variables and [environment variables](running-things.md#environment-variables) over the first word, then `%C%` and `%P%` |
+| **Execute** | Variables over the whole line, [environment variables](running-things.md#environment-variables) over the first word, then `%C%` and `%P%` |
 | **Either** | A typed argument that [names one](#variables-as-arguments), as the line is read — before it fills a `%P%` |
 
 That order is the point rather than an accident: `%ws%` is a name the item asked to have
@@ -72,6 +72,14 @@ so `%ws%` names WebStorm there the way `%LOCALAPPDATA%` names a folder — on a 
 and on a line [typed into the search box](unmatched-search.md) alike, since two
 routes to the same launcher should not disagree about what a name means. Where the file and
 the environment both define one, the file wins: being the local answer is what it is for.
+
+The one place the two part company is an **argument**. The machine's names resolve in the
+first word only, because a child process inherits the environment and can read its own
+`%APPDATA%` anyway — so `%TEMP%\build` reaches a script meaning what it says, and the
+[`.bat` refusal](running-things.md#what-running-something-will-not-do) goes on seeing what
+`cmd.exe` would see. Nothing downstream has ever heard of `klippy.vars`, so a define has no
+such second chance: `%z% %pir%\notes.txt` resolves `%pir%` where it stands, exactly as
+copying the same line has always done. One snippet, one meaning, whichever key you press.
 
 The row itself keeps showing `%ws%`, with only its typed arguments filled in. Unlike a
 `%P%`, whose value you have just typed and want to check, a variable's value is the same
@@ -105,7 +113,10 @@ The rule is deliberately narrow:
   to mention one, and keeps its percent signs exactly as it always has — which is what lets
   a `%TEMP%\build` reach a script meaning what it says. Only a word that *is* the name is
   looked up, written bare or in full as `%pir%`: with nothing either side of it there is
-  nothing to delimit it from, so the two read the same.
+  nothing to delimit it from, so the two read the same. An *item* whose own text says
+  `%src%\shine` is the other case entirely, and does resolve: an item's text is something
+  you authored, while a word typed at the prompt is data — and data is only ever read for
+  a name it plainly *is*.
 - **The file's names, never the machine's.** `%PATH%` has no business arriving as an
   argument because somebody typed `path`. The environment answers for a *value* in the file
   and for the first word of something you run; an argument is neither.
