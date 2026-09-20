@@ -111,6 +111,18 @@ let copyFilesTo (targetFolder: string) (sourceFolder: string) =
     Directory.GetFiles(source, "*", SearchOption.TopDirectoryOnly)
     |> Array.iter (fun file -> copyFile file (target +/ Path.GetFileName file))
 
+/// Copies a folder and everything beneath it. copyFilesTo above is deliberately
+/// top-level only, and a generated site is a tree.
+let rec copyFolderTo (targetFolder: string) (sourceFolder: string) =
+    let source = Path.GetFullPath sourceFolder
+    let target = Path.GetFullPath targetFolder |> ensureFolder
+
+    Directory.GetFiles(source, "*", SearchOption.TopDirectoryOnly)
+    |> Array.iter (fun file -> copyFile file (target +/ Path.GetFileName file))
+
+    Directory.GetDirectories source
+    |> Array.iter (fun dir -> copyFolderTo (target +/ Path.GetFileName dir) dir)
+
 let clean (path: string) =
     if Directory.Exists path then Directory.Delete(path, recursive = true)
 

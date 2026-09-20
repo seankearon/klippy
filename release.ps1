@@ -37,6 +37,12 @@
     slow Windows and macOS packaging, but before anything is published. The APK is
     identical bar a slower cold start. Pass this once the workload is fixed.
 
+.PARAMETER NoDocs
+    Releases without building or publishing the documentation. For a machine that has no
+    Zensical installed; the published site then stays at whatever the last release left
+    behind. Without this, a broken link in the docs stops the release before anything is
+    built, signed or tagged.
+
 .EXAMPLE
     .\release.ps1
     Releases the next patch version after prompting for confirmation.
@@ -61,7 +67,10 @@ param(
     [switch] $Force,
 
     # Build the APK with Mono AOT. See .PARAMETER AndroidAot above.
-    [switch] $AndroidAot
+    [switch] $AndroidAot,
+
+    # Release without building or publishing the docs. See .PARAMETER NoDocs above.
+    [switch] $NoDocs
 )
 
 $ErrorActionPreference = 'Stop'
@@ -222,6 +231,7 @@ $buildArgs = @('run', '--project', (Join-Path $root 'Klippy.Build'), '-c', 'Rele
 if (-not $DryRun) { $buildArgs += 'release' }
 if ($Version) { $buildArgs += "version:$Version" }
 if (-not $AndroidAot) { $buildArgs += 'android-no-aot' }
+if ($NoDocs) { $buildArgs += 'nodocs' }
 
 Write-Step "Running the build$(if ($DryRun) { ' (dry run)' })"
 Write-Host "    dotnet $($buildArgs -join ' ')" -ForegroundColor DarkGray

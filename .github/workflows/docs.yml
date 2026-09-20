@@ -1,0 +1,48 @@
+name: Documentation
+
+# Validation only. The site is built and published from a release machine by
+# release.ps1, which force-pushes it to the gh-pages branch that GitHub Pages
+# serves -- see the Publish Docs stage in the build. This workflow exists to
+# catch a broken link in a pull request, before it can fail somebody's release.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'overrides/**'
+      - 'zensical.toml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'overrides/**'
+      - 'zensical.toml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      # Keep this pin in step with whatever the release machines run, or CI will
+      # pass on a version the release then fails on.
+      - name: Install Zensical
+        run: pip install 'zensical==0.0.63'
+
+      # --strict is the point: a broken link or unresolved anchor fails the job.
+      - name: Build
+        run: zensical build --clean --strict
