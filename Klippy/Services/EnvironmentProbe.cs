@@ -35,6 +35,24 @@ public sealed partial record EnvironmentProbe(Func<string, string?> Value, Func<
         Environment.GetEnvironmentVariable,
         () => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
+    /// <summary>
+    /// Klippy's own <see cref="KlippyVariables">defines</see> over a whole string, which
+    /// is what an <em>argument</em> is resolved with where <see cref="Expand"/> is what
+    /// the first word gets. The machine is deliberately not part of it: an argument's
+    /// <c>%TEMP%</c> stays the user's own, because a child process inherits the
+    /// environment and can read it for itself and the <c>.bat</c> refusal has to go on
+    /// seeing what <c>cmd.exe</c> would see. Nothing downstream has ever heard of
+    /// <c>klippy.vars</c>, so there is no such reason to leave one of those as written:
+    /// it would reach the program as a path with percent signs in the middle of it,
+    /// naming nothing.
+    ///
+    /// The identity on a probe that is only the machine — nothing is defined, so nothing
+    /// is replaced. <see cref="KlippyVariables.Ahead"/> is what fills it in, and fills it
+    /// in with the very expansion a copy of the same line gets, so one snippet cannot
+    /// come to mean two things depending on which key was pressed.
+    /// </summary>
+    public Func<string, string> ExpandDefines { get; init; } = static text => text;
+
     public string Expand(string text)
     {
         if (text.Length == 0) return text;

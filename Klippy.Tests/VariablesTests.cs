@@ -557,6 +557,121 @@ public class VariablesTests
             PlanFor("%r% %P:folder%", "r klippy", vars).Arguments);
     }
 
+    // ---- an item may name the flavour too ----
+    //
+    // The other side of %P:folder%: a word the item wrote itself, rather than one somebody
+    // typed at it. "%z% %pir:folder%\\notes.txt" says which of two lines it means without
+    // depending on which order the file happens to be in.
+
+    private const string TwoBarePir =
+        "z=C:\\Zed.exe\n" +
+        "pir=D:\\shine\\Pirform\\Pirform.slnx\n" +
+        "pir=D:\\shine\\Pirform";
+
+    [Fact]
+    public void ASnippet_MayNameAFlavourOfADefinedName()
+    {
+        var vars = Vars(TwoBarePir);
+
+        Assert.Equal("C:\\Zed.exe D:\\shine\\Pirform\\notes.txt",
+            vars.Expand("%z% %pir:folder%\\notes.txt"));
+        Assert.Equal("C:\\Zed.exe D:\\shine\\Pirform\\Pirform.slnx",
+            vars.Expand("%z% %pir:file%"));
+    }
+
+    [Fact]
+    public void Execute_ASnippetsOwnFlavour_ReachesTheProcess()
+    {
+        // End to end over the ask, on the route that was reporting the trouble: the
+        // argument resolves, and it resolves to the line that is a folder.
+        var plan = Run("%z% %pir:folder%\\notes.txt", Vars(TwoBarePir));
+
+        Assert.Equal("C:\\Zed.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\shine\\Pirform\\notes.txt" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void AnExplicitFlavourDefine_IsStillFoundFirst()
+    {
+        // Saying it in the file settles it, which is the whole point of being able to —
+        // a folder with a dot in its name would be read as a file otherwise.
+        var vars = Vars(TwoBarePir + "\npir:folder=D:\\shine\\node_modules.bak");
+
+        Assert.Equal("D:\\shine\\node_modules.bak", vars.Expand("%pir:folder%"));
+    }
+
+    [Fact]
+    public void AFlavourKlippyCannotWorkOut_IsLeftAsWritten()
+    {
+        // file and folder are the two it can read off a value. Anything else is a name
+        // you write out in full, and until you do it names nothing.
+        var vars = Vars(TwoBarePir);
+
+        Assert.Equal("%pir:docs%", vars.Expand("%pir:docs%"));
+        Assert.Equal("%nothing:folder%", vars.Expand("%nothing:folder%"));
+
+        // And no quiet fall back to the bare name: an item that asked for one of a name's
+        // flavours has said which line it wants, exactly as a prompt saying so has.
+        Assert.Equal("%plain:file%", Vars("plain=D:\\shine").Expand("%plain:file%"));
+    }
+
+    [Fact]
+    public void AColonInASnippet_IsNotAFlavourByItself()
+    {
+        // The tail of a path is no flavour Klippy knows, and a name with no colon in it is
+        // read exactly as it was before an item could ask for one at all.
+        var vars = Vars(TwoBarePir);
+
+        Assert.Equal("%C:\\temp%", vars.Expand("%C:\\temp%"));
+        Assert.Equal("D:\\shine\\Pirform", vars.Expand("%pir%"));
+        Assert.Equal("50% off, 100% focus", vars.Expand("50% off, 100% focus"));
+    }
+
+    [Fact]
+    public void AFileDefiningP_StillDoesNotSwallowAQualifiedMacro()
+    {
+        // %P:file% is the item's placeholder, and looking a flavour up is exactly the
+        // shape that could have started reading it as one.
+        var vars = Vars("p=C:\\nope\np:file=C:\\also-nope\nc=C:\\still-nope");
+
+        Assert.Equal("%P:file% %P% %C%", vars.Expand("%P:file% %P% %C%"));
+    }
+
+    [Fact]
+    public void AValue_MayNameAFlavourOfAnotherName()
+    {
+        // The file is read for flavours as it loads as well as after it has: a name looked
+        // up one way here and another way in a snippet would be the worst of both.
+        var vars = Vars(TwoBarePir + "\nnotes=%pir:folder%\\notes.txt");
+
+        Assert.Equal("D:\\shine\\Pirform\\notes.txt", vars.Get("notes"));
+    }
+
+    [Fact]
+    public void AValue_NamingAFlavourOfItself_IsStillACycle()
+    {
+        // The cycle guard is on the bare name, so asking a name for one of its own
+        // flavours while that name is being read finds nothing rather than recurring.
+        var vars = Vars("pir=D:\\shine\\Pirform\npir=%pir:folder%\\sub");
+
+        Assert.Equal("%pir:folder%\\sub", vars.Get("pir"));
+    }
+
+    [Fact]
+    public void AValue_NamingAFlavour_IsJudgedOnWhatTheLineResolvesTo()
+    {
+        // Which line is the file is read off the value as it will stand, so a define
+        // spelled through another one is still sorted correctly.
+        var vars = Vars(
+            "root=D:\\shine\n" +
+            "pir=%root%\\Pirform\\Pirform.slnx\n" +
+            "pir=%root%\\Pirform\n" +
+            "notes=%pir:folder%\\notes.txt");
+
+        Assert.Equal("D:\\shine\\Pirform\\notes.txt", vars.Get("notes"));
+        Assert.Equal("D:\\shine\\Pirform\\Pirform.slnx", vars.ValueOf("pir:file"));
+    }
+
     // ---- an item that says its argument is never a name ----
 
     [AvaloniaFact]
@@ -764,18 +879,108 @@ public class VariablesTests
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
     }
 
+    /// <summary>
+    /// What pressing Enter on <paramref name="text"/> would run, with
+    /// <paramref name="vars"/> in front of a machine that is described rather than
+    /// inhabited — <paramref name="machine"/> for the tests that need it to know a name.
+    /// </summary>
+    private static ExecutionPlan Run(
+        string text,
+        KlippyVariables vars,
+        string? clipboardText = null,
+        EnvironmentProbe? machine = null) =>
+        ExecutionPolicy.Plan(
+            text,
+            clipboardText: clipboardText,
+            platform: ExecutionPlatform.Windows,
+            environment: vars.Ahead(machine ?? new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
     [Fact]
     public void Execute_ResolvesAVariableInTheFirstWord()
     {
         // The issue's own example: "%ws% <some folder>" opens that folder in WebStorm.
-        var vars = Vars("ws=C:\\tools\\webstorm64.exe");
-        var plan = ExecutionPolicy.Plan(
-            "%ws% D:\\src\\shine",
-            platform: ExecutionPlatform.Windows,
-            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+        var plan = Run("%ws% D:\\src\\shine", Vars("ws=C:\\tools\\webstorm64.exe"));
 
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
         Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ResolvesADefineInAnArgumentToo()
+    {
+        // The line the variables page opens with, marked Execute rather than copied. The
+        // file says where the source lives and the item says which folder under it, and
+        // nothing downstream has ever heard of klippy.vars — an unresolved %src% would
+        // reach WebStorm as a path with percent signs in the middle of it.
+        var plan = Run("%ws% %src%\\shine", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"));
+
+        Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
+        Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_LeavesTheMachinesOwnNamesInAnArgument()
+    {
+        // The half that does not change, and the reason it does not: a child process
+        // inherits the environment and can read %TEMP% for itself, so the argument reaches
+        // it meaning what it says. The first word still resolves against the machine.
+        var machine = new EnvironmentProbe(
+            name => name == "TEMP" ? "C:\\Temp" : null, () => "C:\\Users\\sam");
+
+        var plan = Run("%ws% %TEMP%\\build", Vars("ws=C:\\tools\\webstorm64.exe"), machine: machine);
+
+        Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
+        Assert.Equal(new[] { "%TEMP%\\build" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ADefineWrittenIntoAnArgument_IsStillOneArgumentWhenItHasASpace()
+    {
+        // It resolves per word, after the line has been split, so the space inside the
+        // value is not a place the line could have come apart.
+        var plan = Run(
+            "%ws% %src%\\shine", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\my src"));
+
+        Assert.Equal(new[] { "D:\\my src\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_DoesNotReadAMacroValueForADefine()
+    {
+        // Defines resolve before the macros are filled, which is the whole of the order:
+        // what arrives through a %C% is a value the machine handed over, and a value is
+        // never re-read for names. A clipboard holding "%src%\x" keeps its middle.
+        var plan = Run(
+            "%ws% %C%",
+            Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"),
+            clipboardText: "%src%\\shine");
+
+        Assert.Equal(new[] { "%src%\\shine" }, plan.Arguments);
+    }
+
+    [Fact]
+    public void Execute_ABatFile_StillRefusesADefineWrittenIntoItsArguments()
+    {
+        // The refusal reads the value that is about to be passed, so resolving the name
+        // first hands cmd.exe nothing it would not have been handed before.
+        var plan = Run("deploy.bat %bad%\\x", Vars("bad=a&b"));
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Contains("cannot be passed", plan.Problem);
+    }
+
+    [AvaloniaFact]
+    public void Execute_AndCopy_ReadTheSameArgumentTheSameWay()
+    {
+        // A snippet cannot mean two things depending on which key was pressed.
+        const string content = "%ws% %src%\\shine";
+        const string varsText = "ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src";
+
+        var plan = Run(content, Vars(varsText));
+
+        Assert.Equal(
+            CopyFirst(new Snippet { Label = "Open shine", Content = content }, varsText),
+            plan.Target + " " + string.Join(" ", plan.Arguments));
     }
 
     // ---- the file on disk ----
