@@ -1,8 +1,9 @@
 # Klippy
 
-A fast, cross-platform snippet manager. Store pieces of text, find them instantly, and
-put them on the clipboard with one click, tap, or keystroke. Built with .NET 10 and
-[Avalonia UI](https://avaloniaui.net/) for Windows, macOS, Android, and iOS.
+A small, cross-platform snippet, actions, and clipbpard manager. Store pieces of text, 
+find them instantly, and put them on the clipboard with one click, tap, or keystroke. 
+Store and access your clipboard history.  Run actions such as opening files or URLs.
+Built with .NET 10 and [Avalonia UI](https://avaloniaui.net/) for Windows, macOS, Android, and iOS.
 
 **📖 [Full documentation](https://seankearon.github.io/klippy/)**
 
