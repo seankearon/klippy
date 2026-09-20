@@ -27,8 +27,12 @@ let VersionFile    = RepoFolder +/ "ver.txt"
 let BuildDir       = RepoFolder +/ "_build"
 let OutDir         = BuildDir   +/ "out"
 let DropFolder     = BuildDir   +/ "drop"
+let DocsConfig     = RepoFolder +/ "zensical.toml"
+let DocsSite       = RepoFolder +/ "site"
+let DocsDrop       = BuildDir   +/ "docs"
 
 let ReleaseBranch = "main"
+let DocsBranch    = "gh-pages"
 let WindowsRuntime = "win-x64"
 
 /// The only ABI worth shipping: every current phone is arm64, and the others exist for
@@ -435,11 +439,41 @@ let releaseArtifacts () =
     |> Array.filter (fun f -> installers.Contains(Path.GetExtension(f).ToLowerInvariant()))
     |> Array.sort
 
+// --- docs -------------------------------------------------------------------
+
+/// Zensical is distributed only as a Python package - there is no standalone binary - so
+/// it has to be on PATH. `uv tool install zensical` or `pip install zensical` both put it
+/// there; ZENSICAL is the escape hatch for a machine that keeps it in a virtual
+/// environment.
+let docsTool =
+    let configured = Environment.GetEnvironmentVariable "ZENSICAL"
+    if String.IsNullOrWhiteSpace configured then "zensical" else configured
+
+/// None when the tool cannot be started at all. A missing executable throws rather than
+/// returning a non-zero exit code, so this is what lets the caller say "not installed"
+/// instead of "the build failed".
+let docsToolVersion () =
+    try
+        cmdInFolderReturningOutput RepoFolder docsTool "--version" |> trim |> Some
+    with _ ->
+        None
+
+/// BuildLib's `git` never fails the build on a non-zero exit. That suits the
+/// informational calls elsewhere, but a rejected push here would pass silently and leave
+/// the published site stale while the release reported success.
+let gitOrFail folder args = cmdInRedirecting folder "git" args true
+
+/// --strict turns a broken link or an unresolved anchor into a non-zero exit, which is
+/// the whole point of running this before anything leaves the machine.
+let buildDocs () =
+    cmdInRedirecting RepoFolder docsTool $"build --clean --strict --config-file {doubleQuote DocsConfig}" true
+
 // --- the build -------------------------------------------------------------
 
 let buildKlippy () =
     let stopwatch = Stopwatch.StartNew()
     let isRelease = hasArg "release"
+    let skipDocs = hasArg "nodocs"
 
     // Read before anything is modified, so the failure handler below knows whether the
     // props file it reverts was ours to begin with.
@@ -481,6 +515,26 @@ let buildKlippy () =
             clean BuildDir
             ensureFolder BuildDir |> ignore
             ensureFolder DropFolder |> ignore)
+
+        // Ahead of the tests deliberately: the docs build takes about a second, and a
+        // broken link caught here saves a full test, publish and signing cycle. Skipped
+        // by `nodocs`, for a machine that has no Zensical on it.
+        if skipDocs then
+            Write.line "Skipping the docs (nodocs)."
+        else
+            stage "Verify Docs" (fun () ->
+                workingDir RepoFolder
+
+                match docsToolVersion () with
+                | None ->
+                    failwith (
+                        $"Cannot run '{docsTool}'. Install it with `uv tool install zensical` "
+                        + "or `pip install zensical`, or point the ZENSICAL environment variable "
+                        + "at it. Pass `nodocs` to release without touching the documentation."
+                    )
+                | Some toolVersion -> Write.line $"Using {docsTool} {toolVersion}"
+
+                buildDocs ())
 
         stage "Restore" (fun () ->
             // The runtime must match the publish stage below: with --no-restore there,
@@ -701,6 +755,50 @@ let buildKlippy () =
                 ]
 
                 Write.line $"Published release {tag}")
+
+            // After the GitHub release, so the site never describes a version that is not
+            // out yet. What ships is the tree Verify Docs already built and checked - it
+            // is not rebuilt here, so the published site is provably the verified one.
+            if not skipDocs then
+                stage "Publish Docs" (fun () ->
+                    workingDir RepoFolder
+
+                    let remote =
+                        cmdInFolderReturningOutput RepoFolder "git" "remote get-url origin" |> trim
+
+                    if remote = "" then
+                        failwith "Cannot find the origin remote - nowhere to publish the docs to."
+
+                    if not (Directory.Exists DocsSite) then
+                        failwith $"No built site at {DocsSite}. Verify Docs should have produced it."
+
+                    clean DocsDrop
+                    DocsSite |> copyFolderTo DocsDrop
+
+                    // Pages serves a branch source through Jekyll, which skips every path
+                    // beginning with an underscore - and the theme ships several. This
+                    // switches that off.
+                    writeFile (DocsDrop +/ ".nojekyll") ""
+
+                    // A fresh repository each time, force-pushed: gh-pages carries exactly one
+                    // commit holding the current site. Generated HTML has no history worth
+                    // keeping, and this stops the repo growing by a whole site per release.
+                    gitOrFail DocsDrop "init --quiet"
+
+                    // --force because this scratch repo still reads the machine's global
+                    // gitignore, and a pattern as ordinary as `assets/` in there would
+                    // silently drop the theme's CSS, JavaScript and search index - leaving
+                    // a published site that is broken but that nothing reported as failed.
+                    gitOrFail DocsDrop "add -A --force"
+
+                    // commit.gpgsign=false: this throwaway commit must not trip over a
+                    // global signing setting and sit waiting for a passphrase.
+                    let message = doubleQuote $"Docs for v{version}"
+                    gitOrFail DocsDrop $"-c commit.gpgsign=false commit --quiet -m {message}"
+
+                    gitOrFail DocsDrop $"push --quiet --force {doubleQuote remote} HEAD:{DocsBranch}"
+
+                    Write.line $"Published the docs to {DocsBranch}")
 
             stage "Update Version File" (fun () ->
                 workingDir RepoFolder

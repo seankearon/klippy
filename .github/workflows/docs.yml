@@ -1,12 +1,12 @@
 name: Documentation
 
+# Validation only. The site is built and published from a release machine by
+# release.ps1, which force-pushes it to the gh-pages branch that GitHub Pages
+# serves -- see the Publish Docs stage in the build. This workflow exists to
+# catch a broken link in a pull request, before it can fail somebody's release.
 on:
   push:
     branches: [ main ]
-    # A release tag republishes the site. GitHub does not apply `paths` filters
-    # to tag pushes, so this fires even though no docs file changed -- which is
-    # what we want, since the release's own commit to main carries [skip ci].
-    tags: [ 'v*' ]
     paths:
       - 'docs/**'
       - 'overrides/**'
@@ -22,14 +22,10 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# A queued deploy supersedes an in-flight one, but a run that is already
-# publishing is never cancelled part-way.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -42,31 +38,11 @@ jobs:
         with:
           python-version: '3.x'
 
-      # Zensical is pre-1.0 and ships often; the pin is what stops a Tuesday
-      # release from turning a docs push red. Bump it deliberately.
+      # Keep this pin in step with whatever the release machines run, or CI will
+      # pass on a version the release then fails on.
       - name: Install Zensical
         run: pip install 'zensical==0.0.63'
 
-      # Zensical currently advises against caching on CI while build performance
-      # is still being optimised, so there is deliberately no cache step here.
+      # --strict is the point: a broken link or unresolved anchor fails the job.
       - name: Build
         run: zensical build --clean --strict
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-  deploy:
-    name: deploy
-    # Pushes to main and release tags both publish; pull requests only build,
-    # to prove the docs still compile.
-    if: github.event_name != 'pull_request'
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/configure-pages@v6
-      - uses: actions/deploy-pages@v5
-        id: deployment

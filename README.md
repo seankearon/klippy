@@ -75,11 +75,24 @@ Everything above, in full:
 | [Design](https://seankearon.github.io/klippy/design/) | The visual language and its fonts |
 
 The docs are built with [Zensical](https://zensical.org/) from the `docs/` folder in this
-repository and published to GitHub Pages by
-[`.github/workflows/docs.yml`](.github/workflows/docs.yml). To preview them locally:
+repository. **`release.ps1` builds and publishes them** — the *Verify Docs* stage builds
+the site with `--strict` before anything is signed or tagged, so a broken link stops the
+release, and *Publish Docs* force-pushes the result to the `gh-pages` branch that Pages
+serves. [`.github/workflows/docs.yml`](.github/workflows/docs.yml) only validates the
+build on pull requests; it does not publish.
+
+That means the published site always describes the **released** version, not `main`.
+
+Zensical needs to be on PATH on the release machine:
+
+```powershell
+uv tool install zensical    # or: pip install zensical
+```
+
+Set `ZENSICAL` to its full path if you keep it in a virtual environment, or pass
+`-NoDocs` to release without touching the documentation. To preview locally:
 
 ```bash
-pip install zensical
 zensical serve
 ```
 
