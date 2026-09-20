@@ -123,8 +123,16 @@ let rec copyFolderTo (targetFolder: string) (sourceFolder: string) =
     Directory.GetDirectories source
     |> Array.iter (fun dir -> copyFolderTo (target +/ Path.GetFileName dir) dir)
 
+/// Deletes a folder and everything beneath it. Read-only files are cleared first: the
+/// docs stage runs `git init` in its drop folder, and git marks every loose object
+/// read-only, which Directory.Delete then refuses to remove.
 let clean (path: string) =
-    if Directory.Exists path then Directory.Delete(path, recursive = true)
+    if Directory.Exists path then
+        for file in Directory.GetFiles(path, "*", SearchOption.AllDirectories) do
+            let info = FileInfo file
+            if info.IsReadOnly then info.IsReadOnly <- false
+
+        Directory.Delete(path, recursive = true)
 
 /// Writes text to a file, creating the folder if this is a first run. Pirform's
 /// equivalent calls File.Delete first, which throws when the folder is absent.
