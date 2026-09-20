@@ -221,7 +221,7 @@ public static partial class Macros
 
     /// <summary>
     /// The same split, keeping what the quotes said. Only the splitter can still tell:
-    /// once it is a word in a list, <c>"pir"</c> and <c>pir</c> are the same three
+    /// once it is a word in a list, <c>"app"</c> and <c>app</c> are the same three
     /// letters, and one of them was somebody saying they meant the letters.
     ///
     /// A quote anywhere in an argument settles it. Half a quoted word is still somebody

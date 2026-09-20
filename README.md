@@ -106,3 +106,11 @@ dotnet run --project Klippy.Desktop
 
 → [Building](https://seankearon.github.io/klippy/building/) for publishing, packaging and
 the Android build.
+
+## License
+
+Klippy is released under the [MIT License](LICENSE).
+
+The bundled Chivo and Chivo Mono fonts under `Klippy/Assets/Fonts` are **not** covered by
+that licence: they are the work of the Chivo Project Authors and are used under the
+[SIL Open Font License 1.1](Klippy/Assets/Fonts/OFL.txt).

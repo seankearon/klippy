@@ -113,13 +113,13 @@ public class VariablesTests
     public void WhatCountsAsAFile_IsADotInTheLastSegment()
     {
         var vars = Vars(
-            "a=D:\\src\\shine\n" +            // a folder
-            "a=D:\\src\\shine\\App.sln\n" +   // a file
+            "a=D:\\src\\myapp\n" +            // a folder
+            "a=D:\\src\\myapp\\App.sln\n" +   // a file
             "b=\"D:\\my src\\bin\\\"\n" +     // quoted, trailing separator: still a folder
             "b=\"D:\\my src\\go.ps1\"");
 
-        Assert.Equal("D:\\src\\shine\\App.sln", vars.ValueOf("a", "file"));
-        Assert.Equal("D:\\src\\shine", vars.ValueOf("a", "folder"));
+        Assert.Equal("D:\\src\\myapp\\App.sln", vars.ValueOf("a", "file"));
+        Assert.Equal("D:\\src\\myapp", vars.ValueOf("a", "folder"));
         Assert.Equal("\"D:\\my src\\go.ps1\"", vars.ValueOf("b", "file"));
         Assert.Equal("\"D:\\my src\\bin\\\"", vars.ValueOf("b", "folder"));
     }
@@ -178,7 +178,7 @@ public class VariablesTests
     public void Expand_ReplacesDefinedNames()
     {
         var vars = Vars("ws=C:\\tools\\webstorm64.exe");
-        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\shine", vars.Expand("%ws% D:\\src\\shine"));
+        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\myapp", vars.Expand("%ws% D:\\src\\myapp"));
     }
 
     [Fact]
@@ -370,9 +370,9 @@ public class VariablesTests
     [AvaloniaFact]
     public void Copy_ExpandsAPlainSnippet()
     {
-        var snippet = new Snippet { Label = "Open shine", Content = "%ws% D:\\src\\shine" };
+        var snippet = new Snippet { Label = "Open myapp", Content = "%ws% D:\\src\\myapp" };
 
-        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\shine",
+        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\myapp",
             CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe"));
     }
 
@@ -412,7 +412,7 @@ public class VariablesTests
     // prompt and typed. The word has to *be* the name, and quoting it takes the escape.
 
     private const string RiderAndSolution =
-        "r=C:\\tools\\rider64.exe\npir=D:\\src\\shine\\Shine.sln";
+        "r=C:\\tools\\rider64.exe\napp=D:\\src\\myapp\\MyApp.sln";
 
     private static Snippet OpenInRider() => new()
     {
@@ -425,15 +425,15 @@ public class VariablesTests
     [AvaloniaFact]
     public void Copy_AnArgumentThatNamesADefine_CarriesItsValue()
     {
-        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\shine\\Shine.sln",
-            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r pir"));
+        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\myapp\\MyApp.sln",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r app"));
     }
 
     [AvaloniaFact]
     public void Copy_AQuotedArgument_IsTheWordItself()
     {
-        Assert.Equal("C:\\tools\\rider64.exe pir",
-            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r \"pir\""));
+        Assert.Equal("C:\\tools\\rider64.exe app",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r \"app\""));
     }
 
     [AvaloniaFact]
@@ -452,10 +452,10 @@ public class VariablesTests
         var (vm, _, scope) = CopyVm(OpenInRider(), RiderAndSolution);
         using (scope)
         {
-            vm.FilterText = "r pir";
+            vm.FilterText = "r app";
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("%r% D:\\src\\shine\\Shine.sln", vm.Filtered[0].Content);
+            Assert.Equal("%r% D:\\src\\myapp\\MyApp.sln", vm.Filtered[0].Content);
         }
     }
 
@@ -477,12 +477,12 @@ public class VariablesTests
     [Fact]
     public void Execute_AnArgumentThatNamesADefine_ReachesTheProcessAsItsValue()
     {
-        // End to end over the ask: "%r% %P%" behind the code r, invoked as "r pir".
-        var plan = PlanFor("%r% %P%", "r pir", Vars(RiderAndSolution));
+        // End to end over the ask: "%r% %P%" behind the code r, invoked as "r app".
+        var plan = PlanFor("%r% %P%", "r app", Vars(RiderAndSolution));
 
         Assert.Equal(ExecutionKind.Application, plan.Kind);
         Assert.Equal("C:\\tools\\rider64.exe", plan.Target);
-        Assert.Equal(new[] { "D:\\src\\shine\\Shine.sln" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\src\\myapp\\MyApp.sln" }, plan.Arguments);
     }
 
     [Fact]
@@ -560,23 +560,23 @@ public class VariablesTests
     // ---- an item may name the flavour too ----
     //
     // The other side of %P:folder%: a word the item wrote itself, rather than one somebody
-    // typed at it. "%z% %pir:folder%\\notes.txt" says which of two lines it means without
+    // typed at it. "%z% %app:folder%\\notes.txt" says which of two lines it means without
     // depending on which order the file happens to be in.
 
-    private const string TwoBarePir =
+    private const string TwoBareApp =
         "z=C:\\Zed.exe\n" +
-        "pir=D:\\shine\\Pirform\\Pirform.slnx\n" +
-        "pir=D:\\shine\\Pirform";
+        "app=D:\\src\\myapp\\MyApp.slnx\n" +
+        "app=D:\\src\\myapp";
 
     [Fact]
     public void ASnippet_MayNameAFlavourOfADefinedName()
     {
-        var vars = Vars(TwoBarePir);
+        var vars = Vars(TwoBareApp);
 
-        Assert.Equal("C:\\Zed.exe D:\\shine\\Pirform\\notes.txt",
-            vars.Expand("%z% %pir:folder%\\notes.txt"));
-        Assert.Equal("C:\\Zed.exe D:\\shine\\Pirform\\Pirform.slnx",
-            vars.Expand("%z% %pir:file%"));
+        Assert.Equal("C:\\Zed.exe D:\\src\\myapp\\notes.txt",
+            vars.Expand("%z% %app:folder%\\notes.txt"));
+        Assert.Equal("C:\\Zed.exe D:\\src\\myapp\\MyApp.slnx",
+            vars.Expand("%z% %app:file%"));
     }
 
     [Fact]
@@ -584,10 +584,10 @@ public class VariablesTests
     {
         // End to end over the ask, on the route that was reporting the trouble: the
         // argument resolves, and it resolves to the line that is a folder.
-        var plan = Run("%z% %pir:folder%\\notes.txt", Vars(TwoBarePir));
+        var plan = Run("%z% %app:folder%\\notes.txt", Vars(TwoBareApp));
 
         Assert.Equal("C:\\Zed.exe", plan.Target);
-        Assert.Equal(new[] { "D:\\shine\\Pirform\\notes.txt" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\src\\myapp\\notes.txt" }, plan.Arguments);
     }
 
     [Fact]
@@ -595,9 +595,9 @@ public class VariablesTests
     {
         // Saying it in the file settles it, which is the whole point of being able to —
         // a folder with a dot in its name would be read as a file otherwise.
-        var vars = Vars(TwoBarePir + "\npir:folder=D:\\shine\\node_modules.bak");
+        var vars = Vars(TwoBareApp + "\napp:folder=D:\\src\\node_modules.bak");
 
-        Assert.Equal("D:\\shine\\node_modules.bak", vars.Expand("%pir:folder%"));
+        Assert.Equal("D:\\src\\node_modules.bak", vars.Expand("%app:folder%"));
     }
 
     [Fact]
@@ -605,14 +605,14 @@ public class VariablesTests
     {
         // file and folder are the two it can read off a value. Anything else is a name
         // you write out in full, and until you do it names nothing.
-        var vars = Vars(TwoBarePir);
+        var vars = Vars(TwoBareApp);
 
-        Assert.Equal("%pir:docs%", vars.Expand("%pir:docs%"));
+        Assert.Equal("%app:docs%", vars.Expand("%app:docs%"));
         Assert.Equal("%nothing:folder%", vars.Expand("%nothing:folder%"));
 
         // And no quiet fall back to the bare name: an item that asked for one of a name's
         // flavours has said which line it wants, exactly as a prompt saying so has.
-        Assert.Equal("%plain:file%", Vars("plain=D:\\shine").Expand("%plain:file%"));
+        Assert.Equal("%plain:file%", Vars("plain=D:\\src").Expand("%plain:file%"));
     }
 
     [Fact]
@@ -620,10 +620,10 @@ public class VariablesTests
     {
         // The tail of a path is no flavour Klippy knows, and a name with no colon in it is
         // read exactly as it was before an item could ask for one at all.
-        var vars = Vars(TwoBarePir);
+        var vars = Vars(TwoBareApp);
 
         Assert.Equal("%C:\\temp%", vars.Expand("%C:\\temp%"));
-        Assert.Equal("D:\\shine\\Pirform", vars.Expand("%pir%"));
+        Assert.Equal("D:\\src\\myapp", vars.Expand("%app%"));
         Assert.Equal("50% off, 100% focus", vars.Expand("50% off, 100% focus"));
     }
 
@@ -642,9 +642,9 @@ public class VariablesTests
     {
         // The file is read for flavours as it loads as well as after it has: a name looked
         // up one way here and another way in a snippet would be the worst of both.
-        var vars = Vars(TwoBarePir + "\nnotes=%pir:folder%\\notes.txt");
+        var vars = Vars(TwoBareApp + "\nnotes=%app:folder%\\notes.txt");
 
-        Assert.Equal("D:\\shine\\Pirform\\notes.txt", vars.Get("notes"));
+        Assert.Equal("D:\\src\\myapp\\notes.txt", vars.Get("notes"));
     }
 
     [Fact]
@@ -652,9 +652,9 @@ public class VariablesTests
     {
         // The cycle guard is on the bare name, so asking a name for one of its own
         // flavours while that name is being read finds nothing rather than recurring.
-        var vars = Vars("pir=D:\\shine\\Pirform\npir=%pir:folder%\\sub");
+        var vars = Vars("app=D:\\src\\myapp\napp=%app:folder%\\sub");
 
-        Assert.Equal("%pir:folder%\\sub", vars.Get("pir"));
+        Assert.Equal("%app:folder%\\sub", vars.Get("app"));
     }
 
     [Fact]
@@ -663,13 +663,13 @@ public class VariablesTests
         // Which line is the file is read off the value as it will stand, so a define
         // spelled through another one is still sorted correctly.
         var vars = Vars(
-            "root=D:\\shine\n" +
-            "pir=%root%\\Pirform\\Pirform.slnx\n" +
-            "pir=%root%\\Pirform\n" +
-            "notes=%pir:folder%\\notes.txt");
+            "root=D:\\src\n" +
+            "app=%root%\\myapp\\MyApp.slnx\n" +
+            "app=%root%\\myapp\n" +
+            "notes=%app:folder%\\notes.txt");
 
-        Assert.Equal("D:\\shine\\Pirform\\notes.txt", vars.Get("notes"));
-        Assert.Equal("D:\\shine\\Pirform\\Pirform.slnx", vars.ValueOf("pir:file"));
+        Assert.Equal("D:\\src\\myapp\\notes.txt", vars.Get("notes"));
+        Assert.Equal("D:\\src\\myapp\\MyApp.slnx", vars.ValueOf("app:file"));
     }
 
     // ---- an item that says its argument is never a name ----
@@ -699,10 +699,10 @@ public class VariablesTests
         var (vm, _, scope) = CopyVm(snippet, RiderAndSolution);
         using (scope)
         {
-            vm.FilterText = "r pir";
+            vm.FilterText = "r app";
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("%r% pir", vm.Filtered[0].Content);
+            Assert.Equal("%r% app", vm.Filtered[0].Content);
         }
     }
 
@@ -899,10 +899,10 @@ public class VariablesTests
     public void Execute_ResolvesAVariableInTheFirstWord()
     {
         // The issue's own example: "%ws% <some folder>" opens that folder in WebStorm.
-        var plan = Run("%ws% D:\\src\\shine", Vars("ws=C:\\tools\\webstorm64.exe"));
+        var plan = Run("%ws% D:\\src\\myapp", Vars("ws=C:\\tools\\webstorm64.exe"));
 
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
-        Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\src\\myapp" }, plan.Arguments);
     }
 
     [Fact]
@@ -912,10 +912,10 @@ public class VariablesTests
         // file says where the source lives and the item says which folder under it, and
         // nothing downstream has ever heard of klippy.vars — an unresolved %src% would
         // reach WebStorm as a path with percent signs in the middle of it.
-        var plan = Run("%ws% %src%\\shine", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"));
+        var plan = Run("%ws% %src%\\myapp", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"));
 
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
-        Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\src\\myapp" }, plan.Arguments);
     }
 
     [Fact]
@@ -939,9 +939,9 @@ public class VariablesTests
         // It resolves per word, after the line has been split, so the space inside the
         // value is not a place the line could have come apart.
         var plan = Run(
-            "%ws% %src%\\shine", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\my src"));
+            "%ws% %src%\\myapp", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\my src"));
 
-        Assert.Equal(new[] { "D:\\my src\\shine" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\my src\\myapp" }, plan.Arguments);
     }
 
     [Fact]
@@ -953,9 +953,9 @@ public class VariablesTests
         var plan = Run(
             "%ws% %C%",
             Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"),
-            clipboardText: "%src%\\shine");
+            clipboardText: "%src%\\myapp");
 
-        Assert.Equal(new[] { "%src%\\shine" }, plan.Arguments);
+        Assert.Equal(new[] { "%src%\\myapp" }, plan.Arguments);
     }
 
     [Fact]
@@ -973,13 +973,13 @@ public class VariablesTests
     public void Execute_AndCopy_ReadTheSameArgumentTheSameWay()
     {
         // A snippet cannot mean two things depending on which key was pressed.
-        const string content = "%ws% %src%\\shine";
+        const string content = "%ws% %src%\\myapp";
         const string varsText = "ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src";
 
         var plan = Run(content, Vars(varsText));
 
         Assert.Equal(
-            CopyFirst(new Snippet { Label = "Open shine", Content = content }, varsText),
+            CopyFirst(new Snippet { Label = "Open myapp", Content = content }, varsText),
             plan.Target + " " + string.Join(" ", plan.Arguments));
     }
 

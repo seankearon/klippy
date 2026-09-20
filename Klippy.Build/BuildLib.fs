@@ -7,15 +7,15 @@ open System.Diagnostics
 open System.IO
 open System.Text
 
-// Adapted from Pirform.Build's BuildLib. Only the general-purpose parts came across:
+// Adapted from a sibling project's BuildLib. Only the general-purpose parts came across:
 // Klippy has no obfuscator and no InstallMate, and Parcel owns packaging and signing,
 // so the signtool, MSIX and AssemblyInfo machinery was left behind. (Signing is still
 // Azure Trusted Signing - see AzureSigning in Program.fs - but Parcel drives signtool
-// itself; the build only loads the configuration from shine.env and lends it on.)
+// itself; the build only loads the configuration from klippy.env and lends it on.)
 //
 // Declarations are ordered so nothing refers forward. `module rec` is kept only so this
-// file stays interchangeable with Pirform's — if these two are ever pulled into a shared
-// repo, this one can be split into files without any reordering first.
+// file stays interchangeable with its counterpart — if the two are ever pulled into a
+// shared repo, this one can be split into files without any reordering first.
 
 let ApplicationExeFolder =
     Process.GetCurrentProcess().MainModule.FileName |> Path.GetDirectoryName
@@ -28,7 +28,7 @@ let doubleQuote s = $"\"{s}\""
 
 let trim (s: string) = s.Trim()
 
-/// Pirform reaches for Humanizer for this one call. A build log needs "1m 04s", not
+/// The sibling project uses Humanizer for this one call. A build log needs "1m 04s", not
 /// prose, so the dependency is not worth carrying.
 let humanize (span: TimeSpan) =
     if span.TotalSeconds < 1.0 then $"%d{span.Milliseconds} ms"
@@ -134,7 +134,7 @@ let clean (path: string) =
 
         Directory.Delete(path, recursive = true)
 
-/// Writes text to a file, creating the folder if this is a first run. Pirform's
+/// Writes text to a file, creating the folder if this is a first run. The sibling's
 /// equivalent calls File.Delete first, which throws when the folder is absent.
 let writeFile (path: string) (contents: string) =
     ensureFolder (Path.GetDirectoryName path) |> ignore

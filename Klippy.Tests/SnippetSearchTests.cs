@@ -15,7 +15,7 @@ public class SnippetSearchTests
     private static Snippet LogFiles => new()
     {
         Label = "Send log files",
-        Content = "Please send us the log files, as per the instructions here:\n\nhttps://www.shineforms.co.uk/docs/XXX",
+        Content = "Please send us the log files, as per the instructions here:\n\nhttps://www.example.com/docs/XXX",
         Tag = "work",
         QuickCode = "slf",
     };
@@ -39,8 +39,8 @@ public class SnippetSearchTests
     public void Tokenize_SplitsOnNonAlphanumeric_AndLowercases()
     {
         Assert.Equal(new[] { "send", "log", "files" }, SnippetSearch.Tokenize("Send LOG-files!"));
-        Assert.Equal(new[] { "www", "shineforms", "co", "uk", "docs" },
-            SnippetSearch.Tokenize("www.shineforms.co.uk/docs"));
+        Assert.Equal(new[] { "www", "example", "com", "docs" },
+            SnippetSearch.Tokenize("www.example.com/docs"));
         Assert.Empty(SnippetSearch.Tokenize("  \t\n"));
     }
 
@@ -105,7 +105,7 @@ public class SnippetSearchTests
     [Fact]
     public void Search_IsCaseInsensitive()
     {
-        var results = SnippetSearch.Search(Index(LogFiles), "SHINE");
+        var results = SnippetSearch.Search(Index(LogFiles), "EXAMPLE");
         Assert.Single(results);
     }
 }

@@ -13,9 +13,9 @@ namespace Klippy.Services;
 ///
 /// An argument may name a <see cref="KlippyVariables">local define</see> rather than
 /// spelling a value out: with <c>%r% %P%</c> behind the code <c>r</c>, typing
-/// <c>r pir</c> opens the solution <c>pir</c> names. Quoting it — <c>r "pir"</c> —
+/// <c>r app</c> opens the solution <c>app</c> names. Quoting it — <c>r "app"</c> —
 /// passes the word itself, and where a name is defined once per flavour either side can
-/// say which is wanted: <c>%P:file%</c> on the item, <c>r pir:file</c> at the prompt.
+/// say which is wanted: <c>%P:file%</c> on the item, <c>r app:file</c> at the prompt.
 /// An item whose arguments are never names says so once, with <c>%P:exact%</c>, rather
 /// than asking whoever invokes it to quote them every time. See <see cref="ValuesFor"/>.
 /// </summary>

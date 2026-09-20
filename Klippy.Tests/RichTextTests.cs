@@ -22,8 +22,8 @@ public class RichTextTests
     [Fact]
     public void ToHtml_AutolinksBareUrls()
     {
-        var html = RichTextClipboard.ToHtml("Instructions here:\n\nhttps://www.shineforms.co.uk/docs/XXX");
-        Assert.Contains("<a href=\"https://www.shineforms.co.uk/docs/XXX\">", html);
+        var html = RichTextClipboard.ToHtml("Instructions here:\n\nhttps://www.example.com/docs/XXX");
+        Assert.Contains("<a href=\"https://www.example.com/docs/XXX\">", html);
     }
 
     [Fact]

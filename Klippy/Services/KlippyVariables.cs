@@ -7,7 +7,7 @@ namespace Klippy.Services;
 
 /// <summary>
 /// Local defines a snippet expands on its way to the clipboard or to a process, so one
-/// snippet can work on two machines: <c>%ws% C:\src\shine</c> copies as — and runs as —
+/// snippet can work on two machines: <c>%ws% C:\src\myapp</c> copies as — and runs as —
 /// the real WebStorm command line because this machine's <c>klippy.vars</c> says what
 /// <c>ws</c> is.
 ///
@@ -86,7 +86,7 @@ public sealed class KlippyVariables
     /// argument typed after a quick-code gets, where the word <em>is</em> a name rather
     /// than merely containing one.
     ///
-    /// <c>pir</c> and <c>%pir%</c> are the same request. With nothing either side of the
+    /// <c>app</c> and <c>%app%</c> are the same request. With nothing either side of the
     /// name there is nothing to delimit it from, so the percent signs are optional here
     /// in the way both dialects are optional in a path — the cost of writing the one a
     /// reader did not expect should be nothing.
@@ -219,7 +219,7 @@ public sealed class KlippyVariables
     ///
     /// Through <see cref="ValueOf"/> rather than <see cref="Get"/>, so an item may name
     /// the <see cref="OfFlavour">flavour</see> it wants the way a <c>%P:folder%</c>
-    /// already could: <c>%pir:folder%\notes.txt</c> asks for the line that is a folder
+    /// already could: <c>%app:folder%\notes.txt</c> asks for the line that is a folder
     /// whichever order the file happens to be in. A name with no colon in it is
     /// <see cref="Get"/> exactly, so nothing written before flavours existed reads any
     /// differently.
@@ -410,7 +410,7 @@ public sealed class KlippyVariables
     /// The name as it stands first, which is the line it means on its own and is how an
     /// explicit <c>klippy:file=</c> is found. Then the flavour, for a name written as one
     /// that no line spells out: the same reading <see cref="OfFlavour"/> gives a snippet,
-    /// so <c>notes=%pir:folder%\notes.txt</c> in the file means what it would have meant
+    /// so <c>notes=%app:folder%\notes.txt</c> in the file means what it would have meant
     /// in an item. A name looked up one way here and another way there would be the worst
     /// of both.
     ///
@@ -432,8 +432,8 @@ public sealed class KlippyVariables
             return null;
 
         // Judged on the value as it will stand rather than as it was written, since that is
-        // the value a snippet's own %pir:folder% is judged on: a name whose line is spelled
-        // %root%\Pirform.slnx has to be the file here as well as there.
+        // the value a snippet's own %app:folder% is judged on: a name whose line is spelled
+        // %root%\MyApp.slnx has to be the file here as well as there.
         foreach (var line in candidates)
         {
             var expanded = Expanded(bare, line);

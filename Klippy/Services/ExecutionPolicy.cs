@@ -249,11 +249,11 @@ public static class ExecutionPolicy
         // And the variables file — its own names, never the machine's — over the rest of
         // the line, which is the one thing an argument does resolve. The environment is
         // left out of it for the reasons above; those reasons say nothing about a define.
-        // Nothing downstream has ever heard of klippy.vars, so a %pir% left as written
+        // Nothing downstream has ever heard of klippy.vars, so a %app% left as written
         // there is not a name something further on will answer, the way an inherited
         // %APPDATA% is: it reaches the program as a path with percent signs in the middle
         // of it, naming nothing. It is also what a copy of the same line has always done,
-        // and "%ws% %src%\shine" cannot mean two things depending on which key was
+        // and "%ws% %src%\myapp" cannot mean two things depending on which key was
         // pressed.
         //
         // Per token, after the split, so a define worth a path with a space in it is still

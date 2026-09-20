@@ -67,7 +67,7 @@ the machine's names deliberately do **not** reach:
   percent signs, so the `.bat` refusal below still sees what `cmd.exe` would see, and a
   child process inherits the environment and can read its own `%APPDATA%` anyway.
   Klippy's own [defines](variables.md) are not in that boat — nothing downstream has ever
-  heard of `klippy.vars`, so an unresolved `%pir%` would arrive as a path with percent
+  heard of `klippy.vars`, so an unresolved `%app%` would arrive as a path with percent
   signs in the middle of it, naming nothing. Those resolve in every word, exactly as
   copying the same line has always done. A whole argument *typed* after a quick-code is
   the third case, and [names a define](variables.md#variables-as-arguments) rather than
@@ -87,7 +87,7 @@ a name defined in `klippy.vars` answers first, and the environment answers every
 So `%ws%` names WebStorm on this machine with no environment variable to set, and
 `%LOCALAPPDATA%` keeps working exactly as above. It also reaches further than the machine
 does — a define resolves in an argument as well as in the first word, so
-`%ws% %src%\shine` runs as the line it copies as.
+`%ws% %src%\myapp` runs as the line it copies as.
 
 ## Macros
 
@@ -120,7 +120,7 @@ placeholder with nothing to fill it expands to nothing: half a typed invocation 
 leaves `%P%` on the clipboard.
 
 An argument may *name* something rather than spell it out: where `klippy.vars` defines
-`pir` as a solution file, `r pir` passes that path, and `r "pir"` passes the word `pir`.
+`app` as a solution file, `r app` passes that path, and `r "app"` passes the word `app`.
 A name defined once per [flavour](variables.md#one-name-two-flavours) lets the item pick — `%P:file%`
 against `%P:folder%` — so the same word means the right thing at either of them, and an
 item whose arguments are never names says so once with `%P:exact%` instead of asking

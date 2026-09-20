@@ -196,7 +196,7 @@ if ($Android) {
     Write-Ok "duration : $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1))s"
 
     # Development builds sign with the Android SDK's shared debug key. The release
-    # keystore lives outside the repo, in shine.env, and only release.ps1 reads it -
+    # keystore lives outside the repo, in klippy.env, and only release.ps1 reads it -
     # the one place that publishes an APK. MSBuild takes its signing properties from the
     # environment too, though, so a shell that has set them signs for real here as well.
     # Reported either way: the file name looks identical whichever key was used.
