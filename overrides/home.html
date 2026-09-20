@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{#
+  Landing page for the docs site. The `hero` block sits inside `.md-container`,
+  above the tabs and the content container, so it can run full-bleed.
+  Applied per page via `template: home.html` in the front matter.
+#}
+{% block hero %}
+  <section class="klippy-hero">
+    <div class="klippy-hero__inner">
+      <div class="klippy-hero__copy">
+        <h1 class="klippy-hero__title">Klippy</h1>
+        <p class="klippy-hero__tagline">
+          Every snippet you keep, one keystroke away.
+        </p>
+        <p class="klippy-hero__lede">
+          A fast, cross-platform snippet manager. Store pieces of text, find them
+          instantly, and put them on the clipboard with one click, tap or keystroke.
+        </p>
+        {# `md-button` is scoped to `.md-typeset`, and the hero renders outside
+           the content container — so the wrapper opts back into it. #}
+        <div class="klippy-hero__actions md-typeset">
+          <a href="{{ 'finding-snippets/' | url }}" class="md-button md-button--primary">
+            Get started
+          </a>
+          <a href="{{ 'running-things/' | url }}" class="md-button">
+            Run things with it
+          </a>
+        </div>
+        <p class="klippy-hero__meta">
+          Windows &middot; macOS &middot; Android &middot; iOS &mdash; .NET&nbsp;10 &amp; Avalonia
+        </p>
+      </div>
+      <div class="klippy-hero__shot">
+        <img
+          src="{{ 'assets/screenshot-desktop.png' | url }}"
+          alt="Klippy on the desktop — a filtered snippet list with a preview pane"
+          loading="eager"
+        >
+      </div>
+    </div>
+  </section>
+{% endblock %}

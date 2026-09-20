@@ -1,0 +1,116 @@
+[project]
+site_url = "https://seankearon.github.io/klippy/"
+site_name = "Klippy"
+site_description = "A fast, cross-platform snippet manager. Store pieces of text, find them instantly, and put them on the clipboard with one click, tap or keystroke."
+site_author = "Sean Kearon"
+
+copyright = "Copyright &copy; 2026 Sean Kearon"
+
+repo_url = "https://github.com/seankearon/klippy"
+repo_name = "seankearon/klippy"
+edit_uri = "edit/main/docs/"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Using Klippy" = [
+    { "Finding snippets" = "finding-snippets.md" },
+    { "Running things" = "running-things.md" },
+    { "Running an unmatched search" = "unmatched-search.md" },
+    { "Recent commands" = "recent-commands.md" },
+    { "Markdown snippets" = "markdown-snippets.md" },
+    { "Variables" = "variables.md" },
+    { "Clipboard history" = "clipboard-history.md" },
+    { "Global hotkeys" = "global-hotkeys.md" },
+    { "Quitting" = "quitting.md" },
+  ] },
+  { "Your snippets" = [
+    { "Settings" = "settings.md" },
+    { "Export / import" = "export-import.md" },
+    { "Provenance and bulk import" = "provenance.md" },
+    { "Where data lives" = "data-and-backup.md" },
+  ] },
+  { "Developing" = [
+    { "Solution layout" = "solution-layout.md" },
+    { "Building" = "building.md" },
+    { "Design" = "design.md" },
+  ] },
+]
+
+extra_css = ["stylesheets/extra.css"]
+
+[project.theme]
+custom_dir = "overrides"
+language = "en"
+logo = "assets/klippy-icon.png"
+favicon = "assets/favicon.ico"
+features = [
+  "announce.dismiss",
+  "content.action.edit",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.suggest",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/seankearon/klippy"
+
+[project.plugins.search]
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.betterem = {}
+pymdownx.caret = {}
+pymdownx.details = {}
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.magiclink = {}
+pymdownx.mark = {}
+pymdownx.smartsymbols = {}
+pymdownx.superfences = {}
+pymdownx.tabbed.alternate_style = true
+pymdownx.tabbed.combine_header_slug = true
+pymdownx.tasklist.custom_checkbox = true
+pymdownx.tilde = {}

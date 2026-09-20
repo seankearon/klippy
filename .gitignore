@@ -14,3 +14,7 @@ Thumbs.db
 
 # Build output from Klippy.Build
 _build/
+
+# Zensical docs build output
+/site/
+.zensical/
