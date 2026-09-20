@@ -163,11 +163,21 @@ and let the item say which of them it means:
 | `%r% %P:file%` | `r klippy` | `D:\main\Klippy\Klippy.slnx` |
 
 A name given more than once keeps every line. On its own it means the **last** of them — a
-file read top to bottom ends on the answer — and `%P:file%` and `%P:folder%` are what reach
-the others. You can name the flavour at the prompt instead, `r klippy:file`, which
-**overrules** the item: its qualifier is a default for whoever invokes it, not a veto on
-what they ask for. `%C%` takes no qualifier — a clipboard value is text that has already
-been fetched, with nothing left to choose between.
+file read top to bottom ends on the answer — and the flavour is what reaches the others.
+
+An item asks for one either way round. `%P:file%` is the question put to a word somebody is
+about to type; `%klippy:file%` is the item having already decided, and is written into its
+text like any other name:
+
+```
+%code% %klippy:folder%\src
+```
+
+opens that folder whichever order the file happens to be in, which a bare `%klippy%` would
+not. You can name the flavour at the prompt instead, `r klippy:file`, which **overrules**
+the item: its qualifier is a default for whoever invokes it, not a veto on what they ask
+for. `%C%` takes no qualifier — a clipboard value is text that has already been fetched,
+with nothing left to choose between.
 
 **Which line is the file is read off the value, not off the disk**: a dot in the last
 segment names a file, and anything else names a folder. That is how a person reading the
@@ -187,14 +197,18 @@ klippy:docs=D:\main\docs\README.md
 ```
 
 A colon is an ordinary character in a name, so `%klippy:file%` works in a snippet and in
-another define's value exactly as any name does, and the count under the Settings box is of
-lines rather than names — three defines, however many of them share one.
+another define's value exactly as any name does — and so does one Klippy worked out for
+itself, so `%pir:folder%` answers from a `pir` given twice with no `pir:folder=` line
+anywhere. The count under the Settings box is of lines rather than names — three defines,
+however many of them share one.
 
 The rest of the rules:
 
-- **The bare name still answers** where a flavour cannot be found. `%P:file%` against a
-  plain `pir=…` finds `pir`, so putting a qualifier on an item never stops it working with
-  the defines that have only the one meaning.
+- **The bare name still answers** where a flavour cannot be found — for a `%P:file%`, that
+  is. Against a plain `pir=…` it finds `pir`, so putting a qualifier on an item never stops
+  it working with the defines that have only the one meaning. A `%pir:file%` an item wrote
+  out is the other case, and is taken at its word the way a flavour typed at the prompt is:
+  it names exactly the line it wants, and stays as written where nothing answers.
 - **A flavour named at the prompt is taken at its word.** `r klippy:docs` looks for exactly
   that, and passes `klippy:docs` as typed if nothing answers — Klippy does not quietly hand
   back `klippy` when you asked for one of its flavours.
