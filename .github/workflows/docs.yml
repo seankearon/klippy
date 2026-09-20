@@ -3,6 +3,10 @@ name: Documentation
 on:
   push:
     branches: [ main ]
+    # A release tag republishes the site. GitHub does not apply `paths` filters
+    # to tag pushes, so this fires even though no docs file changed -- which is
+    # what we want, since the release's own commit to main carries [skip ci].
+    tags: [ 'v*' ]
     paths:
       - 'docs/**'
       - 'overrides/**'
@@ -54,7 +58,8 @@ jobs:
 
   deploy:
     name: deploy
-    # Only main publishes; pull requests build to prove the docs still compile.
+    # Pushes to main and release tags both publish; pull requests only build,
+    # to prove the docs still compile.
     if: github.event_name != 'pull_request'
     needs: build
     environment:
