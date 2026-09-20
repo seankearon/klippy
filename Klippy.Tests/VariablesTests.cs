@@ -113,13 +113,13 @@ public class VariablesTests
     public void WhatCountsAsAFile_IsADotInTheLastSegment()
     {
         var vars = Vars(
-            "a=D:\\src\\shine\n" +            // a folder
-            "a=D:\\src\\shine\\App.sln\n" +   // a file
+            "a=D:\\src\\myapp\n" +            // a folder
+            "a=D:\\src\\myapp\\App.sln\n" +   // a file
             "b=\"D:\\my src\\bin\\\"\n" +     // quoted, trailing separator: still a folder
             "b=\"D:\\my src\\go.ps1\"");
 
-        Assert.Equal("D:\\src\\shine\\App.sln", vars.ValueOf("a", "file"));
-        Assert.Equal("D:\\src\\shine", vars.ValueOf("a", "folder"));
+        Assert.Equal("D:\\src\\myapp\\App.sln", vars.ValueOf("a", "file"));
+        Assert.Equal("D:\\src\\myapp", vars.ValueOf("a", "folder"));
         Assert.Equal("\"D:\\my src\\go.ps1\"", vars.ValueOf("b", "file"));
         Assert.Equal("\"D:\\my src\\bin\\\"", vars.ValueOf("b", "folder"));
     }
@@ -178,7 +178,7 @@ public class VariablesTests
     public void Expand_ReplacesDefinedNames()
     {
         var vars = Vars("ws=C:\\tools\\webstorm64.exe");
-        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\shine", vars.Expand("%ws% D:\\src\\shine"));
+        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\myapp", vars.Expand("%ws% D:\\src\\myapp"));
     }
 
     [Fact]
@@ -370,9 +370,9 @@ public class VariablesTests
     [AvaloniaFact]
     public void Copy_ExpandsAPlainSnippet()
     {
-        var snippet = new Snippet { Label = "Open shine", Content = "%ws% D:\\src\\shine" };
+        var snippet = new Snippet { Label = "Open myapp", Content = "%ws% D:\\src\\myapp" };
 
-        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\shine",
+        Assert.Equal("C:\\tools\\webstorm64.exe D:\\src\\myapp",
             CopyFirst(snippet, "ws=C:\\tools\\webstorm64.exe"));
     }
 
@@ -412,7 +412,7 @@ public class VariablesTests
     // prompt and typed. The word has to *be* the name, and quoting it takes the escape.
 
     private const string RiderAndSolution =
-        "r=C:\\tools\\rider64.exe\npir=D:\\src\\shine\\Shine.sln";
+        "r=C:\\tools\\rider64.exe\napp=D:\\src\\myapp\\MyApp.sln";
 
     private static Snippet OpenInRider() => new()
     {
@@ -425,15 +425,15 @@ public class VariablesTests
     [AvaloniaFact]
     public void Copy_AnArgumentThatNamesADefine_CarriesItsValue()
     {
-        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\shine\\Shine.sln",
-            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r pir"));
+        Assert.Equal("C:\\tools\\rider64.exe D:\\src\\myapp\\MyApp.sln",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r app"));
     }
 
     [AvaloniaFact]
     public void Copy_AQuotedArgument_IsTheWordItself()
     {
-        Assert.Equal("C:\\tools\\rider64.exe pir",
-            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r \"pir\""));
+        Assert.Equal("C:\\tools\\rider64.exe app",
+            CopyFirst(OpenInRider(), RiderAndSolution, filter: "r \"app\""));
     }
 
     [AvaloniaFact]
@@ -452,10 +452,10 @@ public class VariablesTests
         var (vm, _, scope) = CopyVm(OpenInRider(), RiderAndSolution);
         using (scope)
         {
-            vm.FilterText = "r pir";
+            vm.FilterText = "r app";
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("%r% D:\\src\\shine\\Shine.sln", vm.Filtered[0].Content);
+            Assert.Equal("%r% D:\\src\\myapp\\MyApp.sln", vm.Filtered[0].Content);
         }
     }
 
@@ -477,12 +477,12 @@ public class VariablesTests
     [Fact]
     public void Execute_AnArgumentThatNamesADefine_ReachesTheProcessAsItsValue()
     {
-        // End to end over the ask: "%r% %P%" behind the code r, invoked as "r pir".
-        var plan = PlanFor("%r% %P%", "r pir", Vars(RiderAndSolution));
+        // End to end over the ask: "%r% %P%" behind the code r, invoked as "r app".
+        var plan = PlanFor("%r% %P%", "r app", Vars(RiderAndSolution));
 
         Assert.Equal(ExecutionKind.Application, plan.Kind);
         Assert.Equal("C:\\tools\\rider64.exe", plan.Target);
-        Assert.Equal(new[] { "D:\\src\\shine\\Shine.sln" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\src\\myapp\\MyApp.sln" }, plan.Arguments);
     }
 
     [Fact]
@@ -584,10 +584,10 @@ public class VariablesTests
         var (vm, _, scope) = CopyVm(snippet, RiderAndSolution);
         using (scope)
         {
-            vm.FilterText = "r pir";
+            vm.FilterText = "r app";
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("%r% pir", vm.Filtered[0].Content);
+            Assert.Equal("%r% app", vm.Filtered[0].Content);
         }
     }
 
@@ -770,12 +770,12 @@ public class VariablesTests
         // The issue's own example: "%ws% <some folder>" opens that folder in WebStorm.
         var vars = Vars("ws=C:\\tools\\webstorm64.exe");
         var plan = ExecutionPolicy.Plan(
-            "%ws% D:\\src\\shine",
+            "%ws% D:\\src\\myapp",
             platform: ExecutionPlatform.Windows,
             environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
 
         Assert.Equal("C:\\tools\\webstorm64.exe", plan.Target);
-        Assert.Equal(new[] { "D:\\src\\shine" }, plan.Arguments);
+        Assert.Equal(new[] { "D:\\src\\myapp" }, plan.Arguments);
     }
 
     // ---- the file on disk ----

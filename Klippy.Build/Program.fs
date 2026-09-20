@@ -5,8 +5,8 @@ open System.Text.Json
 open System.Text.Json.Nodes
 open BuildLib
 
-// Klippy's release build, modelled on Pirform.Build: a sequence of named stages, each
-// timed and reported, with the whole run summarised at the end.
+// Klippy's release build, modelled on a sibling project's: a sequence of named
+// stages, each timed and reported, with the whole run summarised at the end.
 //
 // Run it with:
 //     dotnet run --project Klippy.Build
@@ -110,23 +110,23 @@ let ensureNativeLinkerIsReachable () =
 
 // --- local configuration ---------------------------------------------------
 
-/// The machine's private configuration: %USERPROFILE%\.config\shine.env, a KEY=value
-/// file with # comments, shared by every Shine build and never checked in. Anything
-/// here that identifies an Azure tenant, account or company belongs in that file, not
-/// in this repo, which may one day be public.
+/// The machine's private configuration: %USERPROFILE%\.config\klippy.env, a KEY=value
+/// file with # comments, shared by every build on this machine and never checked in.
+/// Anything here that identifies an Azure tenant, account or company belongs in that
+/// file, not in this repo, which may one day be public.
 ///
 /// Loaded into this process's environment (not the machine's), and only for keys that
 /// are not already set - so a value exported in the shell still wins, which is how CI
 /// or a one-off override would supply it. Child processes inherit the result, which is
 /// what lets Parcel read its own settings with the env: prefix.
-module ShineEnv =
+module LocalEnv =
     let Path =
         let home =
             Environment.GetEnvironmentVariable "USERPROFILE"
             |> Option.ofObj
             |> Option.defaultWith (fun () -> Environment.GetEnvironmentVariable "HOME")
 
-        home +/ ".config" +/ "shine.env"
+        home +/ ".config" +/ "klippy.env"
 
     let load () =
         if File.Exists Path then
@@ -163,7 +163,7 @@ let private setting name =
 /// The release runs on Windows, so the Keychain is not an option: Parcel signs with
 /// rcodesign from a P12 export of the "Developer ID Application" certificate, and
 /// notarizes with an Apple ID plus an app-specific password. All five values live in
-/// shine.env beside the Azure ones and are injected into the copied .parcel project the
+/// klippy.env beside the Azure ones and are injected into the copied .parcel project the
 /// same way, for the same reason (Parcel's env: prefix is not reliable for these).
 ///
 /// Optional, unlike Azure signing: with none of the keys set the bundles stay ad-hoc
@@ -206,7 +206,7 @@ module MacSigning =
         | missing ->
             failwith
                 $"""macOS signing configuration is incomplete: {String.Join(", ", missing)} missing.
-Set all of {String.Join(", ", Required)} in {ShineEnv.Path}, or none of them for an ad-hoc build."""
+Set all of {String.Join(", ", Required)} in {LocalEnv.Path}, or none of them for an ad-hoc build."""
 
     /// Adds Developer ID signing and notarization to a Parcel project's MacOsSettings.
     /// Leaves the block alone when nothing is configured, so the ad-hoc defaults apply.
@@ -283,7 +283,7 @@ Create it with:
         | missing ->
             failwith
                 $"""Android signing configuration is incomplete: {String.Join(", ", missing)} missing.
-Set all of {String.Join(", ", Required)} in {ShineEnv.Path}, or none of them to sign with the debug key."""
+Set all of {String.Join(", ", Required)} in {LocalEnv.Path}, or none of them to sign with the debug key."""
 
     /// Adds the signing properties to a publish process, and only there. Left alone when
     /// nothing is configured, so the Android SDK's debug-key default applies.
@@ -319,7 +319,7 @@ Set all of {String.Join(", ", Required)} in {ShineEnv.Path}, or none of them to 
 /// the shape Defender's Wacatac.B!ml heuristic flags, and v1.0.2 was quarantined on
 /// download. The bare exe scanned clean; the signed installer scans clean too.
 module AzureSigning =
-    /// Every variable Parcel or the build reads. Named in the shine.env Section__Key style.
+    /// Every variable Parcel or the build reads. Named in the klippy.env Section__Key style.
     let TenantId    = "CodeSigning__TenantId"
     let ClientId    = "CodeSigning__ClientId"
     let ClientSecret = "CodeSigning__ClientSecret"
@@ -340,7 +340,7 @@ module AzureSigning =
         | missing ->
             failwith
                 $"""Code-signing configuration is missing: {String.Join(", ", missing)}.
-Add them to {ShineEnv.Path} (tenant, client id and secret of the Entra app registration
+Add them to {LocalEnv.Path} (tenant, client id and secret of the Entra app registration
 that holds the Trusted Signing Certificate Profile Signer role; the endpoint, account
 and certificate profile of the Trusted Signing resource)."""
 
@@ -495,7 +495,7 @@ let buildKlippy () =
             verify (fun () -> gitBranchName RepoFolder = ReleaseBranch)
                    $"The build expects to run on the {ReleaseBranch} branch, but is on {gitBranchName RepoFolder}."
 
-            ShineEnv.load ()
+            LocalEnv.load ()
             AzureSigning.ensureCredentialsArePresent ()
             MacSigning.ensureConfigurationIsCoherent ()
             AndroidSigning.ensureConfigurationIsCoherent ())
@@ -707,7 +707,7 @@ let buildKlippy () =
                     Write.line "WARNING: the APK is signed with the Android debug key (no keystore configured)."
                     Write.line "         It installs by sideloading, but is not fit for wider distribution."
                     let keys = String.Join(", ", AndroidSigning.Required)
-                    Write.line $"         Set {keys} in {ShineEnv.Path} to sign it.")
+                    Write.line $"         Set {keys} in {LocalEnv.Path} to sign it.")
 
         stage "Revert Generated Files" (fun () ->
             workingDir RepoFolder

@@ -110,18 +110,18 @@ if (-not $DryRun) {
 
 # Parcel signs the Windows exe and installer with Azure Trusted Signing. Everything it
 # needs - tenant, app registration, endpoint, account, certificate profile - lives in the
-# machine's private shine.env, never in the repo. The build loads that file itself and
+# machine's private klippy.env, never in the repo. The build loads that file itself and
 # checks the same keys; checking here as well keeps the failure ahead of the
 # confirmation prompt rather than behind it.
-$shineEnv = Join-Path $env:USERPROFILE '.config\shine.env'
+$localEnv = Join-Path $env:USERPROFILE '.config\klippy.env'
 $signingKeys = @(
     'CodeSigning__TenantId', 'CodeSigning__ClientId', 'CodeSigning__ClientSecret',
     'CodeSigning__Endpoint', 'CodeSigning__AccountName', 'CodeSigning__CertificateProfileName'
 )
 
 # Only into this process, and only for keys the shell has not already set.
-if (Test-Path $shineEnv) {
-    foreach ($line in Get-Content $shineEnv) {
+if (Test-Path $localEnv) {
+    foreach ($line in Get-Content $localEnv) {
         if ($line -match '^\s*([^#=\s][^=]*?)\s*=\s*(.*)$' -and -not (Test-Path "env:$($Matches[1])")) {
             Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
         }
@@ -130,9 +130,9 @@ if (Test-Path $shineEnv) {
 
 $missing = $signingKeys | Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }
 if ($missing) {
-    throw "Code-signing configuration is missing: $($missing -join ', '). Add them to $shineEnv."
+    throw "Code-signing configuration is missing: $($missing -join ', '). Add them to $localEnv."
 }
-Write-Ok "code-signing configuration present ($shineEnv)"
+Write-Ok "code-signing configuration present ($localEnv)"
 
 # macOS signing is optional (the build falls back to ad-hoc), but mirrored here so the
 # plan below can say which it will be. Klippy.Build is the authority and rejects a
@@ -195,12 +195,12 @@ else {
     Write-Host ''
     if (-not $macSigningConfigured) {
         Write-Warn 'The macOS disk images are ad-hoc signed: every other Mac will show Apple''s'
-        Write-Warn '"could not verify" dialog. Add the MacSigning__* keys to shine.env to fix that.'
+        Write-Warn '"could not verify" dialog. Add the MacSigning__* keys to klippy.env to fix that.'
     }
     if (-not $androidSigningConfigured) {
         Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
         Write-Warn 'properly-signed build will refuse to install over it. Add the'
-        Write-Warn 'AndroidSigning__* keys to shine.env to fix that.'
+        Write-Warn 'AndroidSigning__* keys to klippy.env to fix that.'
     }
 
     if (-not $AndroidAot) {

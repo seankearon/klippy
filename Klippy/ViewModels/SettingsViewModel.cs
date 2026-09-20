@@ -340,7 +340,7 @@ public partial class SettingsViewModel : ViewModelBase
         #   ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
         #   src=D:\src
         #
-        # Then a snippet reading "%ws% %src%\shine" opens that folder in WebStorm.
+        # Then a snippet reading "%ws% %src%\myapp" opens that folder in WebStorm.
         # Quote a path that has spaces in it — the quotes are kept.
         #
         # A name typed as an argument stands for its value too — "ws src" against an item

@@ -438,7 +438,7 @@ public partial class MainViewModel : ViewModelBase
     /// snippet answers to that exact code — and the ordinary search runs instead.
     ///
     /// The variables file comes along, so an argument can name a define rather than
-    /// spelling a path out: "r pir" is the solution pir names. Against the snippet as
+    /// spelling a path out: "r app" is the solution app names. Against the snippet as
     /// stored, because the item is half of the question — its %P:file% is what says which
     /// flavour of a name it wants. Resolved once, here, so the row's preview, a copy and a
     /// run all see the same argument: having them disagree about what a word meant would

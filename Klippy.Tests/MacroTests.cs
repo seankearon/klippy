@@ -181,12 +181,12 @@ public class MacroTests
     public void SplitTypedArguments_RemembersWhichWordsWereQuoted()
     {
         Assert.Equal(
-            new[] { new TypedArgument("pir", false), new TypedArgument("pir", true) },
-            Macros.SplitTypedArguments("pir \"pir\""));
+            new[] { new TypedArgument("app", false), new TypedArgument("app", true) },
+            Macros.SplitTypedArguments("app \"app\""));
 
         // A quote anywhere settles it: half a quoted word is still somebody reaching for
         // the escape.
-        Assert.Equal(new[] { new TypedArgument("pir", true) }, Macros.SplitTypedArguments("pi\"r\""));
+        Assert.Equal(new[] { new TypedArgument("app", true) }, Macros.SplitTypedArguments("ap\"p\""));
 
         // And the plain split still agrees about where the words are.
         Assert.Equal(new[] { "deploy.ps1", "two words", "three" },
@@ -196,7 +196,7 @@ public class MacroTests
     // ---- an argument that names something ----
 
     private const string Defines =
-        "pir=D:\\src\\shine\\Shine.sln\n" +
+        "app=D:\\src\\myapp\\MyApp.sln\n" +
         "klippy=D:\\dev\\klippy\n" +
         "klippy:folder=D:\\dev\\klippy\n" +
         "klippy:file=D:\\dev\\klippy\\klippy.slnx";
@@ -211,25 +211,25 @@ public class MacroTests
     [Fact]
     public void AnArgumentThatNamesADefine_StandsForItsValue()
     {
-        // The ask: "%r% %P%" behind the code r, invoked as "r pir".
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir"));
+        // The ask: "%r% %P%" behind the code r, invoked as "r app".
+        Assert.Equal(new[] { @"D:\src\myapp\MyApp.sln" }, Values("r app"));
 
-        // %pir% is the same request written the other way.
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r %pir%"));
+        // %app% is the same request written the other way.
+        Assert.Equal(new[] { @"D:\src\myapp\MyApp.sln" }, Values("r %app%"));
 
         // A word that names nothing is the word, and with no file in force nothing is
         // looked up at all.
         Assert.Equal(new[] { "elsewhere" }, Values("r elsewhere"));
-        Assert.Equal(new[] { "pir" }, Values("r pir", vars: null));
+        Assert.Equal(new[] { "app" }, Values("r app", vars: null));
     }
 
     [Fact]
     public void QuotingIsHowYouSayYouMeantTheWord()
     {
-        Assert.Equal(new[] { "pir" }, Values("r \"pir\""));
+        Assert.Equal(new[] { "app" }, Values("r \"app\""));
 
         // Per argument, not per line.
-        Assert.Equal(new[] { "pir", @"D:\src\shine\Shine.sln" }, Values("r \"pir\" pir"));
+        Assert.Equal(new[] { "app", @"D:\src\myapp\MyApp.sln" }, Values("r \"app\" app"));
     }
 
     [Fact]
@@ -237,8 +237,8 @@ public class MacroTests
     {
         // The item behind the code r is reached by typing r, and a file that happens to
         // define r must not put it out of reach of its own invocation.
-        Assert.True(QuickInvocation.TryParse("pir x", out var invocation));
-        Assert.Equal("pir", invocation.Code);
+        Assert.True(QuickInvocation.TryParse("app x", out var invocation));
+        Assert.Equal("app", invocation.Code);
     }
 
     [Fact]
@@ -297,19 +297,19 @@ public class MacroTests
     [Fact]
     public void AFlavourFallsBackToTheBareName_ButOnlyWhenTheItemAskedForIt()
     {
-        // pir has no flavours of its own, and reads as a file, so both sides find it.
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir", template: "%r% %P:file%"));
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir:file"));
+        // app has no flavours of its own, and reads as a file, so both sides find it.
+        Assert.Equal(new[] { @"D:\src\myapp\MyApp.sln" }, Values("r app", template: "%r% %P:file%"));
+        Assert.Equal(new[] { @"D:\src\myapp\MyApp.sln" }, Values("r app:file"));
 
         // A flavour the file cannot answer parts the two sides. Asked for by the item, the
         // bare name still answers - putting a qualifier on an item must not stop it
         // working with the defines that have none.
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln" }, Values("r pir", template: "%r% %P:folder%"));
+        Assert.Equal(new[] { @"D:\src\myapp\MyApp.sln" }, Values("r app", template: "%r% %P:folder%"));
 
         // Typed, it is taken at its word, and passed on as typed like any name that
         // answers to nothing.
-        Assert.Equal(new[] { "pir:folder" }, Values("r pir:folder"));
-        Assert.Equal(new[] { "pir:docs" }, Values("r pir:docs"));
+        Assert.Equal(new[] { "app:folder" }, Values("r app:folder"));
+        Assert.Equal(new[] { "app:docs" }, Values("r app:docs"));
     }
 
     [Fact]
@@ -394,14 +394,14 @@ public class MacroTests
     {
         // The collision this is for: "? src" googles "src" rather than D:\src, and the
         // person invoking it does not have to remember the quotes to get that.
-        Assert.Equal(new[] { "pir" }, Values("r pir", template: "%r% %P:exact%"));
+        Assert.Equal(new[] { "app" }, Values("r app", template: "%r% %P:exact%"));
 
         // Per placeholder rather than per item: the one beside it still resolves.
-        Assert.Equal(new[] { "pir", @"D:\src\shine\Shine.sln" },
-            Values("r pir pir", template: "%code% %P:exact% %P%"));
+        Assert.Equal(new[] { "app", @"D:\src\myapp\MyApp.sln" },
+            Values("r app app", template: "%code% %P:exact% %P%"));
 
         // Case follows the placeholder, which is read without regard to it.
-        Assert.Equal(new[] { "pir" }, Values("r pir", template: "%r% %P:EXACT%"));
+        Assert.Equal(new[] { "app" }, Values("r app", template: "%r% %P:EXACT%"));
     }
 
     [Fact]
@@ -415,22 +415,22 @@ public class MacroTests
         // Written out in full is the same word, and under an exact placeholder it stays
         // the text it is: a value is never read for names, and this argument is a value
         // the moment it is typed.
-        Assert.Equal(new[] { "%pir%" }, Values("r %pir%", template: "%r% %P:exact%"));
+        Assert.Equal(new[] { "%app%" }, Values("r %app%", template: "%r% %P:exact%"));
 
         // The quotes say the same thing from the other side, so the two never disagree.
-        Assert.Equal(new[] { "pir" }, Values("r \"pir\"", template: "%r% %P:exact%"));
+        Assert.Equal(new[] { "app" }, Values("r \"app\"", template: "%r% %P:exact%"));
     }
 
     [Fact]
     public void Exact_IsNotAFlavourTheFileCanAnswerFor()
     {
-        // A define of that name is still a define - %pir:exact% in a snippet finds it -
+        // A define of that name is still a define - %app:exact% in a snippet finds it -
         // but it is not what a %P:exact% is asking for, or the switch would be off for
         // whoever wrote the line.
-        const string reserved = Defines + "\npir:exact=D:\\nope\\Nope.sln";
+        const string reserved = Defines + "\napp:exact=D:\\nope\\Nope.sln";
 
-        Assert.Equal(new[] { "pir" }, Values("r pir", reserved, "%r% %P:exact%"));
-        Assert.Equal("D:\\nope\\Nope.sln", KlippyVariables.Parse(reserved).Expand("%pir:exact%"));
+        Assert.Equal(new[] { "app" }, Values("r app", reserved, "%r% %P:exact%"));
+        Assert.Equal("D:\\nope\\Nope.sln", KlippyVariables.Parse(reserved).Expand("%app:exact%"));
     }
 
     [Fact]
@@ -438,7 +438,7 @@ public class MacroTests
     {
         // The last %P% takes everything still unused, so its terms cover all of them -
         // which is what lets one exact placeholder hold a whole typed phrase.
-        Assert.Equal(new[] { @"D:\src\shine\Shine.sln", "pir", "pir" },
-            Values("r pir pir pir", template: "%code% %P% %P:exact%"));
+        Assert.Equal(new[] { @"D:\src\myapp\MyApp.sln", "app", "app" },
+            Values("r app app app", template: "%code% %P% %P:exact%"));
     }
 }

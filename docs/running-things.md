@@ -113,7 +113,7 @@ placeholder with nothing to fill it expands to nothing: half a typed invocation 
 leaves `%P%` on the clipboard.
 
 An argument may *name* something rather than spell it out: where `klippy.vars` defines
-`pir` as a solution file, `r pir` passes that path, and `r "pir"` passes the word `pir`.
+`app` as a solution file, `r app` passes that path, and `r "app"` passes the word `app`.
 A name defined once per [flavour](variables.md#one-name-two-flavours) lets the item pick — `%P:file%`
 against `%P:folder%` — so the same word means the right thing at either of them, and an
 item whose arguments are never names says so once with `%P:exact%` instead of asking

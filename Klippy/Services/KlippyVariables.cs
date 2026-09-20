@@ -7,7 +7,7 @@ namespace Klippy.Services;
 
 /// <summary>
 /// Local defines a snippet expands on copy, so one snippet can work on two machines:
-/// <c>%ws% C:\src\shine</c> copies as the real WebStorm command line because this
+/// <c>%ws% C:\src\myapp</c> copies as the real WebStorm command line because this
 /// machine's <c>klippy.vars</c> says what <c>ws</c> is.
 ///
 /// The file is a plain list of <c>name=value</c> lines, hand-edited, and deliberately
@@ -85,7 +85,7 @@ public sealed class KlippyVariables
     /// argument typed after a quick-code gets, where the word <em>is</em> a name rather
     /// than merely containing one.
     ///
-    /// <c>pir</c> and <c>%pir%</c> are the same request. With nothing either side of the
+    /// <c>app</c> and <c>%app%</c> are the same request. With nothing either side of the
     /// name there is nothing to delimit it from, so the percent signs are optional here
     /// in the way both dialects are optional in a path — the cost of writing the one a
     /// reader did not expect should be nothing.

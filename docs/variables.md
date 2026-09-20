@@ -14,7 +14,7 @@ ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
 src=D:\src
 ```
 
-A snippet written as `%ws% %src%\shine` then means the real command line for whichever
+A snippet written as `%ws% %src%\myapp` then means the real command line for whichever
 machine you are on: copy it and paste it at a prompt, or mark it
 [Execute](running-things.md) and press Enter.
 
@@ -85,31 +85,31 @@ A define is as useful on the other side of a quick-code. Say `klippy.vars` holds
 
 ```ini
 r=%localappdata%\Programs\Rider\bin\rider64.exe
-pir=D:\src\shine\Shine.sln
+app=D:\src\myapp\MyApp.sln
 ```
 
 and a snippet marked Execute holds `%r% %P%` behind the quick-code `r`. Then
 
 ```
-r pir
+r app
 ```
 
-starts Rider on that solution. `%r%` is the item's own name for the exe; `pir` is an
-argument that names the file. The row shows `%r% D:\src\shine\Shine.sln` while you type
+starts Rider on that solution. `%r%` is the item's own name for the exe; `app` is an
+argument that names the file. The row shows `%r% D:\src\myapp\MyApp.sln` while you type
 it, so a name that was *not* found is visible as itself rather than as a launch that opens
 the wrong thing.
 
 The rule is deliberately narrow:
 
-- **The whole argument, or nothing.** `pir` is a name. `%src%\shine` is a path that happens
+- **The whole argument, or nothing.** `app` is a name. `%src%\myapp` is a path that happens
   to mention one, and keeps its percent signs exactly as it always has — which is what lets
   a `%TEMP%\build` reach a script meaning what it says. Only a word that *is* the name is
-  looked up, written bare or in full as `%pir%`: with nothing either side of it there is
+  looked up, written bare or in full as `%app%`: with nothing either side of it there is
   nothing to delimit it from, so the two read the same.
 - **The file's names, never the machine's.** `%PATH%` has no business arriving as an
   argument because somebody typed `path`. The environment answers for a *value* in the file
   and for the first word of something you run; an argument is neither.
-- **Quote it and it is the word itself.** `r "pir"` passes `pir`. That is the escape for the
+- **Quote it and it is the word itself.** `r "app"` passes `app`. That is the escape for the
   day a define collides with something you meant to search for: `? src` googles `D:\src`
   while `? "src"` googles "src". The quotes cost nothing to spend this way — a name can hold
   no whitespace, so it never needed them to stay one argument, and a *value* with a space in
@@ -182,7 +182,7 @@ lines rather than names — three defines, however many of them share one.
 The rest of the rules:
 
 - **The bare name still answers** where a flavour cannot be found. `%P:file%` against a
-  plain `pir=…` finds `pir`, so putting a qualifier on an item never stops it working with
+  plain `app=…` finds `app`, so putting a qualifier on an item never stops it working with
   the defines that have only the one meaning.
 - **A flavour named at the prompt is taken at its word.** `r klippy:docs` looks for exactly
   that, and passes `klippy:docs` as typed if nothing answers — Klippy does not quietly hand

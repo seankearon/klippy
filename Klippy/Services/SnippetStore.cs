@@ -269,7 +269,7 @@ public sealed class SnippetStore
             };
 
         yield return Make("Send log files",
-            "Please send us the log files, as per the instructions here:\n\nhttps://www.shineforms.co.uk/docs/XXX",
+            "Please send us the log files, as per the instructions here:\n\nhttps://www.example.com/docs/XXX",
             "work", "slf", isMarkdown: true);
         yield return Make("Work email", "sam.rivera@northwind.io", "work", "we");
         yield return Make("Home address", "Lindenstraße 24, 10969 Berlin", "personal");
