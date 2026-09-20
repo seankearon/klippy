@@ -6,9 +6,10 @@ using System.Text;
 namespace Klippy.Services;
 
 /// <summary>
-/// Local defines a snippet expands on copy, so one snippet can work on two machines:
-/// <c>%ws% C:\src\myapp</c> copies as the real WebStorm command line because this
-/// machine's <c>klippy.vars</c> says what <c>ws</c> is.
+/// Local defines a snippet expands on its way to the clipboard or to a process, so one
+/// snippet can work on two machines: <c>%ws% C:\src\myapp</c> copies as — and runs as —
+/// the real WebStorm command line because this machine's <c>klippy.vars</c> says what
+/// <c>ws</c> is.
 ///
 /// The file is a plain list of <c>name=value</c> lines, hand-edited, and deliberately
 /// *not* part of the snippet store: paths are the one thing that cannot be shared
@@ -168,10 +169,7 @@ public sealed class KlippyVariables
     /// </summary>
     private string? OfFlavour(string name, string flavour)
     {
-        bool wantFile = string.Equals(flavour, FileFlavour, StringComparison.OrdinalIgnoreCase);
-        if (!wantFile && !string.Equals(flavour, FolderFlavour, StringComparison.OrdinalIgnoreCase))
-            return null;
-
+        if (WantsFile(flavour) is not { } wantFile) return null;
         if (name.Length == 0 || !_defines.TryGetValue(name, out var values)) return null;
 
         foreach (var value in values)
@@ -183,6 +181,17 @@ public sealed class KlippyVariables
     /// <summary>The two flavours a value can be read for. Everything else is written out in full.</summary>
     private const string FileFlavour = "file";
     private const string FolderFlavour = "folder";
+
+    /// <summary>
+    /// Whether <paramref name="flavour"/> asks for the line that is a file, or the one
+    /// that is a folder — null for every other, which is a name written out in full and
+    /// found by <see cref="Get"/> without help. One reading of the question, since the
+    /// file is read for flavours while it loads as well as after it has.
+    /// </summary>
+    private static bool? WantsFile(string flavour) =>
+        string.Equals(flavour, FileFlavour, StringComparison.OrdinalIgnoreCase) ? true
+        : string.Equals(flavour, FolderFlavour, StringComparison.OrdinalIgnoreCase) ? false
+        : null;
 
     /// <summary>
     /// Whether a value names a file rather than a folder: a dot in its last segment.
@@ -207,8 +216,15 @@ public sealed class KlippyVariables
     /// Replaces every <c>%name%</c> this file defines with its value. Everything else is
     /// left byte for byte as it was written — an undefined name, a lone percent sign, a
     /// pair with a space between them.
+    ///
+    /// Through <see cref="ValueOf"/> rather than <see cref="Get"/>, so an item may name
+    /// the <see cref="OfFlavour">flavour</see> it wants the way a <c>%P:folder%</c>
+    /// already could: <c>%app:folder%\notes.txt</c> asks for the line that is a folder
+    /// whichever order the file happens to be in. A name with no colon in it is
+    /// <see cref="Get"/> exactly, so nothing written before flavours existed reads any
+    /// differently.
     /// </summary>
-    public string Expand(string? text) => Expand(text, Get);
+    public string Expand(string? text) => Expand(text, name => ValueOf(name));
 
     /// <summary>
     /// These variables in front of <paramref name="machine"/>: a name is looked up here
@@ -218,9 +234,18 @@ public sealed class KlippyVariables
     /// exactly as <c>%LOCALAPPDATA%</c> names a folder — one rule for what a percent pair
     /// in a path means, rather than two that disagree. Copying keeps the narrower rule:
     /// see <see cref="Resolve"/> for why a snippet's own text never reads the environment.
+    ///
+    /// <see cref="EnvironmentProbe.ExpandDefines"/> comes with it, since the run path
+    /// gives an argument the file's own names and not the machine's. It is
+    /// <see cref="Expand(string?)"/> itself rather than something like it, so an argument
+    /// that runs and the same argument copied can never answer differently.
     /// </summary>
     public EnvironmentProbe Ahead(EnvironmentProbe machine) =>
-        machine with { Value = name => Get(name) ?? machine.Value(name) };
+        machine with
+        {
+            Value = name => Get(name) ?? machine.Value(name),
+            ExpandDefines = Expand,
+        };
 
     // ---- where the file is ----
 
@@ -376,22 +401,58 @@ public sealed class KlippyVariables
     }
 
     private static string ResolveValue(string value, Dictionary<string, List<string>> raw, HashSet<string> open) =>
-        Expand(value, name =>
+        Expand(value, name => FromFile(name, raw, open) ?? Environment.GetEnvironmentVariable(name));
+
+    /// <summary>
+    /// What the file answers for <paramref name="name"/> while it is still being read, or
+    /// null where it answers nothing — which is where the environment gets its turn.
+    ///
+    /// The name as it stands first, which is the line it means on its own and is how an
+    /// explicit <c>klippy:file=</c> is found. Then the flavour, for a name written as one
+    /// that no line spells out: the same reading <see cref="OfFlavour"/> gives a snippet,
+    /// so <c>notes=%app:folder%\notes.txt</c> in the file means what it would have meant
+    /// in an item. A name looked up one way here and another way there would be the worst
+    /// of both.
+    ///
+    /// A name already being expanded is a cycle, so it does not resolve against the file a
+    /// second time — it falls through to the environment instead. That is what lets
+    /// <c>localappdata=%localappdata%</c> mean "whatever the OS calls it", which is the one
+    /// way to make an environment variable visible to snippets.
+    /// </summary>
+    private static string? FromFile(string name, Dictionary<string, List<string>> raw, HashSet<string> open)
+    {
+        // The line the name means on its own, as Get reads it.
+        if (LinesFor(name) is { } own) return Expanded(name, own[^1]);
+
+        int colon = name.LastIndexOf(':');
+        if (colon <= 0) return null;
+
+        var bare = name[..colon];
+        if (WantsFile(name[(colon + 1)..]) is not { } wantFile || LinesFor(bare) is not { } candidates)
+            return null;
+
+        // Judged on the value as it will stand rather than as it was written, since that is
+        // the value a snippet's own %app:folder% is judged on: a name whose line is spelled
+        // %root%\MyApp.slnx has to be the file here as well as there.
+        foreach (var line in candidates)
         {
-            // A name already being expanded is a cycle, so it does not resolve against the
-            // file a second time — it falls through to the environment instead. That is
-            // what lets `localappdata=%localappdata%` mean "whatever the OS calls it",
-            // which is the one way to make an environment variable visible to snippets.
-            if (!open.Contains(name) && raw.TryGetValue(name, out var inner))
-            {
-                open.Add(name);
-                // The line the name means on its own, as Get reads it.
-                var expanded = ResolveValue(inner[^1], raw, open);
-                open.Remove(name);
-                return expanded;
-            }
-            return Environment.GetEnvironmentVariable(name);
-        });
+            var expanded = Expanded(bare, line);
+            if (NamesAFile(expanded) == wantFile) return expanded;
+        }
+
+        return null;
+
+        List<string>? LinesFor(string n) =>
+            !open.Contains(n) && raw.TryGetValue(n, out var lines) ? lines : null;
+
+        string Expanded(string n, string line)
+        {
+            open.Add(n);
+            var value = ResolveValue(line, raw, open);
+            open.Remove(n);
+            return value;
+        }
+    }
 
     /// <summary>
     /// Scans for <c>%name%</c> and replaces what <paramref name="lookup"/> knows. Hand

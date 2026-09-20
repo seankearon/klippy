@@ -181,9 +181,11 @@ public static class ExecutionPolicy
     /// from <paramref name="arguments"/> and <paramref name="clipboardText"/> first. A
     /// path may name itself the way it does everywhere else on the machine —
     /// <c>%LOCALAPPDATA%\…</c>, <c>$HOME/…</c>, <c>~/…</c>; see
-    /// <see cref="EnvironmentProbe"/>. Only the first word, so an argument's percent
-    /// signs are still the user's own. Never throws: anything it cannot run comes back as
-    /// <see cref="ExecutionKind.None"/> with a <see cref="ExecutionPlan.Problem"/>.
+    /// <see cref="EnvironmentProbe"/>. The machine only in the first word, so an
+    /// argument's <c>%TEMP%</c> is still the user's own; Klippy's own defines everywhere,
+    /// since no one downstream could answer for one. Never throws: anything it cannot run
+    /// comes back as <see cref="ExecutionKind.None"/> with a
+    /// <see cref="ExecutionPlan.Problem"/>.
     /// </summary>
     /// <param name="arguments">
     /// Values for the item's <c>%P%</c> placeholders, as they are to be passed. Already
@@ -192,8 +194,10 @@ public static class ExecutionPolicy
     /// value for a name.
     /// </param>
     /// <param name="environment">
-    /// The environment the first word is resolved against, described by the caller so a
-    /// test need not arrange a real one. Null is the machine Klippy is running on — not
+    /// The environment the first word is resolved against — and, through
+    /// <see cref="EnvironmentProbe.ExpandDefines"/>, the variables file every other word
+    /// is. Described by the caller so a test need not arrange a real one. Null is the
+    /// machine Klippy is running on, defining nothing of its own — not
     /// "leave the variables alone", so a caller that forgets it gets the right answer
     /// rather than a path with percent signs in it. Unlike <see cref="Resolve"/>'s
     /// execute bit, whose null default is to ask nothing, this default does read the
@@ -241,6 +245,22 @@ public static class ExecutionPolicy
         // who can do that can set PATH.
         var typed = tokens[0];
         tokens[0] = machine.Expand(typed);
+
+        // And the variables file — its own names, never the machine's — over the rest of
+        // the line, which is the one thing an argument does resolve. The environment is
+        // left out of it for the reasons above; those reasons say nothing about a define.
+        // Nothing downstream has ever heard of klippy.vars, so a %app% left as written
+        // there is not a name something further on will answer, the way an inherited
+        // %APPDATA% is: it reaches the program as a path with percent signs in the middle
+        // of it, naming nothing. It is also what a copy of the same line has always done,
+        // and "%ws% %src%\myapp" cannot mean two things depending on which key was
+        // pressed.
+        //
+        // Per token, after the split, so a define worth a path with a space in it is still
+        // one argument. Before the macros, so a %C% is never read for a name. And the
+        // .bat refusal still reads the value that is about to be passed, meta characters
+        // and percent signs alike, so nothing reaches cmd.exe that did not before.
+        for (int i = 1; i < tokens.Length; i++) tokens[i] = machine.ExpandDefines(tokens[i]);
 
         var parts = new List<string>(Macros.ExpandAll(tokens, arguments, clipboardText));
         if (parts.Count == 0 || parts[0].Length == 0) return Nothing("There is nothing to run.");
