@@ -24,10 +24,13 @@ Nothing is at stake in the data — snippets are written per edit and the clipbo
 flushes on exit — but the hotkeys and the tray icon go with it, and getting them back means
 launching Klippy again. That, rather than lost work, is what the dialog says.
 
-**An item that matches beats it**, exactly as one beats `lock`: `quit` is an ordinary word,
-and a snippet answering to it was plausibly what was being looked for. A snippet called
-"Quit the trial" keeps the word a filter for as long as it exists — the footer link and the
-tray are then the ways out, which is why the link is there and not only the word.
+**Here, unlike `lock`, a matching item does not beat it.** The word is the one keyboard
+route out of the app, and a snippet that merely mentions it — in its label, its content or
+its tag — must not be the thing that quietly takes that route away. A snippet called "Quit
+the trial" still answers to `quit` as a search: it keeps the selection, and `↵` still copies
+it rather than closing anything. It is only the offer's own standing above the list that no
+longer waits for the list to be empty — `↑` from that row reaches it, exactly as `↑` reaches
+any other offer standing beside a list with rows in it.
 
 It is **not** part of [running an unmatched search](unmatched-search.md), although
 it stands in the same place and answers to the same key. Klippy closing is not Klippy
