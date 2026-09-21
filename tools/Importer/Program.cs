@@ -19,10 +19,9 @@ if (parsed is null)
     return 1;
 }
 
-// The app honours DataDirectory before it opens anything; so must this, or a
-// re-import would quietly land in the folder the user moved away from.
-if (!string.IsNullOrWhiteSpace(AppSettings.Current.DataDirectory) &&
-    !StorageLocations.TryUseDirectory(AppSettings.Current.DataDirectory, out var problem))
+// The app honours the configured file locations before it opens anything; so must this,
+// or a re-import would quietly land in the folder — or the file — the user moved away from.
+if (!StorageLocations.TryApply(AppSettings.Current, out var problem))
     Console.Error.WriteLine($"Ignoring \"DataDirectory\": {problem}.");
 
 var store = new SnippetStore();

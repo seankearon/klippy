@@ -256,10 +256,8 @@ public sealed class KlippyVariables
     /// there is no such thing as "no variables file": one that is not there defines
     /// nothing, which is the same answer.
     /// </summary>
-    public static string PathFor(AppSettings settings) => StorageLocations.Resolve(
-        settings.VariablesFile is { } name && !string.IsNullOrWhiteSpace(name)
-            ? name
-            : DefaultFileName);
+    public static string PathFor(AppSettings settings) =>
+        StorageLocations.ResolveFile(settings.VariablesFile, DefaultFileName);
 
     /// <summary>What <see cref="Current"/> is reading. <see cref="PathFor"/> of the app's own settings.</summary>
     public static string CurrentPath => PathFor(AppSettings.Current);

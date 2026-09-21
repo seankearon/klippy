@@ -29,10 +29,10 @@ sealed class Program
         // second copy here would go stale the moment a preference changed.
         var settings = AppSettings.Current;
 
-        // Before anything opens a file: the history service, the snippet store and the
-        // variables file all resolve their paths against StorageLocations.
-        if (!string.IsNullOrWhiteSpace(settings.DataDirectory) &&
-            !StorageLocations.TryUseDirectory(settings.DataDirectory, out var problem))
+        // Before anything opens a file: the history service, the snippet store, the
+        // command MRU and the variables file all resolve their paths against
+        // StorageLocations, and each of them can be named separately.
+        if (!StorageLocations.TryApply(settings, out var problem))
             Console.Error.WriteLine(
                 $"Ignoring \"DataDirectory\" in {AppSettings.FilePath}: {problem}. " +
                 $"Using {StorageLocations.Directory}.");

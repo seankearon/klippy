@@ -229,12 +229,15 @@ The rest of the rules:
 ## Getting at the file
 
 The **FILES** block in Settings does the whole job, because hunting down `%APPDATA%` to
-edit a file you have just been told about is an errand a settings screen should spare you:
+edit a file you have just been told about is an errand a settings screen should spare you.
+It gives [every one of Klippy's files](settings.md#files) a box; this is the one with the
+buttons:
 
-- **The path is a text box.** A bare name sits beside the snippets, an absolute path is
-  taken as given — which is the answer when a snippet store is shared between two machines
-  and the variables file must not be. It saves when you leave the box, and applies to the
-  next copy: the file is re-read whenever it changes, so there is nothing to restart.
+- **The path is a text box.** An empty one means `klippy.vars` in the data folder. A bare
+  name sits beside the snippets, and an absolute path is taken as given — which is the
+  answer when a snippet store is shared between two machines and the variables file must
+  not be. It saves when you leave the box, and applies to the next copy: the file is
+  re-read whenever it changes, so this is the one path here with nothing to restart.
 - **Create / Open** opens the file in whatever your machine opens a text file with,
   writing a commented example first when there is nothing there yet. The example is
   entirely comments, so a file made by accident defines nothing and changes nothing.
@@ -245,11 +248,12 @@ Under the box, what Klippy read back: `3 variables`, or `no file yet`, or
 `no variables in it` for a file that is all comments. That line is how you check a
 hand-edit parsed.
 
-The same setting by hand, for anyone who would rather:
+The same setting by hand, for anyone who would rather — empty, or left out altogether, is
+`klippy.vars` in the data folder:
 
 ```json
 {
-  "VariablesFile": "klippy.vars"
+  "VariablesFile": "%USERPROFILE%\\klippy.vars"
 }
 ```
 

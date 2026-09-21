@@ -33,7 +33,8 @@ moved. Image clips store the bytes the source app offered, unconverted: PNG when
 on the clipboard, otherwise the raw DIB with a BMP file header on the front. That is
 why Klippy needs no image codec at all.
 
-Image bytes live in `clips/` beside `history.json` rather than inside it, because the
+Image bytes live in a `clips/` folder beside `history.json`, wherever that file is,
+rather than inside it, because the
 JSON is rewritten whole on every flush and megabytes of base64 would make each copy cost
 the entire history. A blob is deleted with its clip, whether that is a delete, a clear
 or an eviction. Images above `HistoryImageLimitMb` (16 by default) are not recorded.
@@ -101,8 +102,9 @@ In `settings.json`, next to the hotkey:
 dropped — but never a pinned one, and never the clip that just arrived, since a history
 full of pinned clips would otherwise swallow every new copy in silence.
 
-Clips live in `history.json` beside the snippets, written on a two-second timer and on
-exit rather than per copy: history changes on *every* copy anywhere on the system, and
+Clips live in `history.json` in the data folder — or wherever
+[`HistoryFile`](settings.md#files) points, which is usually somewhere local when the
+snippets are shared — written on a two-second timer and on exit rather than per copy: history changes on *every* copy anywhere on the system, and
 rewriting the file each time would be the wrong shape entirely. The cost is that a hard
 crash loses the last couple of seconds — the right trade for data that is itself
 transient, and a real difference from `snippets.json`, which is atomic per mutation.

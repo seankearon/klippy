@@ -6,8 +6,9 @@ using Xunit;
 namespace Klippy.Tests;
 
 /// <summary>
-/// Where Klippy keeps its files, and the settings that say so: <c>DataDirectory</c> and
-/// <c>VariablesFile</c>.
+/// Where Klippy keeps its files, and the settings that say so: <c>DataDirectory</c> for
+/// the folder they fall back into, and one setting per file for the ones that name their
+/// way out of it.
 /// </summary>
 [Collection("storage-locations")] // mutates StorageLocations statics
 public class StorageConfigTests : IDisposable
@@ -15,10 +16,16 @@ public class StorageConfigTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"klippy-config-{Guid.NewGuid():N}");
     private readonly string _originalDir = StorageLocations.Directory;
     private readonly string _originalVariablesFile = AppSettings.Current.VariablesFile;
+    private readonly string _originalSnippetsFile = StorageLocations.SnippetsFile;
+    private readonly string _originalHistoryFile = StorageLocations.HistoryFile;
+    private readonly string _originalCommandsFile = StorageLocations.CommandsFile;
 
     public void Dispose()
     {
         StorageLocations.Directory = _originalDir;
+        StorageLocations.SnippetsFile = _originalSnippetsFile;
+        StorageLocations.HistoryFile = _originalHistoryFile;
+        StorageLocations.CommandsFile = _originalCommandsFile;
         AppSettings.Current.VariablesFile = _originalVariablesFile;
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
@@ -28,9 +35,16 @@ public class StorageConfigTests : IDisposable
     [Fact]
     public void ByDefault_EverythingIsInThePlatformAppDataFolder()
     {
-        Assert.Equal("", new AppSettings().DataDirectory);
+        var fresh = new AppSettings();
+
+        // Every one of them empty: a setting left alone asks for the usual name in the
+        // usual folder, not for no file at all.
+        Assert.Equal("", fresh.DataDirectory);
+        Assert.Equal("", fresh.SnippetsFile);
+        Assert.Equal("", fresh.HistoryFile);
+        Assert.Equal("", fresh.CommandsFile);
+        Assert.Equal("", fresh.VariablesFile);
         Assert.Equal(StorageLocations.DefaultDirectory, _originalDir);
-        Assert.Equal(KlippyVariables.DefaultFileName, new AppSettings().VariablesFile);
     }
 
     [Fact]
@@ -71,6 +85,21 @@ public class StorageConfigTests : IDisposable
         Assert.False(StorageLocations.TryUseDirectory("klippy-data", out var problem));
         Assert.Contains("not an absolute path", problem);
         Assert.Equal(_originalDir, StorageLocations.Directory);
+    }
+
+    [Fact]
+    public void AFolderCanBeJudgedWithoutBeingTakenUp()
+    {
+        // What the Settings screen asks as a path is typed: it has to say what is wrong
+        // with one without creating the folder or moving the running app into it.
+        var unused = Path.Combine(_root, "never-created");
+
+        Assert.True(StorageLocations.IsUsableDirectory(unused, out _));
+        Assert.False(Directory.Exists(unused));
+        Assert.Equal(_originalDir, StorageLocations.Directory);
+
+        Assert.False(StorageLocations.IsUsableDirectory("klippy-data", out var problem));
+        Assert.Contains("not an absolute path", problem);
     }
 
     [Fact]
@@ -124,16 +153,106 @@ public class StorageConfigTests : IDisposable
     }
 
     [Fact]
-    public void DataDirectoryAndVariablesFile_SurviveASaveAndLoad()
+    public void EveryFileSetting_SurvivesASaveAndLoad()
     {
         var path = Path.Combine(_root, "settings.json");
         Directory.CreateDirectory(_root);
 
-        new AppSettings { DataDirectory = _root, VariablesFile = "work.vars" }.Save(path);
+        new AppSettings
+        {
+            DataDirectory = _root,
+            SnippetsFile = "/shared/snippets.json",
+            HistoryFile = "local-history.json",
+            CommandsFile = "local-commands.json",
+            VariablesFile = "work.vars",
+        }.Save(path);
 
         var loaded = AppSettings.Load(path);
         Assert.Equal(_root, loaded.DataDirectory);
+        Assert.Equal("/shared/snippets.json", loaded.SnippetsFile);
+        Assert.Equal("local-history.json", loaded.HistoryFile);
+        Assert.Equal("local-commands.json", loaded.CommandsFile);
         Assert.Equal("work.vars", loaded.VariablesFile);
+    }
+
+    // ---- one setting per file ----
+
+    [Fact]
+    public void EachFileCanBeNamedOnItsOwn()
+    {
+        // The point of the whole arrangement: one snippet store shared between a Mac and a
+        // Windows box, while the files that are about *this* machine stay on it.
+        var shared = Path.Combine(_root, "OneDrive", "snippets.json");
+        Assert.True(StorageLocations.TryApply(
+            new AppSettings { DataDirectory = _root, SnippetsFile = shared },
+            out var problem));
+        Assert.Equal("", problem);
+
+        Assert.Equal(shared, StorageLocations.BackedUpPath);
+        Assert.Equal(Path.Combine(_root, StorageLocations.HistoryFileName), StorageLocations.HistoryPath);
+        Assert.Equal(Path.Combine(_root, StorageLocations.CommandsFileName), StorageLocations.CommandsPath);
+    }
+
+    [Fact]
+    public void ABareFileName_LandsInTheDataFolder()
+    {
+        // A name without a path is the second file in the same folder — a work set beside
+        // a personal one — rather than a path relative to who-knows-what.
+        StorageLocations.TryApply(
+            new AppSettings
+            {
+                DataDirectory = _root,
+                SnippetsFile = "work-snippets.json",
+                HistoryFile = "work-history.json",
+                CommandsFile = "work-commands.json",
+            },
+            out _);
+
+        Assert.Equal(Path.Combine(_root, "work-snippets.json"), StorageLocations.BackedUpPath);
+        Assert.Equal(Path.Combine(_root, "work-history.json"), StorageLocations.HistoryPath);
+        Assert.Equal(Path.Combine(_root, "work-commands.json"), StorageLocations.CommandsPath);
+    }
+
+    [Fact]
+    public void ShorthandInAFileName_IsExpandedTheWayAFolderIs()
+    {
+        var name = $"KLIPPY_TEST_{Guid.NewGuid():N}";
+        Environment.SetEnvironmentVariable(name, _root);
+        try
+        {
+            StorageLocations.TryApply(new AppSettings { SnippetsFile = $"%{name}%/team.json" }, out _);
+            Assert.Equal(Path.Combine(_root, "team.json"), StorageLocations.BackedUpPath);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(name, null);
+        }
+    }
+
+    [Fact]
+    public void AnUnusableDataFolder_StillLeavesTheNamedFilesWhereTheyWereNamed()
+    {
+        // A mistyped folder costs that one preference. An absolute path elsewhere never
+        // depended on it, so it must survive the refusal intact.
+        var elsewhere = Path.Combine(_root, "shared", "snippets.json");
+
+        Assert.False(StorageLocations.TryApply(
+            new AppSettings { DataDirectory = "klippy-data", SnippetsFile = elsewhere },
+            out var problem));
+        Assert.Contains("not an absolute path", problem);
+
+        Assert.Equal(elsewhere, StorageLocations.BackedUpPath);
+        Assert.Equal(_originalDir, StorageLocations.Directory);
+    }
+
+    [Fact]
+    public void ClearingAFileSetting_PutsItBackWhereItStarted()
+    {
+        StorageLocations.TryApply(new AppSettings { DataDirectory = _root, HistoryFile = "away.json" }, out _);
+        Assert.Equal(Path.Combine(_root, "away.json"), StorageLocations.HistoryPath);
+
+        StorageLocations.TryApply(new AppSettings { DataDirectory = _root }, out _);
+        Assert.Equal(Path.Combine(_root, StorageLocations.HistoryFileName), StorageLocations.HistoryPath);
     }
 
     // ---- VariablesFile ----
