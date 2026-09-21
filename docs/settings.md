@@ -114,14 +114,22 @@ nowhere else — a synced folder is the last place you would want them.
 
 For the two files that are settable, a bare name is another file in the data folder — a
 work set beside a personal one. An absolute path is taken as given, and environment
-variables and a leading `~` are expanded in both. Under each box is the resolved path and
-what is there: `in use`, `no file yet`, `3 variables`, or `takes effect on restart` for a
-path that will not be picked up until the next launch. The data folder and the snippets
-are read once at startup and held from then on, and **nothing is moved for you** — copy
-the file across first, and the old one is left exactly as it was. The variables file is
-the exception, re-read whenever it changes.
+variables and a leading `~` are expanded in both.
 
-Only the variables file offers **Create**, because it is the only one Klippy knows what
-to put in: a commented example. The snippets box has **Folder** alone, since the store
-writes that file itself. The whole block is hidden on mobile, where app storage is private
-and unreachable — and where the buttons would have no launcher to open anything with.
+Under each box is what is there — `in use`, `no file yet`, `3 variables`, or
+`takes effect on restart` for a path that will not be picked up until the next launch —
+with the resolved path in front of it whenever that is not simply what you typed. A bare
+name is worth resolving on screen; an absolute one is already the answer, so repeating it
+would read like a second setting.
+
+The data folder and the snippets are read once at startup and held from then on, and
+**nothing is moved for you** — copy the file across first, and the old one is left
+exactly as it was. The variables file is the exception, re-read whenever it changes.
+
+**Open** opens a file the way double-clicking it would. Only the variables file also
+offers **Create**, because it is the only one Klippy knows what to put in — a commented
+example — so it has a button whether or not the file is there. The snippets box shows
+**Open** once `snippets.json` exists, which it normally does, and no button at all while
+it does not: only the store knows what belongs in an empty one. **Folder** is always
+there. The whole block is hidden on mobile, where app storage is private and unreachable
+— and where the buttons would have no launcher to open anything with.

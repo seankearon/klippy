@@ -7,10 +7,12 @@ description: "The store, the folder you choose, and how to back it up."
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
-sandbox on Android (mode `0600`, app-private). By default `settings.json`, `history.json`,
-`commands.json`, `clips/` and `klippy.vars` sit in the same folder. The whole list is held
-in memory and each mutation rewrites the file atomically (temp file + replace), so a crash
-can't corrupt it. A copy also writes, because `LastUsedAt` drives recency ranking.
+sandbox on Android (mode `0600`, app-private). `history.json`, `commands.json` and
+`clips/` sit in the same folder, and so do `klippy.vars` and the snippets themselves
+unless told otherwise; `settings.json` is always there, wherever the rest go. The whole
+list is held in memory and each mutation rewrites the file atomically (temp file +
+replace), so a crash can't corrupt it. A copy also writes, because `LastUsedAt` drives
+recency ranking.
 
 ## Choosing where the files go (desktop)
 
@@ -50,8 +52,10 @@ Klippy cannot use is reported on stderr and ignored, costing that one preference
 than the snippets. `VariablesFile` is the exception: it is re-read whenever the file
 changes, so it applies to the next copy.
 
-Settings gives the folder and those two files a box each, with the resolved path under it
-and `in use` or `takes effect on restart` beside that — see [Files](settings.md#files).
+Settings gives the folder and those two files a box each, with a line under it saying
+what is there — `in use`, `no file yet`, or `takes effect on restart` — and the resolved
+path in front of that when it is not simply what you typed. See
+[Files](settings.md#files).
 They are desktop settings for the same reason the **FILES** block is hidden on mobile: app
 storage there is private and unreachable, so there is no other folder to point at and no
 `settings.json` anyone could edit.
@@ -74,6 +78,10 @@ is always written before the old one is deleted, so the switch can't lose snippe
 the active location is inferred from where the file actually is rather than from a
 separate setting that could drift out of sync.
 
-The toggle is hidden where the platform has no such concept (desktop). It is **not yet
-wired up on iOS**, which needs `NSURLIsExcludedFromBackupKey` on the file rather than a
-dedicated directory.
+The toggle is hidden where the platform has no such concept (desktop), and also where
+`SnippetsFile` names a path — that setting has already said where the store lives, so
+there would be nowhere to move it to that it would not name straight back. In practice
+that second case is Android-only trivia: the **FILES** block is hidden there and
+`settings.json` is unreachable, so there is no way to set it on the one platform the
+toggle appears on. It is **not yet wired up on iOS**, which needs
+`NSURLIsExcludedFromBackupKey` on the file rather than a dedicated directory.
