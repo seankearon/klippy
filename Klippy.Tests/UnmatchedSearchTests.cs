@@ -139,18 +139,49 @@ public class UnmatchedSearchTests
         Assert.Equal("https://www.bbc.co.uk/news", plan.Target);
     }
 
+    [Fact]
+    public void HttpLinksAreOfferedOnTheSchemeTheyWereTypedWith()
+    {
+        // Plenty of LAN devices and intranet boxes answer on http and nothing else, so a
+        // typed one is offered — and offered as typed, since promoting it to https would
+        // send the user to a port those hosts are not listening on.
+        var plan = Plan("http://192.168.1.10:8080/status");
+
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal("http://192.168.1.10:8080/status", plan.Target);
+
+        // And the two routes now agree on http, where the typed one used to refuse it.
+        Assert.Equal(ExecutionKind.Url, ExecutionPolicy.Plan("http://example.com").Kind);
+    }
+
     [Theory]
-    [InlineData("http://example.com")]          // plaintext, deliberately narrower than a marked item
-    [InlineData("mailto:someone@example.com")]  // likewise
+    [InlineData("http://localhost:8000", "http://localhost:8000")]  // the dev server
+    [InlineData("http://localhost", "http://localhost")]
+    [InlineData("https://localhost:5001", "https://localhost:5001")]
+    [InlineData("http://build-server/job/klippy", "http://build-server/job/klippy")]
+    [InlineData("http://[::1]:8000", "http://[::1]:8000")]
+    public void ATypedSchemeCarriesItsHostHoweverItIsSpelled(string query, string target)
+    {
+        // Writing the scheme out is the line saying it meant a URL, so the host is taken
+        // as written — no dot needed. localhost is the case worth naming: a dev server on
+        // a port is exactly what someone has open beside Klippy.
+        var plan = Plan(query);
+
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal(target, plan.Target);
+    }
+
+    [Theory]
+    [InlineData("mailto:someone@example.com")]  // deliberately narrower than a marked item
     [InlineData("ftp://example.com")]
     [InlineData("file:///C:/Windows")]          // the shell would happily open it
     [InlineData("javascript:alert(1)")]
     [InlineData("shell:startup")]
-    [InlineData("https://")]                    // a scheme is not a URL
-    [InlineData("www.")]
-    [InlineData("https://localhost")]           // no dot: not what a filter box meant
+    [InlineData("https://")]                    // a scheme with no host does not parse
+    [InlineData("http://")]
+    [InlineData("www.")]                        // half-typed: a bare www. still wants its dot
     [InlineData("www.qwe.com and more words")]  // a sentence that starts with a host
-    public void TypedLinksAreHttpsAndWwwOnly(string query)
+    public void TypedLinksAreTheWebSchemesAndWwwOnly(string query)
     {
         Assert.Equal(ExecutionKind.None, Plan(query).Kind);
     }
@@ -160,7 +191,6 @@ public class UnmatchedSearchTests
     {
         // The narrowing belongs to typed text, and must not have leaked into the rules a
         // snippet marked Execute goes through.
-        Assert.Equal(ExecutionKind.Url, ExecutionPolicy.Plan("http://example.com").Kind);
         Assert.Equal(ExecutionKind.Url, ExecutionPolicy.Plan("mailto:someone@example.com").Kind);
     }
 
