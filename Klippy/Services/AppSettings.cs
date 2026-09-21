@@ -146,10 +146,10 @@ public sealed class AppSettings
     public string SummonPlacement { get; set; } = nameof(LauncherPlacement.Remembered);
 
     /// <summary>
-    /// The folder Klippy keeps its files in unless one of them says otherwise — snippets,
-    /// clipboard history, the command MRU, clip images and the variables file. Empty
-    /// means the platform's own app-data folder, which is what it has always been.
-    /// Environment variables and a leading <c>~</c> are expanded, so
+    /// The folder Klippy keeps its files in: the clipboard history, the command MRU and
+    /// the clip images always, and the snippets and variables file unless those name a
+    /// path of their own. Empty means the platform's own app-data folder, which is what
+    /// it has always been. Environment variables and a leading <c>~</c> are expanded, so
     /// <c>"%OneDrive%\\Klippy"</c> is a legitimate way to write it.
     ///
     /// Read once at startup, since a store that changed folder mid-session would have to
@@ -166,34 +166,18 @@ public sealed class AppSettings
     /// The snippet store. Empty is <c>snippets.json</c> in <see cref="DataDirectory"/>,
     /// which is what it has always been; a bare name is another file in that folder; an
     /// absolute path is taken as given, and is the point of the setting — the snippets
-    /// can sit in a synced folder while the files that are about *this* machine stay on
-    /// it.
+    /// can sit in a synced folder while everything about *this* machine stays on it.
+    ///
+    /// It and <see cref="VariablesFile"/> are the only two files worth pointing
+    /// anywhere. The history and the command MRU are records of what happened here, so
+    /// they stay in the folder above; settings.json is the note saying where the
+    /// snippets went, so it cannot follow them.
     ///
     /// Read once at startup, for the reason <see cref="DataDirectory"/> is, and nothing
     /// is moved for you either: copy the file across first, and the old one is left
     /// exactly where it was, so setting this back gets you back.
     /// </summary>
     public string SnippetsFile { get; set; } = "";
-
-    /// <summary>
-    /// The captured clipboard history. Empty is <c>history.json</c> in
-    /// <see cref="DataDirectory"/>. Clip images follow it: they live in a <c>clips</c>
-    /// folder beside whichever file this names, since a blob means nothing apart from the
-    /// entry that names it.
-    ///
-    /// Worth its own setting for the opposite reason the snippets are: a record of
-    /// everything copied on one machine is the last thing to want synced onto another.
-    ///
-    /// Read once at startup, like the rest.
-    /// </summary>
-    public string HistoryFile { get; set; } = "";
-
-    /// <summary>
-    /// The command MRU — the lines recalled with the down arrow. Empty is
-    /// <c>commands.json</c> in <see cref="DataDirectory"/>. Read once at startup, and
-    /// local to a machine in the way the history is.
-    /// </summary>
-    public string CommandsFile { get; set; } = "";
 
     /// <summary>
     /// The local variables file: <c>%name%</c> defines an item expands on the way to the

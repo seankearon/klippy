@@ -92,35 +92,36 @@ how existing snippets copy — and **Where it was** does the same for the window
 
 ## Files
 
-A **FILES** block at the bottom gives every file Klippy keeps a box of its own, so
-[where each one lives](data-and-backup.md#choosing-where-the-files-go-desktop) is a thing
-you set here rather than a hand-edit. `settings.json` cannot move, since it is the file
-that says where the others went, so it is shown and nothing more. Under it comes the data
-folder, then one box each for the snippets, the clipboard history, the recent commands
-and the [variables file](variables.md).
+A **FILES** block at the bottom is where
+[the paths live](data-and-backup.md#choosing-where-the-files-go-desktop), so they are a
+thing you set here rather than a hand-edit. `settings.json` cannot move, since it is the
+file that says where the others went, so it is shown and nothing more. Under it come three
+boxes: the data folder, the snippets, and the [variables file](variables.md).
 
 | Box | Empty means | Point it elsewhere to |
 |---|---|---|
 | **Data folder** | the platform's app-data folder | keep the lot on another drive |
 | **Snippets** | `snippets.json` in the data folder | share one set between two machines through a synced folder |
-| **Clipboard history** | `history.json`, with `clips/` beside it | keep the record of what you copied off that synced drive |
-| **Recent commands** | `commands.json` in the data folder | the same, for the lines you have typed |
 | **Variables file** | `klippy.vars` in the data folder | keep this machine's `%ws%` local while the snippets are shared |
 
-That last pairing is the reason the boxes are separate at all: a snippet is the same text
-on every machine and a path is not, so the store can be shared exactly because the file
-that translates it is not.
+Those last two are the reason the boxes exist at all: a snippet is the same text on every
+machine and a path is not, so the store can be shared exactly because the file that
+translates it is not.
 
-A bare name is another file in the data folder — a work set beside a personal one. An
-absolute path is taken as given, and environment variables and a leading `~` are expanded
-in both. Under each box is the resolved path and what is there: `in use`, `no file yet`,
-`3 variables`, or `takes effect on restart` for a path that will not be picked up until
-the next launch. Everything but the variables file is read once at startup and held from
-then on, and **nothing is moved for you** — copy the file across first, and the old one
-is left exactly as it was.
+The **clipboard history**, the **recent commands** and the clip images have no box. They
+are the record of what happened on this machine, so they live in the data folder and
+nowhere else — a synced folder is the last place you would want them.
+
+For the two files that are settable, a bare name is another file in the data folder — a
+work set beside a personal one. An absolute path is taken as given, and environment
+variables and a leading `~` are expanded in both. Under each box is the resolved path and
+what is there: `in use`, `no file yet`, `3 variables`, or `takes effect on restart` for a
+path that will not be picked up until the next launch. The data folder and the snippets
+are read once at startup and held from then on, and **nothing is moved for you** — copy
+the file across first, and the old one is left exactly as it was. The variables file is
+the exception, re-read whenever it changes.
 
 Only the variables file offers **Create**, because it is the only one Klippy knows what
-to put in: a commented example. The rest are written by the store that owns them, so they
-have **Folder** alone until there is something to open. The whole block is hidden on
-mobile, where app storage is private and unreachable — and where the buttons would have
-no launcher to open anything with.
+to put in: a commented example. The snippets box has **Folder** alone, since the store
+writes that file itself. The whole block is hidden on mobile, where app storage is private
+and unreachable — and where the buttons would have no launcher to open anything with.

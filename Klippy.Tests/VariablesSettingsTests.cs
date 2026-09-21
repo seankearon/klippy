@@ -232,8 +232,6 @@ public class VariablesSettingsTests : IDisposable
         Assert.True(vm.Variables.CanOpen);              // nothing there yet, and still offered
         Assert.Equal("Create", vm.Variables.OpenVerb);
         Assert.False(vm.Snippets.CanOpen);
-        Assert.False(vm.History.CanOpen);
-        Assert.False(vm.Commands.CanOpen);
 
         // The folder is somewhere to look either way.
         Assert.All(vm.Files, file => Assert.True(file.CanOpenFolder));

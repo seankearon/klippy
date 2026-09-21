@@ -230,8 +230,8 @@ The rest of the rules:
 
 The **FILES** block in Settings does the whole job, because hunting down `%APPDATA%` to
 edit a file you have just been told about is an errand a settings screen should spare you.
-It gives [every one of Klippy's files](settings.md#files) a box; this is the one with the
-buttons:
+It gives [the snippets and this file](settings.md#files) a box each — the only two worth
+pointing anywhere — and this is the one with the buttons:
 
 - **The path is a text box.** An empty one means `klippy.vars` in the data folder. A bare
   name sits beside the snippets, and an absolute path is taken as given — which is the

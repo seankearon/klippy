@@ -126,18 +126,15 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>The snippet store.</summary>
     public StorageFileViewModel Snippets { get; }
 
-    /// <summary>The captured clipboard history, and the clip images beside it.</summary>
-    public StorageFileViewModel History { get; }
-
-    /// <summary>The command MRU.</summary>
-    public StorageFileViewModel Commands { get; }
-
     /// <summary>The local variables file.</summary>
     public StorageFileViewModel Variables { get; }
 
     /// <summary>
-    /// The four, in the order the screen shows them. One list rather than four blocks of
-    /// markup: the rows differ in what they say, not in what they look like.
+    /// The two files worth pointing anywhere, in the order the screen shows them. The
+    /// history and the command MRU are not among them: they are records of what happened
+    /// on this machine and belong in the data folder with it. One list rather than a
+    /// block of markup each — the rows differ in what they say, not in what they look
+    /// like.
     /// </summary>
     public IReadOnlyList<StorageFileViewModel> Files { get; }
 
@@ -200,17 +197,17 @@ public partial class SettingsViewModel : ViewModelBase
     /// What opens a file or a folder. The main view model's own, so Settings cannot open
     /// anything a marked item could not.
     /// </param>
-    /// <param name="open">
-    /// The files the running app has open, so a path typed here can be told apart from the
-    /// one in force. Null where nothing is known, which is a screen that promises nothing
-    /// rather than one that claims a restart is needed.
+    /// <param name="snippetsInUse">
+    /// The snippet file the running app has open, so a path typed here can be told apart
+    /// from the one in force. Null where nothing is known, which is a screen that
+    /// promises nothing rather than one claiming a restart is needed.
     /// </param>
     public SettingsViewModel(
         AppSettings settings,
         Action close,
         bool canExecuteUnmatched = false,
         Func<ExecutionPlan, Task<ExecutionResult>>? executor = null,
-        OpenFiles? open = null)
+        string? snippetsInUse = null)
     {
         _settings = settings;
         _close = close;
@@ -237,25 +234,7 @@ public partial class SettingsViewModel : ViewModelBase
             write: value => { _settings.SnippetsFile = value; Save(); },
             report: Report,
             executor: executor,
-            inUse: () => open?.Snippets);
-
-        History = new StorageFileViewModel(
-            "CLIPBOARD HISTORY", StorageLocations.HistoryFileName,
-            "What has been copied on this machine, with the clip images in a clips folder beside it.",
-            read: () => _settings.HistoryFile,
-            write: value => { _settings.HistoryFile = value; Save(); },
-            report: Report,
-            executor: executor,
-            inUse: () => open?.History);
-
-        Commands = new StorageFileViewModel(
-            "RECENT COMMANDS", StorageLocations.CommandsFileName,
-            "The lines the down arrow recalls in the search box.",
-            read: () => _settings.CommandsFile,
-            write: value => { _settings.CommandsFile = value; Save(); },
-            report: Report,
-            executor: executor,
-            inUse: () => open?.Commands);
+            inUse: () => snippetsInUse);
 
         Variables = new StorageFileViewModel(
             "VARIABLES FILE", KlippyVariables.DefaultFileName,
@@ -269,7 +248,7 @@ public partial class SettingsViewModel : ViewModelBase
             describe: DescribeVariables,
             template: VariablesTemplate);
 
-        Files = new[] { Snippets, History, Commands, Variables };
+        Files = new[] { Snippets, Variables };
 
         _loaded = true;
     }
@@ -490,13 +469,3 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void Close() => _close();
 }
-
-/// <summary>
-/// The files the running app actually has open. Every file but the variables one is read
-/// at startup and held from then on, so a path typed into Settings is a promise about the
-/// next launch — and the only way to say so honestly is to know what is open now.
-///
-/// Null members for what nothing holds: a clipboard history that is switched off, a
-/// command MRU on a platform that has no command line to recall into.
-/// </summary>
-public sealed record OpenFiles(string? Snippets = null, string? History = null, string? Commands = null);

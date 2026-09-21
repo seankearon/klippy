@@ -199,14 +199,15 @@
                              Foreground="{StaticResource MutedBrush}"
                              Text="{Binding SettingsPath}" />
 
-                  <!-- The folder the files below fall back into, not one that overrules
-                       them: each names itself out of here with a path of its own. -->
+                  <!-- Where everything lives: the clipboard history, the recent commands
+                       and the clip images always, and the two files below whenever they
+                       are not pointed somewhere of their own. -->
                   <StackPanel Spacing="4">
                     <TextBlock Classes="mono" Text="DATA FOLDER" FontSize="10" LetterSpacing="0.8"
                                Foreground="{StaticResource MutedBrush}" />
                     <TextBlock FontSize="11" TextWrapping="Wrap"
                                Foreground="{StaticResource MutedBrush}"
-                               Text="Where a file named below without a path of its own lives. Takes effect on the next launch, and nothing is moved for you." />
+                               Text="Holds the clipboard history, the recent commands and the clip images, and anything below without a path of its own. Takes effect on the next launch, and nothing is moved for you." />
 
                     <Grid ColumnDefinitions="*,8,Auto">
                       <!-- LostFocus, not the default per-keystroke: each change saves
@@ -225,7 +226,7 @@
                                Text="{Binding DataFolderStatusText}" />
                   </StackPanel>
 
-                  <!-- One template for all four: the rows differ in what they say, not in
+                  <!-- One template for both: the rows differ in what they say, not in
                        what they look like. A bare name lands in the folder above, an
                        absolute path is taken as given, so the same box does both. -->
                   <ItemsControl ItemsSource="{Binding Files}">

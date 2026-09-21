@@ -14,27 +14,28 @@ can't corrupt it. A copy also writes, because `LastUsedAt` drives recency rankin
 
 ## Choosing where the files go (desktop)
 
-Every file is named on its own, and `DataDirectory` is the folder the ones without a path
-of their own fall into:
+`DataDirectory` is the folder everything lives in, and two files may name their way out of
+it — the snippets and the variables file:
 
 ```json
 {
   "DataDirectory": "D:\\Klippy",
   "SnippetsFile": "%OneDrive%\\Klippy\\snippets.json",
-  "HistoryFile": "",
-  "CommandsFile": "",
   "VariablesFile": ""
 }
 ```
 
-Empty means the usual name in the data folder — `snippets.json`, `history.json`,
-`commands.json`, `klippy.vars`. A bare name is another file in that folder, which is how
-you keep a work set beside a personal one. An absolute path is taken as given, and is the
-point of the whole arrangement: **the snippets are worth sharing between a Mac and a
-Windows box, and `klippy.vars` — the file that says where `%ws%` is on *this* machine — is
-exactly what must not go with them.** The clipboard history and the command MRU stay local
-for the same reason: a record of what you copied and typed on one machine has no business
-turning up on the other.
+Those two and no others, because that pairing is the whole point: **the snippets are worth
+sharing between a Mac and a Windows box, and `klippy.vars` — the file that says where
+`%ws%` is on *this* machine — is exactly what must not go with them.** The clipboard
+history, the command MRU and the clip images stay in the data folder: they are the record
+of what happened on one machine, and a synced folder is the last place for them.
+`settings.json` stays behind too, in the platform's own app-data folder, because it is the
+note saying where the snippets went — it cannot live in the folder it names.
+
+For the two that are settable, empty means the usual name in the data folder —
+`snippets.json` and `klippy.vars`. A bare name is another file in that folder, which is
+how you keep a work set beside a personal one. An absolute path is taken as given.
 
 Environment variables and a leading `~` are expanded wherever a path is read, so
 `"%OneDrive%\\Klippy"` and `"~/Klippy"` are both legitimate ways to write one. The *folder*
@@ -42,22 +43,18 @@ has to be absolute: relative to the exe, to the shell's working directory and to
 app-data folder are three different answers, so the setting insists on being told which one
 you mean. A file name needs no such rule, since a bare one means the data folder.
 
-Clip images follow the history: they live in a `clips/` folder beside whichever file
-`HistoryFile` names, because a blob means nothing apart from the entry that names it.
+`DataDirectory` and `SnippetsFile` are read once at startup, so they take a restart, and
+**nothing is moved for you**: copy the files across first. That cuts in your favour too —
+the old ones are left exactly as they were, so setting it back gets you back. A folder
+Klippy cannot use is reported on stderr and ignored, costing that one preference rather
+than the snippets. `VariablesFile` is the exception: it is re-read whenever the file
+changes, so it applies to the next copy.
 
-`settings.json` is the one file that stays behind, because it is the note saying where
-everything else went — it cannot live in the folder it names.
-
-All of it is read once at startup, so it takes a restart, and **nothing is moved for
-you**: copy the files across first. That cuts in your favour too — the old ones are left
-exactly as they were, so setting it back gets you back. A folder Klippy cannot use is
-reported on stderr and ignored, costing that one preference rather than the snippets.
-
-Settings gives each of them a box, with the resolved path under it and `in use` or
-`takes effect on restart` beside that — see [Files](settings.md#files). They are desktop
-settings for the same reason the **FILES** block is hidden on mobile: app storage there is
-private and unreachable, so there is no other folder to point at and no `settings.json`
-anyone could edit.
+Settings gives the folder and those two files a box each, with the resolved path under it
+and `in use` or `takes effect on restart` beside that — see [Files](settings.md#files).
+They are desktop settings for the same reason the **FILES** block is hidden on mobile: app
+storage there is private and unreachable, so there is no other folder to point at and no
+`settings.json` anyone could edit.
 
 **Android backup is on by default.** `allowBackup="true"` is now set explicitly rather
 than relied on as an implicit default, and both rule files

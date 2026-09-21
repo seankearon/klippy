@@ -9,12 +9,13 @@ using Xunit;
 namespace Klippy.Tests;
 
 /// <summary>
-/// Klippy's files as the Settings screen offers them: one box per file, plus the folder
-/// the ones without a path of their own fall into.
+/// Klippy's files as the Settings screen offers them: a box for the snippets, a box for
+/// the variables file, and the folder everything else lives in.
 ///
-/// The arrangement exists for a single reason — a snippet store is worth sharing between
-/// a Mac and a Windows box, and the variables file that says where <c>%ws%</c> is on each
-/// one is exactly what must not go with it.
+/// Those two and no others, for a single reason — a snippet store is worth sharing
+/// between a Mac and a Windows box, and the variables file that says where <c>%ws%</c>
+/// is on each one is exactly what must not go with it. The history and the command MRU
+/// are records of what happened on one machine, so they stay in the data folder.
 /// </summary>
 [Collection("storage-locations")] // resolves bare names against StorageLocations.Directory
 public class StorageFilesSettingsTests : IDisposable
@@ -36,8 +37,8 @@ public class StorageFilesSettingsTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    private SettingsViewModel Vm(OpenFiles? open = null) =>
-        new(_settings, close: () => { }, executor: Open, open: open);
+    private SettingsViewModel Vm(string? snippetsInUse = null) =>
+        new(_settings, close: () => { }, executor: Open, snippetsInUse: snippetsInUse);
 
     private Task<ExecutionResult> Open(ExecutionPlan plan)
     {
@@ -48,14 +49,25 @@ public class StorageFilesSettingsTests : IDisposable
     // ---- each file on its own ----
 
     [Fact]
-    public void EveryFileHasABoxOfItsOwn()
+    public void TwoFilesHaveABoxOfTheirOwn_AndNoOthers()
     {
         var vm = Vm();
 
-        Assert.Equal(new[] { vm.Snippets, vm.History, vm.Commands, vm.Variables }, vm.Files);
+        Assert.Equal(new[] { vm.Snippets, vm.Variables }, vm.Files);
         Assert.Equal(
-            new[] { "snippets.json", "history.json", "commands.json", "klippy.vars" },
-            new[] { vm.Snippets.Watermark, vm.History.Watermark, vm.Commands.Watermark, vm.Variables.Watermark });
+            new[] { "snippets.json", "klippy.vars" },
+            new[] { vm.Snippets.Watermark, vm.Variables.Watermark });
+    }
+
+    [Fact]
+    public void TheHistoryAndCommandMru_AreNotOffered()
+    {
+        // They are the record of what passed through this machine, and pointing that at a
+        // folder shared with another machine is the one thing nobody wants. They follow
+        // the data folder instead, as they always have.
+        Assert.DoesNotContain(
+            Vm().Files,
+            file => file.Watermark is StorageLocations.HistoryFileName or StorageLocations.CommandsFileName);
     }
 
     [Fact]
@@ -74,42 +86,44 @@ public class StorageFilesSettingsTests : IDisposable
     }
 
     [Fact]
-    public void OneFileMoving_LeavesTheOthersWhereTheyWere()
+    public void MovingTheSnippets_LeavesEverythingElseWhereItWas()
     {
         // The whole point: shared snippets, local everything else.
         var vm = Vm();
         vm.Snippets.File = Path.Combine(_root, "OneDrive", "snippets.json");
 
-        Assert.Equal("", _settings.HistoryFile);
-        Assert.Equal("", _settings.CommandsFile);
         Assert.Equal("", _settings.VariablesFile);
+        Assert.Equal("", _settings.DataDirectory);
+        Assert.Equal(
+            Path.Combine(StorageLocations.Directory, KlippyVariables.DefaultFileName),
+            vm.Variables.Path);
         Assert.Equal(
             Path.Combine(StorageLocations.Directory, StorageLocations.HistoryFileName),
-            vm.History.Path);
+            StorageLocations.HistoryPath);
     }
 
     [Fact]
     public void ABareName_LandsInTheDataFolder_AndTheLineUnderItSaysWhere()
     {
         var vm = Vm();
-        vm.History.File = "work-history.json";
+        vm.Snippets.File = "work-snippets.json";
 
-        var resolved = Path.Combine(StorageLocations.Directory, "work-history.json");
-        Assert.Equal(resolved, vm.History.Path);
-        Assert.Equal($"{resolved}  —  no file yet", vm.History.StatusText);
+        var resolved = Path.Combine(StorageLocations.Directory, "work-snippets.json");
+        Assert.Equal(resolved, vm.Snippets.Path);
+        Assert.Equal($"{resolved}  —  no file yet", vm.Snippets.StatusText);
     }
 
     [Fact]
     public void ClearingABox_PutsTheFileBackWhereItStarted()
     {
         var vm = Vm();
-        vm.Commands.File = Path.Combine(_root, "elsewhere.json");
-        vm.Commands.File = "   ";
+        vm.Snippets.File = Path.Combine(_root, "elsewhere.json");
+        vm.Snippets.File = "   ";
 
-        Assert.Equal("", _settings.CommandsFile);
+        Assert.Equal("", _settings.SnippetsFile);
         Assert.Equal(
-            Path.Combine(StorageLocations.Directory, StorageLocations.CommandsFileName),
-            vm.Commands.Path);
+            Path.Combine(StorageLocations.Directory, StorageLocations.FileName),
+            vm.Snippets.Path);
     }
 
     // ---- what the line under the box says ----
@@ -121,7 +135,7 @@ public class StorageFilesSettingsTests : IDisposable
         File.WriteAllText(open, "[]");
         _settings.SnippetsFile = open;
 
-        var vm = Vm(new OpenFiles(Snippets: open));
+        var vm = Vm(snippetsInUse: open);
 
         Assert.False(vm.Snippets.NeedsRestart);
         Assert.Equal("in use", vm.Snippets.Summary);
@@ -136,7 +150,7 @@ public class StorageFilesSettingsTests : IDisposable
         var open = Path.Combine(_root, "snippets.json");
         File.WriteAllText(open, "[]");
 
-        var vm = Vm(new OpenFiles(Snippets: open));
+        var vm = Vm(snippetsInUse: open);
         vm.Snippets.File = Path.Combine(_root, "somewhere-else.json");
 
         Assert.True(vm.Snippets.NeedsRestart);
@@ -151,18 +165,19 @@ public class StorageFilesSettingsTests : IDisposable
         var open = Path.Combine(_root, "snippets.json");
         _settings.SnippetsFile = open.ToUpperInvariant();
 
-        Assert.False(Vm(new OpenFiles(Snippets: open)).Snippets.NeedsRestart);
+        Assert.False(Vm(snippetsInUse: open).Snippets.NeedsRestart);
     }
 
     [Fact]
     public void WithNothingOpen_NoRestartIsClaimed()
     {
-        // A history that is switched off holds no file, so there is none to be stale.
-        var vm = Vm(new OpenFiles(History: null));
-        vm.History.File = Path.Combine(_root, "history.json");
+        // A screen told nothing about what is running promises nothing — better than one
+        // claiming a restart it cannot know is needed.
+        var vm = Vm();
+        vm.Snippets.File = Path.Combine(_root, "snippets.json");
 
-        Assert.False(vm.History.NeedsRestart);
-        Assert.Equal("no file yet", vm.History.Summary);
+        Assert.False(vm.Snippets.NeedsRestart);
+        Assert.Equal("no file yet", vm.Snippets.Summary);
     }
 
     [Fact]
@@ -170,7 +185,7 @@ public class StorageFilesSettingsTests : IDisposable
     {
         // It is re-read whenever it changes, so an edit applies to the next copy. Only
         // the count is worth reporting, and that is what it reports.
-        var vm = Vm(new OpenFiles(Snippets: Path.Combine(_root, "snippets.json")));
+        var vm = Vm(snippetsInUse: Path.Combine(_root, "snippets.json"));
         var elsewhere = Path.Combine(_root, "work.vars");
         File.WriteAllText(elsewhere, "ws=/usr/bin/webstorm");
 

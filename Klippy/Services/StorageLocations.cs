@@ -17,10 +17,12 @@ namespace Klippy.Services;
 /// The active location is inferred from where the file actually is, so the choice needs
 /// no separate settings file that could disagree with reality.
 ///
-/// Each file is named on its own — snippets, history, the command MRU, the variables
-/// file — against a folder they fall back to rather than one they are confined to. That
-/// is what lets one snippet store be shared between a Mac and a Windows box while the
-/// variables file that translates it stays on each machine.
+/// Two files name themselves out of that folder: the snippets and the variables file.
+/// That pair is the whole point — one snippet store can be shared between a Mac and a
+/// Windows box exactly because the variables file that translates it stays on each
+/// machine. Nothing else is worth pointing anywhere: the history, the command MRU and
+/// settings.json are records of what happened on *this* machine, so they stay in the
+/// folder Klippy keeps.
 /// </summary>
 public static class StorageLocations
 {
@@ -51,21 +53,15 @@ public static class StorageLocations
     /// <see cref="Directory"/>, a bare name is another file in that folder, and an
     /// absolute path is taken as given.
     ///
-    /// One setting per file rather than one folder for all of them, because the files
-    /// want different answers: the snippets are worth syncing between two machines, and
-    /// the variables file — the one that says where <c>%ws%</c> is on *this* one — is
-    /// precisely what must not follow them there.
+    /// A setting of its own rather than just the folder, because the snippets want a
+    /// different answer from everything beside them: they are worth syncing between two
+    /// machines, and the variables file — the one that says where <c>%ws%</c> is on
+    /// *this* one — is precisely what must not follow them there.
     ///
     /// Set once at startup by <see cref="TryApply"/>, since a store that changed file
     /// mid-session would have to decide what to do with the one it already had open.
     /// </summary>
     public static string SnippetsFile { get; set; } = "";
-
-    /// <inheritdoc cref="SnippetsFile"/>
-    public static string HistoryFile { get; set; } = "";
-
-    /// <inheritdoc cref="SnippetsFile"/>
-    public static string CommandsFile { get; set; } = "";
 
     /// <summary>
     /// Directory the platform excludes from backup, or null if it has no such concept.
@@ -93,20 +89,25 @@ public static class StorageLocations
     public static string SettingsPath => Path.Combine(DefaultDirectory, SettingsFileName);
 
     /// <summary>
-    /// Captured clipboard history: <see cref="HistoryFile"/> resolved. Never the
-    /// backup-exempt directory — history is a desktop-only feature (Android forbids
-    /// background clipboard reads), and desktop has no backup-exempt location to choose
-    /// between. Clip images go in a <c>clips</c> folder beside whichever file this is,
+    /// Captured clipboard history. Always <see cref="Directory"/>, and never a file of
+    /// its own: it is the record of what passed through *this* machine's clipboard, so
+    /// there is nowhere else to sensibly point it — least of all the synced folder the
+    /// snippets may have gone to. Clip images go in a <c>clips</c> folder beside it,
     /// because a blob is only meaningful next to the entry that names it.
+    ///
+    /// Never the backup-exempt directory either: history is a desktop-only feature
+    /// (Android forbids background clipboard reads), and desktop has no backup-exempt
+    /// location to choose between.
     /// </summary>
-    public static string HistoryPath => ResolveFile(HistoryFile, HistoryFileName);
+    public static string HistoryPath => Path.Combine(Directory, HistoryFileName);
 
     /// <summary>
-    /// The command MRU: <see cref="CommandsFile"/> resolved. Never the backup-exempt
-    /// directory, for the reason the settings are not: the "wipe on uninstall" choice is
-    /// about snippet data, and a list of lines typed into the search box is not that.
+    /// The command MRU. Always <see cref="Directory"/>, for the reason the history is —
+    /// a list of lines typed into this machine's search box is about this machine. Never
+    /// the backup-exempt directory, for the reason the settings are not: the "wipe on
+    /// uninstall" choice is about snippet data, and this is not that.
     /// </summary>
-    public static string CommandsPath => ResolveFile(CommandsFile, CommandsFileName);
+    public static string CommandsPath => Path.Combine(Directory, CommandsFileName);
 
     /// <summary>
     /// Where a backup-exempt snippet store would sit, or null when there is no such place
@@ -243,21 +244,19 @@ public static class StorageLocations
     }
 
     /// <summary>
-    /// Points Klippy at the files <paramref name="settings"/> name: the folder first, then
-    /// each file that names its way out of it. Called once at startup, before anything
-    /// opens a file.
+    /// Points Klippy at what <paramref name="settings"/> name: the folder first, then the
+    /// snippets file, which may name its way out of it. Called once at startup, before
+    /// anything opens a file.
     ///
     /// Returns false, with <paramref name="problem"/> saying why, when the folder is
     /// unusable — a mistyped folder must cost that preference and not the snippets. The
-    /// per-file names cannot fail here: a name only becomes a path when something opens
-    /// it, and a file that will not open is reported by whatever wanted it rather than
+    /// file name cannot fail here: a name only becomes a path when something opens it,
+    /// and a file that will not open is reported by whatever wanted it rather than
     /// costing the rest of the layout.
     /// </summary>
     public static bool TryApply(AppSettings settings, out string problem)
     {
         SnippetsFile = settings.SnippetsFile;
-        HistoryFile = settings.HistoryFile;
-        CommandsFile = settings.CommandsFile;
 
         problem = "";
         return string.IsNullOrWhiteSpace(settings.DataDirectory)
