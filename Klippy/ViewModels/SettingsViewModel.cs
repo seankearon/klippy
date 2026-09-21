@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,6 +16,9 @@ namespace Klippy.ViewModels;
 /// that alter a paste need a screen of their own. Each toggle saves as it is flipped;
 /// there is no OK button to forget to press, and a copy made straight afterwards uses
 /// the new setting because the whole app shares <see cref="AppSettings.Current"/>.
+///
+/// The FILES block at the bottom names each of Klippy's files separately — see
+/// <see cref="StorageFileViewModel"/> for why one folder for all of them is not enough.
 /// </summary>
 public partial class SettingsViewModel : ViewModelBase
 {
@@ -76,56 +79,65 @@ public partial class SettingsViewModel : ViewModelBase
     private string? _statusText;
 
     /// <summary>
-    /// The variables file, as configured: a bare name sits in the data folder, an absolute
-    /// path is taken as given. Editable, because the whole reason to change it is to point
-    /// at a file somewhere else — and hunting down settings.json to do that is the sort of
-    /// errand this screen exists to spare you.
+    /// The data folder, as configured: the folder a file named by a bare name lands in,
+    /// and empty for the platform's own app-data folder. The snippets and the variables
+    /// file only — the clipboard history and the command MRU stay beside settings.json
+    /// wherever this points. Editable, like the files below it: hunting down settings.json
+    /// to change a path is the sort of errand this screen exists to spare you.
     /// </summary>
     [ObservableProperty]
-    private string _variablesFile;
+    private string _dataFolder;
+
+    /// <summary>Why the typed folder is unusable, or null while it is fine.</summary>
+    private string? _dataFolderProblem;
+
+    /// <summary>What <see cref="DataFolder"/> resolves to, which is what the Open button acts on.</summary>
+    public string DataFolderPath { get; private set; } = "";
+
+    /// <summary>What an empty box means, shown in it while it is empty.</summary>
+    public string DataFolderWatermark => StorageLocations.DefaultDirectory;
+
+    /// <summary>
+    /// The state of that folder in a few words, or what is wrong with the path. A folder
+    /// is only taken up at startup, so one typed here is a promise about the next launch.
+    /// </summary>
+    public string DataFolderSummary { get; private set; } = "";
+
+    /// <summary>
+    /// The line under the box, as <see cref="StorageFileViewModel.StatusText"/> builds
+    /// one, with two differences. A path Klippy will not use has nothing worth resolving,
+    /// so the complaint stands on its own. And an empty box is already showing the answer:
+    /// unlike a file, whose watermark is a bare name worth resolving on screen, this one
+    /// watermarks the folder itself — printing it again underneath reads like a second
+    /// setting.
+    /// </summary>
+    public string DataFolderStatusText =>
+        _dataFolderProblem is not null ||
+        string.Equals(
+            StorageLocations.NormalizeSeparators(DataFolder?.Trim() ?? ""),
+            DataFolderPath,
+            StringComparison.Ordinal) ||
+        string.IsNullOrWhiteSpace(DataFolder)
+            ? DataFolderSummary
+            : $"{DataFolderPath}  —  {DataFolderSummary}";
 
     /// <summary>Where these preferences are written. Shown so a desktop user can find the file.</summary>
     public string SettingsPath => _settings.SourcePath;
 
-    /// <summary>
-    /// Where the snippets, the history and the variables file live — the same folder
-    /// unless <c>DataDirectory</c> says otherwise, in which case a user who set it months
-    /// ago deserves to be told where their data actually went.
-    /// </summary>
-    public string DataFolder => StorageLocations.Directory;
+    /// <summary>The snippet store.</summary>
+    public StorageFileViewModel Snippets { get; }
+
+    /// <summary>The local variables file.</summary>
+    public StorageFileViewModel Variables { get; }
 
     /// <summary>
-    /// What <see cref="VariablesFile"/> actually resolves to, which is the thing the
-    /// buttons act on and the only form worth showing for a bare name.
+    /// The two files worth pointing anywhere, in the order the screen shows them. The
+    /// history and the command MRU are not among them: they are records of what happened
+    /// on this machine and belong in the data folder with it. One list rather than a
+    /// block of markup each — the rows differ in what they say, not in what they look
+    /// like.
     /// </summary>
-    public string VariablesPath { get; private set; } = "";
-
-    /// <summary>
-    /// What Klippy read back from it: the count is how you know a hand-edit parsed, and
-    /// "no file yet" is how you know the button beside it is about to write one.
-    /// </summary>
-    public string VariablesSummary { get; private set; } = "";
-
-    /// <summary>
-    /// The line under the box: the count, with the resolved path in front of it only when
-    /// that is not simply what was typed. A bare name is worth resolving on screen; an
-    /// absolute one is already the answer, and repeating it reads like a second setting —
-    /// including when it was typed with the other separator, which is a respelling of the
-    /// answer rather than a new one.
-    /// </summary>
-    public string VariablesStatusText =>
-        string.Equals(
-            StorageLocations.NormalizeSeparators(VariablesFile?.Trim() ?? ""),
-            VariablesPath,
-            StringComparison.Ordinal)
-            ? VariablesSummary
-            : $"{VariablesPath}  —  {VariablesSummary}";
-
-    /// <summary>Whether that file is there, which decides what the open button offers to do.</summary>
-    public bool VariablesFileExists { get; private set; }
-
-    /// <summary>"Open" once the file is there, "Create" while it is not.</summary>
-    public string OpenVariablesVerb => VariablesFileExists ? "Open" : "Create";
+    public IReadOnlyList<StorageFileViewModel> Files { get; }
 
     /// <summary>
     /// Whether to show those paths at all. Mobile app storage is private and unreachable, so
@@ -186,11 +198,17 @@ public partial class SettingsViewModel : ViewModelBase
     /// What opens a file or a folder. The main view model's own, so Settings cannot open
     /// anything a marked item could not.
     /// </param>
+    /// <param name="snippetsInUse">
+    /// The snippet file the running app has open, so a path typed here can be told apart
+    /// from the one in force. Null where nothing is known, which is a screen that
+    /// promises nothing rather than one claiming a restart is needed.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         Action close,
         bool canExecuteUnmatched = false,
-        Func<ExecutionPlan, Task<ExecutionResult>>? executor = null)
+        Func<ExecutionPlan, Task<ExecutionResult>>? executor = null,
+        string? snippetsInUse = null)
     {
         _settings = settings;
         _close = close;
@@ -207,118 +225,115 @@ public partial class SettingsViewModel : ViewModelBase
         _executeVerifyPaths = settings.ExecuteVerifyPaths;
         _executeConfirmSystemActions = settings.ExecuteConfirmSystemActions;
 
-        _variablesFile = settings.VariablesFile;
-        ReadVariables();
+        _dataFolder = settings.DataDirectory;
+        RereadDataFolder();
+
+        Snippets = new StorageFileViewModel(
+            "SNIPPETS", StorageLocations.FileName,
+            "Everything you have saved. Point it into a synced folder to share one set between machines — copy the file there yourself, Klippy moves nothing.",
+            read: () => _settings.SnippetsFile,
+            write: value => { _settings.SnippetsFile = value; Save(); },
+            report: Report,
+            executor: executor,
+            inUse: () => snippetsInUse);
+
+        Variables = new StorageFileViewModel(
+            "VARIABLES FILE", KlippyVariables.DefaultFileName,
+            "Local defines a snippet expands — %ws% and the like. Re-read as it changes, so no restart.",
+            read: () => _settings.VariablesFile,
+            write: value => { _settings.VariablesFile = value; Save(); },
+            report: Report,
+            executor: executor,
+            // No inUse: the file is re-read whenever it changes, so there is never a
+            // stale one open to warn about.
+            describe: DescribeVariables,
+            template: VariablesTemplate);
+
+        Files = new[] { Snippets, Variables };
 
         _loaded = true;
     }
 
-    /// <summary>
-    /// Re-reads the variables file and refreshes what the screen says about it. Called as
-    /// the overlay opens, after an edit to the path, and after the file is created — the
-    /// count beside a path is only worth showing while it is current.
-    /// </summary>
-    private void ReadVariables()
-    {
-        // The settings being edited, not AppSettings.Current: those are the same instance
-        // in the app, and a screen that read the global while writing to an instance would
-        // be showing one file and editing another the moment they were not.
-        var variables = KlippyVariables.Load(KlippyVariables.PathFor(_settings));
+    /// <summary>The one status line the screen has, which every row reports through.</summary>
+    private void Report(string? message) => StatusText = message;
 
-        VariablesPath = variables.FilePath;
-        VariablesFileExists = variables.Exists;
-        VariablesSummary =
+    /// <summary>
+    /// What Klippy read back from the variables file: the count is how you know a
+    /// hand-edit parsed, and "no file yet" is how you know the button beside it is about
+    /// to write one.
+    ///
+    /// Loaded from the path the row resolved rather than through
+    /// <see cref="KlippyVariables.Current"/>: those read the app's own settings, and a
+    /// screen that read the global while writing to an instance would be showing one file
+    /// and editing another the moment they were not the same.
+    /// </summary>
+    private static string DescribeVariables(string path)
+    {
+        var variables = KlippyVariables.Load(path);
+        return
             !variables.Exists ? "no file yet"
             : variables.Count == 0 ? "no variables in it"
             : variables.Count == 1 ? "1 variable"
             : $"{variables.Count} variables";
-
-        OnPropertyChanged(nameof(VariablesPath));
-        OnPropertyChanged(nameof(VariablesSummary));
-        OnPropertyChanged(nameof(VariablesStatusText));
-        OnPropertyChanged(nameof(VariablesFileExists));
-        OnPropertyChanged(nameof(OpenVariablesVerb));
     }
 
     /// <summary>
-    /// A blank box means the default name rather than nothing, since there is no such
-    /// thing as "no variables file" — a file that is not there simply defines nothing.
-    /// Saved as typed, so the box keeps showing what was written rather than rewriting it
-    /// under the cursor.
+    /// Works out where the data folder lands and whether Klippy can use it. The folder is
+    /// only taken up at startup — a store that changed folder mid-session would have to
+    /// decide what to do with the file it already had open — so this reports rather than
+    /// acts: nothing is created, and nothing moves.
     /// </summary>
-    partial void OnVariablesFileChanged(string value)
+    private void RereadDataFolder()
+    {
+        var configured = DataFolder?.Trim() ?? "";
+
+        _dataFolderProblem =
+            configured.Length > 0 && !StorageLocations.IsUsableDirectory(configured, out var problem)
+                ? problem
+                : null;
+
+        DataFolderPath = configured.Length == 0
+            ? StorageLocations.DefaultDirectory
+            : StorageLocations.ExpandPath(configured);
+
+        DataFolderSummary =
+            _dataFolderProblem is { } bad
+                ? $"{bad} — Klippy stays in {StorageLocations.Directory}"
+            : string.Equals(DataFolderPath, StorageLocations.Directory, StringComparison.OrdinalIgnoreCase)
+                ? "in use"
+                : "takes effect on restart";
+
+        OnPropertyChanged(nameof(DataFolderPath));
+        OnPropertyChanged(nameof(DataFolderSummary));
+        OnPropertyChanged(nameof(DataFolderStatusText));
+    }
+
+    /// <summary>
+    /// An empty box means the platform's own app-data folder, which is what Klippy did
+    /// before anyone asked for anything else. A folder Klippy cannot use is saved anyway
+    /// and said to be unusable: it is what the person typed, and losing it under the
+    /// cursor teaches them nothing about why it was wrong.
+    /// </summary>
+    partial void OnDataFolderChanged(string value)
     {
         if (!_loaded) return;
 
-        _settings.VariablesFile = string.IsNullOrWhiteSpace(value)
-            ? KlippyVariables.DefaultFileName
-            : value.Trim();
-
+        _settings.DataDirectory = value?.Trim() ?? "";
         Save();
-        ReadVariables(); // the path moved, so the count beside it is about a different file
+        RereadDataFolder();
     }
 
     /// <summary>
-    /// Opens the variables file in whatever the machine opens a text file with, writing a
-    /// commented example first when there is nothing there yet.
-    ///
-    /// Creating it here rather than at startup: an empty file in everyone's app-data
-    /// folder would be a file to wonder about, whereas one written the moment you ask to
-    /// see it is the answer to the question you just asked.
+    /// Opens the folder a bare file name lands in — the one the box above the files
+    /// names, which is not necessarily the one in use until Klippy is restarted.
     /// </summary>
     [RelayCommand]
-    private async Task OpenVariables()
-    {
-        if (!VariablesFileExists && !TryWriteTemplate()) return;
-
-        await Open(new ExecutionPlan { Kind = ExecutionKind.Document, Target = VariablesPath });
-    }
-
-    /// <summary>Opens the folder the variables file is in, existing or not.</summary>
-    [RelayCommand]
-    private Task OpenVariablesFolder()
-    {
-        var folder = Path.GetDirectoryName(VariablesPath);
-        return string.IsNullOrEmpty(folder)
-            ? Task.CompletedTask
-            : Open(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = folder });
-    }
-
-    /// <summary>Opens the folder holding the snippets, the history and the clip images.</summary>
-    [RelayCommand]
-    private Task OpenDataFolder() =>
-        Open(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = DataFolder });
-
-    private async Task Open(ExecutionPlan plan)
+    private async Task OpenDataFolder()
     {
         if (_executor is not { } run) return;
 
-        var result = await run(plan);
+        var result = await run(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = DataFolderPath });
         StatusText = result.Started ? null : result.Message;
-    }
-
-    /// <summary>
-    /// Writes the commented example. Returns whether it worked — a folder that cannot be
-    /// written is reported in the same line a failed save is, rather than opening an
-    /// editor on a file that is not there.
-    /// </summary>
-    private bool TryWriteTemplate()
-    {
-        try
-        {
-            var folder = Path.GetDirectoryName(VariablesPath);
-            if (!string.IsNullOrEmpty(folder)) Directory.CreateDirectory(folder);
-
-            File.WriteAllText(VariablesPath, VariablesTemplate);
-            ReadVariables();
-            StatusText = null;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"Could not create {VariablesPath}: {ex.Message}";
-            return false;
-        }
     }
 
     /// <summary>

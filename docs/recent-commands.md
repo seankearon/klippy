@@ -55,8 +55,10 @@ At the limit the oldest commands are dropped. **Zero turns the MRU off** and for
 it has already recorded, since the file is a record of what you have been typing and that
 is a thing a person is entitled to decline.
 
-Commands live in `commands.json` beside `snippets.json`, as a plain JSON array of strings
-so the file can be read and edited by hand. Each is written as it is recorded rather than
+Commands live in `command.history.json` in the platform's own app-data folder, beside the
+[clipboard history](clipboard-history.md) and for the same reason — the lines you have
+typed are about this machine — as a plain JSON array of strings so the file can be read
+and edited by hand. Each is written as it is recorded rather than
 on a timer: a command arrives when you press `Enter`, not on every copy made anywhere on
 the system, so there is nothing to batch. A line is kept exactly as it was typed — `slf `
 is an invocation of `slf` with nothing after it yet, and trimming that space would recall

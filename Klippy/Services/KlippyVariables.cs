@@ -8,7 +8,7 @@ namespace Klippy.Services;
 /// <summary>
 /// Local defines a snippet expands on its way to the clipboard or to a process, so one
 /// snippet can work on two machines: <c>%ws% C:\src\myapp</c> copies as — and runs as —
-/// the real WebStorm command line because this machine's <c>klippy.vars</c> says what
+/// the real WebStorm command line because this machine's <c>variables.txt</c> says what
 /// <c>ws</c> is.
 ///
 /// The file is a plain list of <c>name=value</c> lines, hand-edited, and deliberately
@@ -17,7 +17,7 @@ namespace Klippy.Services;
 /// inside them — and an export, which is a snippet file, never carries them.
 ///
 /// <code>
-/// # klippy.vars
+/// # variables.txt
 /// ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
 /// src=D:\src
 /// </code>
@@ -28,8 +28,13 @@ namespace Klippy.Services;
 /// </summary>
 public sealed class KlippyVariables
 {
-    /// <summary>The file Klippy looks for beside the snippets unless settings name another.</summary>
-    public const string DefaultFileName = "klippy.vars";
+    /// <summary>
+    /// The file Klippy looks for beside the snippets unless settings name another. A
+    /// <c>.txt</c> because that is what it is — a list of lines people open in an editor
+    /// — and because every desktop already knows what to open one with, which the
+    /// <c>.vars</c> it used to be did not.
+    /// </summary>
+    public const string DefaultFileName = "variables.txt";
 
     private readonly Dictionary<string, string[]> _defines;
     private readonly DateTime _stamp;
@@ -256,10 +261,8 @@ public sealed class KlippyVariables
     /// there is no such thing as "no variables file": one that is not there defines
     /// nothing, which is the same answer.
     /// </summary>
-    public static string PathFor(AppSettings settings) => StorageLocations.Resolve(
-        settings.VariablesFile is { } name && !string.IsNullOrWhiteSpace(name)
-            ? name
-            : DefaultFileName);
+    public static string PathFor(AppSettings settings) =>
+        StorageLocations.ResolveFile(settings.VariablesFile, DefaultFileName);
 
     /// <summary>What <see cref="Current"/> is reading. <see cref="PathFor"/> of the app's own settings.</summary>
     public static string CurrentPath => PathFor(AppSettings.Current);

@@ -146,10 +146,15 @@ public sealed class AppSettings
     public string SummonPlacement { get; set; } = nameof(LauncherPlacement.Remembered);
 
     /// <summary>
-    /// Where Klippy keeps its files — snippets, clipboard history, clip images and the
-    /// variables file. Empty means the platform's own app-data folder, which is what it
-    /// has always been. Environment variables and a leading <c>~</c> are expanded, so
+    /// The folder the snippets and the variables file live in, unless those name a path
+    /// of their own. Empty means the platform's own app-data folder, which is what it has
+    /// always been. Environment variables and a leading <c>~</c> are expanded, so
     /// <c>"%OneDrive%\\Klippy"</c> is a legitimate way to write it.
+    ///
+    /// Not the clipboard history, the command MRU or the clip images: those are the
+    /// record of what happened on this machine and stay beside settings.json, because
+    /// this is a setting people point at a synced drive and a log of everything copied
+    /// must not follow the snippets there as a side effect of moving them.
     ///
     /// Read once at startup, since a store that changed folder mid-session would have to
     /// decide what to do with the file it already had open. Nothing is moved for you:
@@ -162,12 +167,33 @@ public sealed class AppSettings
     public string DataDirectory { get; set; } = "";
 
     /// <summary>
-    /// The local variables file: <c>%name%</c> defines an item expands on the way to the
-    /// clipboard, and that the run path resolves a path against. A bare name sits beside
-    /// the snippets, an absolute path is taken as given — which is how a snippet store
-    /// shared between two machines still reads a file local to each.
+    /// The snippet store. Empty is <c>snippets.json</c> in <see cref="DataDirectory"/>,
+    /// which is what it has always been; a bare name is another file in that folder; an
+    /// absolute path is taken as given, and is the point of the setting — the snippets
+    /// can sit in a synced folder while everything about *this* machine stays on it.
+    ///
+    /// It and <see cref="VariablesFile"/> are the only two files worth pointing
+    /// anywhere. The history and the command MRU are records of what happened here, so
+    /// they stay in the folder above; settings.json is the note saying where the
+    /// snippets went, so it cannot follow them.
+    ///
+    /// Read once at startup, for the reason <see cref="DataDirectory"/> is, and nothing
+    /// is moved for you either: copy the file across first, and the old one is left
+    /// exactly where it was, so setting this back gets you back.
     /// </summary>
-    public string VariablesFile { get; set; } = KlippyVariables.DefaultFileName;
+    public string SnippetsFile { get; set; } = "";
+
+    /// <summary>
+    /// The local variables file: <c>%name%</c> defines an item expands on the way to the
+    /// clipboard, and that the run path resolves a path against. Empty is
+    /// <c>variables.txt</c> in <see cref="DataDirectory"/>; a bare name sits beside the
+    /// snippets, and an absolute path is taken as given — which is how a snippet store
+    /// shared between two machines still reads a file local to each.
+    ///
+    /// The one file here that is re-read as it changes rather than at startup: it is
+    /// hand-edited, and "restart Klippy" is a poor answer to a typo.
+    /// </summary>
+    public string VariablesFile { get; set; } = "";
 
     /// <summary>
     /// The one instance the app reads and writes. Loaded on first touch, because the

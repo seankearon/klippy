@@ -189,7 +189,7 @@
                 <Border Height="1" Background="{StaticResource HairlineBrush}"
                         IsVisible="{Binding ShowSettingsPath}" />
 
-                <StackPanel Spacing="8" IsVisible="{Binding ShowSettingsPath}">
+                <StackPanel Spacing="10" IsVisible="{Binding ShowSettingsPath}">
                   <TextBlock Classes="mono" Text="FILES" FontSize="10" LetterSpacing="0.8"
                              Foreground="{StaticResource MutedBrush}" />
 
@@ -199,45 +199,71 @@
                              Foreground="{StaticResource MutedBrush}"
                              Text="{Binding SettingsPath}" />
 
-                  <Grid ColumnDefinitions="*,8,Auto">
-                    <TextBlock Grid.Column="0" Classes="mono" FontSize="10" TextWrapping="Wrap"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource MutedBrush}"
-                               Text="{Binding DataFolder}" />
-                    <Button Grid.Column="2" Classes="chip" Content="Open"
-                            VerticalAlignment="Top"
-                            IsVisible="{Binding CanOpenFiles}"
-                            Command="{Binding OpenDataFolderCommand}" />
-                  </Grid>
-
-                  <!-- The variables file is the one path here worth pointing somewhere
-                       else: a store shared between two machines still wants a file local
-                       to each. Typing takes effect on the next copy - nothing to restart,
-                       since the file is re-read whenever it changes. -->
+                  <!-- Only the two files below, and only when they are not pointed
+                       somewhere of their own. The clipboard history and the recent
+                       commands are about this machine, so they stay beside settings.json
+                       wherever this points. -->
                   <StackPanel Spacing="4">
-                    <TextBlock Classes="mono" Text="VARIABLES FILE" FontSize="10" LetterSpacing="0.8"
+                    <TextBlock Classes="mono" Text="DATA FOLDER" FontSize="10" LetterSpacing="0.8"
                                Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Where a file below without a path of its own lives. The clipboard history and recent commands are not here — they stay with settings.json. Takes effect on the next launch, and nothing is moved for you." />
 
-                    <Grid ColumnDefinitions="*,8,Auto,6,Auto">
+                    <Grid ColumnDefinitions="*,8,Auto">
                       <!-- LostFocus, not the default per-keystroke: each change saves
-                           settings.json and re-reads the file it names, and typing a path
+                           settings.json and re-reads what it names, and typing a path
                            would otherwise do both once per character. -->
                       <TextBox Grid.Column="0" Classes="mono" FontSize="11"
-                               Watermark="klippy.vars"
-                               Text="{Binding VariablesFile, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                      <Button Grid.Column="2" Classes="chip"
-                              Content="{Binding OpenVariablesVerb}"
+                               Watermark="{Binding DataFolderWatermark}"
+                               Text="{Binding DataFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                      <Button Grid.Column="2" Classes="chip" Content="Open"
                               IsVisible="{Binding CanOpenFiles}"
-                              Command="{Binding OpenVariablesCommand}" />
-                      <Button Grid.Column="4" Classes="chip" Content="Folder"
-                              IsVisible="{Binding CanOpenFiles}"
-                              Command="{Binding OpenVariablesFolderCommand}" />
+                              Command="{Binding OpenDataFolderCommand}" />
                     </Grid>
 
                     <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
                                Foreground="{StaticResource MutedBrush}"
-                               Text="{Binding VariablesStatusText}" />
+                               Text="{Binding DataFolderStatusText}" />
                   </StackPanel>
+
+                  <!-- One template for both: the rows differ in what they say, not in
+                       what they look like. A bare name lands in the folder above, an
+                       absolute path is taken as given, so the same box does both. -->
+                  <ItemsControl ItemsSource="{Binding Files}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:StorageFileViewModel">
+                        <StackPanel Spacing="4" Margin="0,0,0,10">
+                          <TextBlock Classes="mono" Text="{Binding Label}" FontSize="10"
+                                     LetterSpacing="0.8"
+                                     Foreground="{StaticResource MutedBrush}" />
+                          <TextBlock FontSize="11" TextWrapping="Wrap"
+                                     Foreground="{StaticResource MutedBrush}"
+                                     Text="{Binding Hint}" />
+
+                          <Grid ColumnDefinitions="*,8,Auto,6,Auto">
+                            <TextBox Grid.Column="0" Classes="mono" FontSize="11"
+                                     Watermark="{Binding Watermark}"
+                                     Text="{Binding File, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <!-- Absent rather than dead where there is nothing to open
+                                 with, and where only the store that owns the file knows
+                                 how to write a first one. -->
+                            <Button Grid.Column="2" Classes="chip"
+                                    Content="{Binding OpenVerb}"
+                                    IsVisible="{Binding CanOpen}"
+                                    Command="{Binding OpenCommand}" />
+                            <Button Grid.Column="4" Classes="chip" Content="Folder"
+                                    IsVisible="{Binding CanOpenFolder}"
+                                    Command="{Binding OpenFolderCommand}" />
+                          </Grid>
+
+                          <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                                     Foreground="{StaticResource MutedBrush}"
+                                     Text="{Binding StatusText}" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
                 </StackPanel>
 
                 <DockPanel Margin="0,4,0,0">

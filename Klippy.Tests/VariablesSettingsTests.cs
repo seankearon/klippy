@@ -13,6 +13,7 @@ namespace Klippy.Tests;
 /// can open, and a folder you can get to — the three things you would otherwise need
 /// settings.json and a file manager for.
 /// </summary>
+[Collection("storage-locations")] // resolves bare names against StorageLocations.Directory
 public class VariablesSettingsTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"klippy-vs-{Guid.NewGuid():N}");
@@ -25,7 +26,7 @@ public class VariablesSettingsTests : IDisposable
         // Loaded from a temp path, not constructed: Save() follows SourcePath, and a bare
         // `new AppSettings()` would write over the developer's own settings.json.
         _settings = AppSettings.Load(Path.Combine(_root, "settings.json"));
-        _settings.VariablesFile = Path.Combine(_root, "klippy.vars");
+        _settings.VariablesFile = Path.Combine(_root, "variables.txt");
     }
 
     public void Dispose()
@@ -49,10 +50,10 @@ public class VariablesSettingsTests : IDisposable
     {
         var vm = Vm();
 
-        Assert.Equal(Path.Combine(_root, "klippy.vars"), vm.VariablesFile);
-        Assert.Equal(Path.Combine(_root, "klippy.vars"), vm.VariablesPath);
-        Assert.Equal("no file yet", vm.VariablesSummary);
-        Assert.False(vm.VariablesFileExists);
+        Assert.Equal(Path.Combine(_root, "variables.txt"), vm.Variables.File);
+        Assert.Equal(Path.Combine(_root, "variables.txt"), vm.Variables.Path);
+        Assert.Equal("no file yet", vm.Variables.Summary);
+        Assert.False(vm.Variables.FileExists);
     }
 
     [Fact]
@@ -62,34 +63,34 @@ public class VariablesSettingsTests : IDisposable
         File.WriteAllText(elsewhere, "ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src");
 
         var vm = Vm();
-        vm.VariablesFile = elsewhere;
+        vm.Variables.File = elsewhere;
 
         // It has to reach the instance a copy reads...
         Assert.Equal(elsewhere, _settings.VariablesFile);
         // ...and disk, or it would not survive a restart.
         Assert.Equal(elsewhere, AppSettings.Load(_settings.SourcePath).VariablesFile);
         // ...and the screen has to follow it to the new file.
-        Assert.Equal(elsewhere, vm.VariablesPath);
-        Assert.Equal("2 variables", vm.VariablesSummary);
-        Assert.True(vm.VariablesFileExists);
+        Assert.Equal(elsewhere, vm.Variables.Path);
+        Assert.Equal("2 variables", vm.Variables.Summary);
+        Assert.True(vm.Variables.FileExists);
     }
 
     [Fact]
     public void ABareName_LandsInTheDataFolder_AndTheLineUnderIsSaysWhere()
     {
         var vm = Vm();
-        vm.VariablesFile = "work.vars";
+        vm.Variables.File = "work.vars";
 
         var resolved = Path.Combine(StorageLocations.Directory, "work.vars");
-        Assert.Equal(resolved, vm.VariablesPath);
-        Assert.Equal($"{resolved}  —  no file yet", vm.VariablesStatusText);
+        Assert.Equal(resolved, vm.Variables.Path);
+        Assert.Equal($"{resolved}  —  no file yet", vm.Variables.StatusText);
     }
 
     [Fact]
     public void AnAbsolutePathIsNotRepeatedUnderItself()
     {
         // The box already shows it; a second copy underneath reads like a second setting.
-        Assert.Equal("no file yet", Vm().VariablesStatusText);
+        Assert.Equal("no file yet", Vm().Variables.StatusText);
     }
 
     [Fact]
@@ -100,25 +101,28 @@ public class VariablesSettingsTests : IDisposable
         // the resolved path stops matching the box character for character while still
         // being the very same answer — which is not worth a second line.
         var vm = Vm();
-        vm.VariablesFile = Path.Combine(_root, "work.vars")
+        vm.Variables.File = Path.Combine(_root, "work.vars")
                                .Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        Assert.Equal(Path.Combine(_root, "work.vars"), vm.VariablesPath);
-        Assert.Equal("no file yet", vm.VariablesStatusText);
+        Assert.Equal(Path.Combine(_root, "work.vars"), vm.Variables.Path);
+        Assert.Equal("no file yet", vm.Variables.StatusText);
     }
 
     [Fact]
     public void ClearingTheBox_MeansTheDefaultName_NotNoFile()
     {
         // There is no such thing as "no variables file": one that is not there defines
-        // nothing, which is the same answer as an empty box asking for.
+        // nothing, which is the same answer as an empty box asking for. The setting is
+        // cleared rather than filled in with the default, so all five boxes read the same
+        // way — empty is the usual name in the usual folder.
         var vm = Vm();
-        vm.VariablesFile = "   ";
+        vm.Variables.File = "   ";
 
-        Assert.Equal(KlippyVariables.DefaultFileName, _settings.VariablesFile);
+        Assert.Equal("", _settings.VariablesFile);
         Assert.Equal(
             Path.Combine(StorageLocations.Directory, KlippyVariables.DefaultFileName),
-            vm.VariablesPath);
+            vm.Variables.Path);
+        Assert.Equal(KlippyVariables.DefaultFileName, vm.Variables.Watermark);
     }
 
     [Fact]
@@ -126,7 +130,7 @@ public class VariablesSettingsTests : IDisposable
     {
         File.WriteAllText(_settings.VariablesFile, "# nothing but a comment\n");
 
-        Assert.Equal("no variables in it", Vm().VariablesSummary);
+        Assert.Equal("no variables in it", Vm().Variables.Summary);
     }
 
     [Fact]
@@ -138,7 +142,7 @@ public class VariablesSettingsTests : IDisposable
         File.WriteAllText(mine, "only=here");
         _settings.VariablesFile = mine;
 
-        Assert.Equal("1 variable", Vm().VariablesSummary);
+        Assert.Equal("1 variable", Vm().Variables.Summary);
         Assert.NotEqual(AppSettings.Current.VariablesFile, _settings.VariablesFile);
     }
 
@@ -148,16 +152,16 @@ public class VariablesSettingsTests : IDisposable
     public async Task OpeningAMissingFile_WritesTheExampleFirst()
     {
         var vm = Vm();
-        Assert.Equal("Create", vm.OpenVariablesVerb);
+        Assert.Equal("Create", vm.Variables.OpenVerb);
 
-        await vm.OpenVariablesCommand.ExecuteAsync(null);
+        await vm.Variables.OpenCommand.ExecuteAsync(null);
 
         Assert.True(File.Exists(_settings.VariablesFile));
-        Assert.Equal("Open", vm.OpenVariablesVerb);   // it is there now
-        Assert.True(vm.VariablesFileExists);
+        Assert.Equal("Open", vm.Variables.OpenVerb);   // it is there now
+        Assert.True(vm.Variables.FileExists);
 
         // Entirely comments, so a file created by accident changes nothing about copying.
-        Assert.Equal("no variables in it", vm.VariablesSummary);
+        Assert.Equal("no variables in it", vm.Variables.Summary);
         Assert.Contains("%ws%", File.ReadAllText(_settings.VariablesFile));
 
         var plan = Assert.Single(_opened);
@@ -172,9 +176,9 @@ public class VariablesSettingsTests : IDisposable
         File.WriteAllText(_settings.VariablesFile, written);
 
         var vm = Vm();
-        Assert.Equal("Open", vm.OpenVariablesVerb);
+        Assert.Equal("Open", vm.Variables.OpenVerb);
 
-        await vm.OpenVariablesCommand.ExecuteAsync(null);
+        await vm.Variables.OpenCommand.ExecuteAsync(null);
 
         Assert.Equal(written, File.ReadAllText(_settings.VariablesFile));
         Assert.Equal(ExecutionKind.Document, Assert.Single(_opened).Kind);
@@ -185,13 +189,13 @@ public class VariablesSettingsTests : IDisposable
     {
         var vm = Vm();
 
-        await vm.OpenVariablesFolderCommand.ExecuteAsync(null);
+        await vm.Variables.OpenFolderCommand.ExecuteAsync(null);
         await vm.OpenDataFolderCommand.ExecuteAsync(null);
 
         Assert.Equal(2, _opened.Count);
         Assert.All(_opened, plan => Assert.Equal(ExecutionKind.Folder, plan.Kind));
-        Assert.Equal(_root, _opened[0].Target);                      // the variables file's own
-        Assert.Equal(StorageLocations.Directory, _opened[1].Target); // snippets and history
+        Assert.Equal(_root, _opened[0].Target);           // the variables file's own
+        Assert.Equal(vm.DataFolderPath, _opened[1].Target); // where a bare name lands
     }
 
     [Fact]
@@ -212,7 +216,37 @@ public class VariablesSettingsTests : IDisposable
     {
         // Mobile has no launcher, so the buttons would be three things that do nothing.
         Assert.False(Vm(canOpen: false).CanOpenFiles);
-        Assert.True(Vm().CanOpenFiles);
+        Assert.False(Vm(canOpen: false).Variables.CanOpen);
+        Assert.False(Vm(canOpen: false).Variables.CanOpenFolder);
+        Assert.True(Vm().Variables.CanOpen);
+    }
+
+    [Fact]
+    public void OnlyTheVariablesFileOffersToCreateItself()
+    {
+        // A "Create" means Klippy knows what belongs in an empty file. It does for the
+        // variables file, which is a commented example; for the rest the store that owns
+        // the file writes the first one, when it has something to say.
+        var vm = Vm();
+
+        Assert.True(vm.Variables.CanOpen);              // nothing there yet, and still offered
+        Assert.Equal("Create", vm.Variables.OpenVerb);
+
+        // The snippets file is not offered while it is missing — there is no button that
+        // could honestly say "Create" when only the store knows what goes in it.
+        vm.Snippets.File = Path.Combine(_root, "not-there.json");
+        Assert.False(vm.Snippets.CanOpen);
+
+        // Once it is there, though, it opens like anything else: the verb follows the
+        // file, and a snippets.json you can read is worth a button.
+        var written = Path.Combine(_root, "written.json");
+        File.WriteAllText(written, "[]");
+        vm.Snippets.File = written;
+        Assert.True(vm.Snippets.CanOpen);
+        Assert.Equal("Open", vm.Snippets.OpenVerb);
+
+        // The folder is somewhere to look either way.
+        Assert.All(vm.Files, file => Assert.True(file.CanOpenFolder));
     }
 
     // ---- what "open a document" means to the launcher ----
@@ -224,8 +258,8 @@ public class VariablesSettingsTests : IDisposable
     public void ADocument_GoesToThePlatformsOwnDefault(ExecutionPlatform platform)
     {
         // The same gesture as double-clicking it: whatever the user opens a .vars with.
-        var plan = new ExecutionPlan { Kind = ExecutionKind.Document, Target = "/tmp/klippy.vars" };
-        var url = new ExecutionPlan { Kind = ExecutionKind.Url, Target = "/tmp/klippy.vars" };
+        var plan = new ExecutionPlan { Kind = ExecutionKind.Document, Target = "/tmp/variables.txt" };
+        var url = new ExecutionPlan { Kind = ExecutionKind.Url, Target = "/tmp/variables.txt" };
 
         var command = ExecutionPolicy.Resolve(plan, platform);
         var asLink = ExecutionPolicy.Resolve(url, platform);
@@ -240,6 +274,6 @@ public class VariablesSettingsTests : IDisposable
         Assert.Equal(asLink.Arguments, command.Arguments);
         Assert.Equal(asLink.UseShellExecute, command.UseShellExecute);
 
-        Assert.Equal("Opening klippy.vars", plan.Description);
+        Assert.Equal("Opening variables.txt", plan.Description);
     }
 }

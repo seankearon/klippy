@@ -545,7 +545,7 @@ public class VariablesTests
     [Fact]
     public void Execute_TheReportedFileWorksEndToEnd()
     {
-        // klippy.vars exactly as it was written - one name twice, values quoted.
+        // the variables file exactly as it was written - one name twice, values quoted.
         var vars = Vars(
             "r=C:\\tools\\rider64.exe\n" +
             "klippy=\"D:\\main\\Klippy\\Klippy.slnx\"\n" +
@@ -910,7 +910,7 @@ public class VariablesTests
     {
         // The line the variables page opens with, marked Execute rather than copied. The
         // file says where the source lives and the item says which folder under it, and
-        // nothing downstream has ever heard of klippy.vars — an unresolved %src% would
+        // nothing downstream has ever heard of the variables file — an unresolved %src% would
         // reach WebStorm as a path with percent signs in the middle of it.
         var plan = Run("%ws% %src%\\myapp", Vars("ws=C:\\tools\\webstorm64.exe\nsrc=D:\\src"));
 

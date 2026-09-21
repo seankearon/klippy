@@ -1150,7 +1150,11 @@ public partial class MainViewModel : ViewModelBase
             canExecuteUnmatched: CanExecuteUnmatched,
             // The head's own launcher, so Settings can open a folder exactly where a
             // marked item can and nowhere it cannot.
-            executor: Executor);
+            executor: Executor,
+            // Which snippet file is open right now, so a path typed there can say whether
+            // it is in force or waiting on a restart. From the store itself rather than
+            // from the settings, which are what the screen is about to change.
+            snippetsInUse: _store.FilePath);
 
     /// <summary>
     /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns

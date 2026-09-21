@@ -85,15 +85,54 @@ rather than throwing it across the desk mid-use. In `settings.json` the key is `
 spelled `"Remembered"`, `"Centre"` or `"Pointer"`; anything else reads as `"Remembered"`
 rather than costing you the rest of the file.
 
-A **FILES** block at the bottom names the three paths that matter. `settings.json` cannot
-move, since it is the file that says where the others went. The data folder is a
-[hand-edit](data-and-backup.md#choosing-the-folder-desktop) that takes effect on the next launch, with an
-**Open** beside it. The [variables file](variables.md) is a text box you can
-point anywhere, with buttons to create or open it and to open its folder — see
-[Getting at the file](variables.md#getting-at-the-file). The whole block is hidden on mobile, where app
-storage is private and unreachable.
-
 Each toggle saves as it is flipped, into the same `settings.json` as the hotkeys; there
 is no OK button to forget. The panel scrolls rather than running off the bottom of a short
 window. The Markdown three default to today's behaviour, so an upgrade changes nothing about
 how existing snippets copy — and **Where it was** does the same for the window.
+
+## Files
+
+A **FILES** block at the bottom is where
+[the paths live](data-and-backup.md#choosing-where-the-files-go-desktop), so they are a
+thing you set here rather than a hand-edit. `settings.json` cannot move, since it is the
+file that says where the others went, so it is shown and nothing more. Under it come three
+boxes: the data folder, the snippets, and the [variables file](variables.md).
+
+| Box | Empty means | Point it elsewhere to |
+|---|---|---|
+| **Data folder** | the platform's app-data folder | keep the snippets and defines on another drive |
+| **Snippets** | `snippets.json` in the data folder | share one set between two machines through a synced folder |
+| **Variables file** | `variables.txt` in the data folder | keep this machine's `%ws%` local while the snippets are shared |
+
+Those last two are the reason the boxes exist at all: a snippet is the same text on every
+machine and a path is not, so the store can be shared exactly because the file that
+translates it is not.
+
+The **clipboard history**, the **recent commands** and the clip images have no box, and
+do not follow the data folder either. They stay in the platform's own app-data folder
+beside `settings.json`, wherever you point the other three. They are the record of what
+happened on this machine, and the data folder is a thing people aim at a synced drive: a
+log of everything you have copied should not end up there as a side effect of moving your
+snippets.
+
+For the two files that are settable, a bare name is another file in the data folder — a
+work set beside a personal one. An absolute path is taken as given, and environment
+variables and a leading `~` are expanded in both.
+
+Under each box is what is there — `in use`, `no file yet`, `3 variables`, or
+`takes effect on restart` for a path that will not be picked up until the next launch —
+with the resolved path in front of it whenever that is not simply what you typed. A bare
+name is worth resolving on screen; an absolute one is already the answer, so repeating it
+would read like a second setting.
+
+The data folder and the snippets are read once at startup and held from then on, and
+**nothing is moved for you** — copy the file across first, and the old one is left
+exactly as it was. The variables file is the exception, re-read whenever it changes.
+
+**Open** opens a file the way double-clicking it would. Only the variables file also
+offers **Create**, because it is the only one Klippy knows what to put in — a commented
+example — so it has a button whether or not the file is there. The snippets box shows
+**Open** once `snippets.json` exists, which it normally does, and no button at all while
+it does not: only the store knows what belongs in an empty one. **Folder** is always
+there. The whole block is hidden on mobile, where app storage is private and unreachable
+— and where the buttons would have no launcher to open anything with.

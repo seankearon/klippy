@@ -7,36 +7,74 @@ description: "The store, the folder you choose, and how to back it up."
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
-sandbox on Android (mode `0600`, app-private). `settings.json`, `history.json`, `clips/`
-and `klippy.vars` sit in the same folder. The whole list is held in memory and each
-mutation rewrites the file atomically (temp file + replace), so a crash can't corrupt it.
-A copy also writes, because `LastUsedAt` drives recency ranking.
+sandbox on Android (mode `0600`, app-private). `variables.txt` sits in the same folder
+unless told otherwise, and the snippets can be pointed elsewhere too; `settings.json`,
+`clipboard.history.json`, `command.history.json` and `clips/` are always there, wherever
+those two go. The whole list is held in memory and each mutation rewrites the file
+atomically (temp file + replace), so a crash can't corrupt it. A copy also writes, because
+`LastUsedAt` drives recency ranking.
 
-## Choosing the folder (desktop)
+**Three of those were renamed.** Up to 1.0.20 they were `history.json`,
+`commands.json` and `klippy.vars`. A folder holding `history.json` beside `commands.json`
+left you to work out which history, and whether commands were a log or a list of things
+to run — so they now say what they are, and the defines file is a `.txt`, which every
+desktop already knows how to open.
 
-`DataDirectory` moves the lot — snippets, history, clip images and the variables file:
+Klippy moves them on the first launch after the upgrade, so nothing is lost and there is
+nothing to do. If you had set `DataDirectory`, the history, the MRU and the clip images
+are fetched back out of it into the app-data folder at the same time — they used to
+follow it and no longer do. Klippy never writes over a file already at the new name, and
+one it cannot move is left where it is to be dealt with by hand. The one exception is a
+`VariablesFile` setting that names `klippy.vars` outright: only the *default* name
+changed, so a file you have named stays exactly where you put it.
+
+## Choosing where the files go (desktop)
+
+`DataDirectory` is the folder the snippets and the variables file live in, and each of
+those two may name its way out of it as well:
 
 ```json
 {
-  "DataDirectory": "D:\\Klippy"
+  "DataDirectory": "D:\\Klippy",
+  "SnippetsFile": "%OneDrive%\\Klippy\\snippets.json",
+  "VariablesFile": ""
 }
 ```
 
-Environment variables and a leading `~` are expanded, so `"%OneDrive%\\Klippy"` and
-`"~/Klippy"` are both legitimate ways to write it. The path has to be absolute: relative to
-the exe, to the shell's working directory and to the app-data folder are three different
-answers, so the setting insists on being told which folder you mean.
+Those two and no others, because that pairing is the whole point: **the snippets are worth
+sharing between a Mac and a Windows box, and `variables.txt` — the file that says where
+`%ws%` is on *this* machine — is exactly what must not go with them.**
 
-`settings.json` is the one file that stays behind, because it is the note saying where
-everything else went — it cannot live in the folder it names. Settings shows both paths,
-and the variables file, under **FILES**, with an **Open** button on the folder.
+**The clipboard history, the command MRU and the clip images ignore all of it** and stay
+in the platform's own app-data folder — `%APPDATA%\Klippy` on Windows — beside
+`settings.json`. They are the record of what happened on one machine, and `DataDirectory`
+is a setting people point at a synced drive: a log of everything you have copied must not
+follow the snippets there as a side effect of moving them. `settings.json` stays for its
+own reason — it is the note saying where the snippets went, so it cannot live in the
+folder it names.
 
-It is read once at startup, so it takes a restart, and **nothing is moved for you**: copy
-the files across first. That cuts in your favour too — the old folder is left exactly as it
-was, so setting it back gets you back. A path Klippy cannot use is reported on stderr and
-ignored, costing that one preference rather than the snippets.
+For the two that are settable, empty means the usual name in the data folder —
+`snippets.json` and `variables.txt`. A bare name is another file in that folder, which is
+how you keep a work set beside a personal one. An absolute path is taken as given.
 
-It is a desktop setting for the same reason the **FILES** block is hidden on mobile: app
+Environment variables and a leading `~` are expanded wherever a path is read, so
+`"%OneDrive%\\Klippy"` and `"~/Klippy"` are both legitimate ways to write one. The *folder*
+has to be absolute: relative to the exe, to the shell's working directory and to the
+app-data folder are three different answers, so the setting insists on being told which one
+you mean. A file name needs no such rule, since a bare one means the data folder.
+
+`DataDirectory` and `SnippetsFile` are read once at startup, so they take a restart, and
+**nothing is moved for you**: copy the files across first. That cuts in your favour too —
+the old ones are left exactly as they were, so setting it back gets you back. A folder
+Klippy cannot use is reported on stderr and ignored, costing that one preference rather
+than the snippets. `VariablesFile` is the exception: it is re-read whenever the file
+changes, so it applies to the next copy.
+
+Settings gives the folder and those two files a box each, with a line under it saying
+what is there — `in use`, `no file yet`, or `takes effect on restart` — and the resolved
+path in front of that when it is not simply what you typed. See
+[Files](settings.md#files).
+They are desktop settings for the same reason the **FILES** block is hidden on mobile: app
 storage there is private and unreachable, so there is no other folder to point at and no
 `settings.json` anyone could edit.
 
@@ -58,6 +96,10 @@ is always written before the old one is deleted, so the switch can't lose snippe
 the active location is inferred from where the file actually is rather than from a
 separate setting that could drift out of sync.
 
-The toggle is hidden where the platform has no such concept (desktop). It is **not yet
-wired up on iOS**, which needs `NSURLIsExcludedFromBackupKey` on the file rather than a
-dedicated directory.
+The toggle is hidden where the platform has no such concept (desktop), and also where
+`SnippetsFile` names a path — that setting has already said where the store lives, so
+there would be nowhere to move it to that it would not name straight back. In practice
+that second case is Android-only trivia: the **FILES** block is hidden there and
+`settings.json` is unreachable, so there is no way to set it on the one platform the
+toggle appears on. It is **not yet wired up on iOS**, which needs
+`NSURLIsExcludedFromBackupKey` on the file rather than a dedicated directory.
