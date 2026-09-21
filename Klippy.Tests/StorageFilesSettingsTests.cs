@@ -55,7 +55,7 @@ public class StorageFilesSettingsTests : IDisposable
 
         Assert.Equal(new[] { vm.Snippets, vm.Variables }, vm.Files);
         Assert.Equal(
-            new[] { "snippets.json", "klippy.vars" },
+            new[] { "snippets.json", "variables.txt" },
             new[] { vm.Snippets.Watermark, vm.Variables.Watermark });
     }
 

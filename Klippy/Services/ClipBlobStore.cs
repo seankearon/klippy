@@ -8,7 +8,7 @@ namespace Klippy.Services;
 /// <summary>
 /// Where image bytes live.
 ///
-/// Kept out of <c>history.json</c> because the store rewrites that file whole on every
+/// Kept out of <c>clipboard.history.json</c> because the store rewrites that file whole on every
 /// flush: megabytes of base64 in it would make each copy cost the entire history. A blob
 /// per image, deleted when its clip is, keeps the JSON small and the writes cheap.
 /// </summary>

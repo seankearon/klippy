@@ -37,7 +37,7 @@ hide:
 
     ---
 
-    A `klippy.vars` file holds local defines that resolve into snippets at trigger
+    A `variables.txt` file holds local defines that resolve into snippets at trigger
     time and are **never exported**. One name can carry two flavours, so an item
     picks the form it needs.
 

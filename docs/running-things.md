@@ -67,7 +67,7 @@ the machine's names deliberately do **not** reach:
   percent signs, so the `.bat` refusal below still sees what `cmd.exe` would see, and a
   child process inherits the environment and can read its own `%APPDATA%` anyway.
   Klippy's own [defines](variables.md) are not in that boat — nothing downstream has ever
-  heard of `klippy.vars`, so an unresolved `%app%` would arrive as a path with percent
+  heard of `variables.txt`, so an unresolved `%app%` would arrive as a path with percent
   signs in the middle of it, naming nothing. Those resolve in every word, exactly as
   copying the same line has always done. A whole argument *typed* after a quick-code is
   the third case, and [names a define](variables.md#variables-as-arguments) rather than
@@ -83,7 +83,7 @@ The same shorthands, read the same way, on the typed route — see
 launcher should not disagree about what a variable means.
 
 Klippy's own [variables file](variables.md) sits in front of the machine here:
-a name defined in `klippy.vars` answers first, and the environment answers everything else.
+a name defined in `variables.txt` answers first, and the environment answers everything else.
 So `%ws%` names WebStorm on this machine with no environment variable to set, and
 `%LOCALAPPDATA%` keeps working exactly as above. It also reaches further than the machine
 does — a define resolves in an argument as well as in the first word, so
@@ -119,7 +119,7 @@ exactly that text if it is not. The *last* `%P%` takes every argument still unus
 placeholder with nothing to fill it expands to nothing: half a typed invocation never
 leaves `%P%` on the clipboard.
 
-An argument may *name* something rather than spell it out: where `klippy.vars` defines
+An argument may *name* something rather than spell it out: where `variables.txt` defines
 `app` as a solution file, `r app` passes that path, and `r "app"` passes the word `app`.
 A name defined once per [flavour](variables.md#one-name-two-flavours) lets the item pick — `%P:file%`
 against `%P:folder%` — so the same word means the right thing at either of them, and an

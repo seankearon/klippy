@@ -28,8 +28,29 @@ public static class StorageLocations
 {
     public const string FileName = "snippets.json";
     public const string SettingsFileName = "settings.json";
-    public const string HistoryFileName = "history.json";
-    public const string CommandsFileName = "commands.json";
+
+    /// <summary>
+    /// Named for what they are rather than for what the code calls them: a folder holding
+    /// <c>history.json</c> beside <c>commands.json</c> left you to work out which history,
+    /// and whether commands were a log or a list of things to run.
+    /// </summary>
+    public const string HistoryFileName = "clipboard.history.json";
+
+    /// <inheritdoc cref="HistoryFileName"/>
+    public const string CommandsFileName = "command.history.json";
+
+    /// <summary>What those two were called before 1.0.21. See <see cref="MigrateLegacyNames"/>.</summary>
+    private const string LegacyHistoryFileName = "history.json";
+
+    /// <inheritdoc cref="LegacyHistoryFileName"/>
+    private const string LegacyCommandsFileName = "commands.json";
+
+    /// <summary>
+    /// What the variables file was called by default before 1.0.21 — and only by default:
+    /// a <c>VariablesFile</c> that names it still means it, which is why
+    /// <see cref="MigrateLegacyNames"/> leaves one alone.
+    /// </summary>
+    private const string LegacyVariablesFileName = "klippy.vars";
 
     /// <summary>
     /// The platform's own app-data folder for Klippy: <c>%APPDATA%\Klippy</c> on Windows,
@@ -261,5 +282,52 @@ public static class StorageLocations
         problem = "";
         return string.IsNullOrWhiteSpace(settings.DataDirectory)
                || TryUseDirectory(settings.DataDirectory, out problem);
+    }
+
+    /// <summary>
+    /// Renames the files that 1.0.20 and earlier wrote under other names, so an upgrade
+    /// keeps the clipboard history, the command MRU and the local defines it already had
+    /// rather than starting empty beside three files nothing reads.
+    ///
+    /// A rename rather than a fallback that reads either name: two names for one file is
+    /// something every later reader has to keep knowing, whereas this is done once and the
+    /// version after it can forget the old names entirely.
+    ///
+    /// Called by the head after <see cref="TryApply"/> and before anything opens a file,
+    /// rather than from inside it — a test that hands <see cref="TryApply"/> a folder it
+    /// refuses would otherwise rename files in the developer's own app-data folder.
+    /// </summary>
+    /// <param name="settings">
+    /// Read for <c>VariablesFile</c> only. A blank one is on the default name and gets the
+    /// rename; a setting that names any file — <c>klippy.vars</c> included — has said
+    /// where it wants its defines, so nothing is moved out from under it.
+    /// </param>
+    public static void MigrateLegacyNames(AppSettings settings)
+    {
+        TryRename(LegacyHistoryFileName, HistoryFileName);
+        TryRename(LegacyCommandsFileName, CommandsFileName);
+
+        if (string.IsNullOrWhiteSpace(settings.VariablesFile))
+            TryRename(LegacyVariablesFileName, KlippyVariables.DefaultFileName);
+
+        static void TryRename(string from, string to)
+        {
+            var legacy = Path.Combine(Directory, from);
+            var renamed = Path.Combine(Directory, to);
+            try
+            {
+                // Never over an existing file: one already at the new name is the current
+                // one, and the old one beside it is a leftover, not an update.
+                if (File.Exists(legacy) && !File.Exists(renamed)) File.Move(legacy, renamed);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                        or NotSupportedException or ArgumentException)
+            {
+                // An upgrade that cannot rename a clipboard history still has to start,
+                // and the file it could not move is still sitting there to be renamed by
+                // hand. Nothing is read from the old name, so this costs the history
+                // rather than the launch.
+            }
+        }
     }
 }

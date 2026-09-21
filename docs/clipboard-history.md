@@ -33,7 +33,7 @@ moved. Image clips store the bytes the source app offered, unconverted: PNG when
 on the clipboard, otherwise the raw DIB with a BMP file header on the front. That is
 why Klippy needs no image codec at all.
 
-Image bytes live in a `clips/` folder beside `history.json` rather than inside it,
+Image bytes live in a `clips/` folder beside `clipboard.history.json` rather than inside it,
 because the
 JSON is rewritten whole on every flush and megabytes of base64 would make each copy cost
 the entire history. A blob is deleted with its clip, whether that is a delete, a clear
@@ -102,7 +102,7 @@ In `settings.json`, next to the hotkey:
 dropped — but never a pinned one, and never the clip that just arrived, since a history
 full of pinned clips would otherwise swallow every new copy in silence.
 
-Clips live in `history.json` in the [data folder](settings.md#files) — always there,
+Clips live in `clipboard.history.json` in the [data folder](settings.md#files) — always there,
 never in whatever folder the snippets may have been pointed at, since a record of what
 this machine copied has no business syncing to another — written on a two-second timer and
 on exit rather than per copy: history changes on *every* copy anywhere on the system, and

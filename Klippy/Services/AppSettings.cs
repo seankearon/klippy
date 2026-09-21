@@ -182,7 +182,7 @@ public sealed class AppSettings
     /// <summary>
     /// The local variables file: <c>%name%</c> defines an item expands on the way to the
     /// clipboard, and that the run path resolves a path against. Empty is
-    /// <c>klippy.vars</c> in <see cref="DataDirectory"/>; a bare name sits beside the
+    /// <c>variables.txt</c> in <see cref="DataDirectory"/>; a bare name sits beside the
     /// snippets, and an absolute path is taken as given — which is how a snippet store
     /// shared between two machines still reads a file local to each.
     ///

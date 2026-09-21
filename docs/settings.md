@@ -102,7 +102,7 @@ boxes: the data folder, the snippets, and the [variables file](variables.md).
 |---|---|---|
 | **Data folder** | the platform's app-data folder | keep the lot on another drive |
 | **Snippets** | `snippets.json` in the data folder | share one set between two machines through a synced folder |
-| **Variables file** | `klippy.vars` in the data folder | keep this machine's `%ws%` local while the snippets are shared |
+| **Variables file** | `variables.txt` in the data folder | keep this machine's `%ws%` local while the snippets are shared |
 
 Those last two are the reason the boxes exist at all: a snippet is the same text on every
 machine and a path is not, so the store can be shared exactly because the file that

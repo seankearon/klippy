@@ -1,15 +1,15 @@
 ---
 icon: lucide/braces
-description: "Local defines in klippy.vars — resolution order, arguments and flavours."
+description: "Local defines in variables.txt — resolution order, arguments and flavours."
 ---
 
 # Variables
 
-A snippet is the same text on every machine; a path is not. `klippy.vars` holds the
+A snippet is the same text on every machine; a path is not. `variables.txt` holds the
 per-machine half, so one snippet can be right on a Mac and on Windows:
 
 ```ini
-# klippy.vars — local defines, never exported
+# variables.txt — local defines, never exported
 ws=%localappdata%\Programs\WebStorm\bin\webstorm64.exe
 src=D:\src
 ```
@@ -77,7 +77,7 @@ The one place the two part company is an **argument**. The machine's names resol
 first word only, because a child process inherits the environment and can read its own
 `%APPDATA%` anyway — so `%TEMP%\build` reaches a script meaning what it says, and the
 [`.bat` refusal](running-things.md#what-running-something-will-not-do) goes on seeing what
-`cmd.exe` would see. Nothing downstream has ever heard of `klippy.vars`, so a define has no
+`cmd.exe` would see. Nothing downstream has ever heard of `variables.txt`, so a define has no
 such second chance: `%z% %app%\notes.txt` resolves `%app%` where it stands, exactly as
 copying the same line has always done. One snippet, one meaning, whichever key you press.
 
@@ -89,7 +89,7 @@ have just typed and want to check.
 
 ## Variables as arguments
 
-A define is as useful on the other side of a quick-code. Say `klippy.vars` holds
+A define is as useful on the other side of a quick-code. Say `variables.txt` holds
 
 ```ini
 r=%localappdata%\Programs\Rider\bin\rider64.exe
@@ -150,7 +150,7 @@ value that is about to be passed rather than on the short name it arrived by.
 typed as `klippy`. So define it twice:
 
 ```ini
-# klippy.vars
+# variables.txt
 klippy=D:\main\Klippy
 klippy=D:\main\Klippy\Klippy.slnx
 ```
@@ -233,7 +233,7 @@ edit a file you have just been told about is an errand a settings screen should 
 It gives [the snippets and this file](settings.md#files) a box each — the only two worth
 pointing anywhere — and this is the one with the buttons:
 
-- **The path is a text box.** An empty one means `klippy.vars` in the data folder. A bare
+- **The path is a text box.** An empty one means `variables.txt` in the data folder. A bare
   name sits beside the snippets, and an absolute path is taken as given — which is the
   answer when a snippet store is shared between two machines and the variables file must
   not be. It saves when you leave the box, and applies to the next copy: the file is
@@ -249,11 +249,11 @@ Under the box, what Klippy read back: `3 variables`, or `no file yet`, or
 hand-edit parsed.
 
 The same setting by hand, for anyone who would rather — empty, or left out altogether, is
-`klippy.vars` in the data folder:
+`variables.txt` in the data folder:
 
 ```json
 {
-  "VariablesFile": "%USERPROFILE%\\klippy.vars"
+  "VariablesFile": "%USERPROFILE%\\klippy-variables.txt"
 }
 ```
 

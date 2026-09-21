@@ -66,7 +66,7 @@ public class StorageConfigTests : IDisposable
         AppSettings.Current.VariablesFile = KlippyVariables.DefaultFileName;
 
         Assert.Equal(Path.Combine(_root, "snippets.json"), StorageLocations.BackedUpPath);
-        Assert.Equal(Path.Combine(_root, "history.json"), StorageLocations.HistoryPath);
+        Assert.Equal(Path.Combine(_root, "clipboard.history.json"), StorageLocations.HistoryPath);
         Assert.Equal(Path.Combine(_root, KlippyVariables.DefaultFileName), KlippyVariables.CurrentPath);
         Assert.True(Directory.Exists(_root)); // created, so the first save has somewhere to land
     }
@@ -286,10 +286,79 @@ public class StorageConfigTests : IDisposable
         Assert.Equal(Path.Combine(_root, KlippyVariables.DefaultFileName), KlippyVariables.CurrentPath);
     }
 
+    // ---- the names 1.0.20 used ----
+
+    [Fact]
+    public void TheFilesThatHadOtherNames_AreRenamedOnce()
+    {
+        // An upgrade must carry the clipboard history, the command MRU and the defines
+        // across rather than start empty beside three files nothing reads.
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+        File.WriteAllText(Path.Combine(_root, "history.json"), "[]");
+        File.WriteAllText(Path.Combine(_root, "commands.json"), "[\"slf\"]");
+        File.WriteAllText(Path.Combine(_root, "klippy.vars"), "ws=/usr/bin/webstorm");
+
+        StorageLocations.MigrateLegacyNames(new AppSettings());
+
+        Assert.Equal("[]", File.ReadAllText(StorageLocations.HistoryPath));
+        Assert.Equal("[\"slf\"]", File.ReadAllText(StorageLocations.CommandsPath));
+        Assert.Equal(
+            "ws=/usr/bin/webstorm",
+            File.ReadAllText(Path.Combine(_root, KlippyVariables.DefaultFileName)));
+
+        // Moved, not copied: a leftover under the old name is one more file to wonder about.
+        Assert.False(File.Exists(Path.Combine(_root, "history.json")));
+        Assert.False(File.Exists(Path.Combine(_root, "commands.json")));
+        Assert.False(File.Exists(Path.Combine(_root, "klippy.vars")));
+    }
+
+    [Fact]
+    public void AFileAlreadyAtTheNewName_IsNeverWrittenOver()
+    {
+        // One already at the new name is the current file; an old one beside it is a
+        // leftover, not an update — and this runs on every launch.
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+        File.WriteAllText(Path.Combine(_root, "history.json"), "stale");
+        File.WriteAllText(StorageLocations.HistoryPath, "current");
+
+        StorageLocations.MigrateLegacyNames(new AppSettings());
+
+        Assert.Equal("current", File.ReadAllText(StorageLocations.HistoryPath));
+        Assert.Equal("stale", File.ReadAllText(Path.Combine(_root, "history.json")));
+    }
+
+    [Fact]
+    public void AVariablesFileTheSettingsName_IsLeftExactlyWhereItIs()
+    {
+        // Only the *default* name changed. Someone whose settings say "klippy.vars" has
+        // said where they want their defines, and renaming it would point the setting at
+        // a file that is no longer there.
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+        var named = Path.Combine(_root, "klippy.vars");
+        File.WriteAllText(named, "ws=/usr/bin/webstorm");
+
+        StorageLocations.MigrateLegacyNames(new AppSettings { VariablesFile = "klippy.vars" });
+
+        Assert.True(File.Exists(named));
+        Assert.False(File.Exists(Path.Combine(_root, KlippyVariables.DefaultFileName)));
+    }
+
+    [Fact]
+    public void WithNothingToRename_MigratingIsHarmless()
+    {
+        // It runs on every launch, so much the commonest case is that there is nothing
+        // to do — and a fresh install must not end up with files it never wrote.
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+
+        StorageLocations.MigrateLegacyNames(new AppSettings());
+
+        Assert.Empty(Directory.GetFiles(_root));
+    }
+
     [Fact]
     public void CurrentRereadsTheFileWhenItChanges()
     {
-        // klippy.vars is hand-edited, and "restart Klippy" is a poor answer to a typo.
+        // The variables file is hand-edited, and "restart Klippy" is a poor answer to a typo.
         var path = Path.Combine(_root, "live.vars");
         Directory.CreateDirectory(_root);
         AppSettings.Current.VariablesFile = path;

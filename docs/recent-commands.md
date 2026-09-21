@@ -55,7 +55,7 @@ At the limit the oldest commands are dropped. **Zero turns the MRU off** and for
 it has already recorded, since the file is a record of what you have been typing and that
 is a thing a person is entitled to decline.
 
-Commands live in `commands.json` in the [data folder](settings.md#files), beside the
+Commands live in `command.history.json` in the [data folder](settings.md#files), beside the
 history and for the same reason — the lines you have typed are about this machine — as a
 plain JSON array of strings so the file can be read and edited by hand. Each is written as it is recorded rather than
 on a timer: a command arrives when you press `Enter`, not on every copy made anywhere on

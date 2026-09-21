@@ -7,12 +7,24 @@ description: "The store, the folder you choose, and how to back it up."
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
-sandbox on Android (mode `0600`, app-private). `history.json`, `commands.json` and
-`clips/` sit in the same folder, and so do `klippy.vars` and the snippets themselves
-unless told otherwise; `settings.json` is always there, wherever the rest go. The whole
-list is held in memory and each mutation rewrites the file atomically (temp file +
-replace), so a crash can't corrupt it. A copy also writes, because `LastUsedAt` drives
-recency ranking.
+sandbox on Android (mode `0600`, app-private). `clipboard.history.json`,
+`command.history.json` and `clips/` sit in the same folder, and so do `variables.txt` and
+the snippets themselves unless told otherwise; `settings.json` is always there, wherever
+the rest go. The whole list is held in memory and each mutation rewrites the file
+atomically (temp file + replace), so a crash can't corrupt it. A copy also writes, because
+`LastUsedAt` drives recency ranking.
+
+**Three of those were renamed in 1.0.21.** They used to be `history.json`,
+`commands.json` and `klippy.vars`. A folder holding `history.json` beside `commands.json`
+left you to work out which history, and whether commands were a log or a list of things
+to run — so they now say what they are, and the defines file is a `.txt`, which every
+desktop already knows how to open.
+
+Klippy renames them on the first launch after the upgrade, so nothing is lost and there
+is nothing to do. It never writes over a file already at the new name, and one it cannot
+move is left where it is to be renamed by hand. The one exception is a `VariablesFile`
+setting that names `klippy.vars` outright: only the *default* name changed, so a file you
+have named stays exactly where you put it.
 
 ## Choosing where the files go (desktop)
 
@@ -28,7 +40,7 @@ it — the snippets and the variables file:
 ```
 
 Those two and no others, because that pairing is the whole point: **the snippets are worth
-sharing between a Mac and a Windows box, and `klippy.vars` — the file that says where
+sharing between a Mac and a Windows box, and `variables.txt` — the file that says where
 `%ws%` is on *this* machine — is exactly what must not go with them.** The clipboard
 history, the command MRU and the clip images stay in the data folder: they are the record
 of what happened on one machine, and a synced folder is the last place for them.
@@ -36,7 +48,7 @@ of what happened on one machine, and a synced folder is the last place for them.
 note saying where the snippets went — it cannot live in the folder it names.
 
 For the two that are settable, empty means the usual name in the data folder —
-`snippets.json` and `klippy.vars`. A bare name is another file in that folder, which is
+`snippets.json` and `variables.txt`. A bare name is another file in that folder, which is
 how you keep a work set beside a personal one. An absolute path is taken as given.
 
 Environment variables and a leading `~` are expanded wherever a path is read, so

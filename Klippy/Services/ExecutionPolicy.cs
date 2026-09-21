@@ -25,7 +25,7 @@ public enum ExecutionKind
     /// A file, handed to whatever the platform opens its kind with — the same gesture as
     /// double-clicking it. Distinct from <see cref="Application"/>, which starts a
     /// program, and from <see cref="Script"/>, which hands one to an interpreter: a
-    /// klippy.vars is neither, and wants the user's text editor.
+    /// the variables file is neither, and wants the user's text editor.
     /// </summary>
     Document,
 
@@ -249,7 +249,7 @@ public static class ExecutionPolicy
         // And the variables file — its own names, never the machine's — over the rest of
         // the line, which is the one thing an argument does resolve. The environment is
         // left out of it for the reasons above; those reasons say nothing about a define.
-        // Nothing downstream has ever heard of klippy.vars, so a %app% left as written
+        // Nothing downstream has ever heard of the variables file, so a %app% left as written
         // there is not a name something further on will answer, the way an inherited
         // %APPDATA% is: it reaches the program as a path with percent signs in the middle
         // of it, naming nothing. It is also what a copy of the same line has always done,

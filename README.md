@@ -39,7 +39,7 @@ should therefore be launched.
 
 ## Variables
 
-A `klippy.vars` file holds local defines that resolve into snippets at trigger time and
+A `variables.txt` file holds local defines that resolve into snippets at trigger time and
 are **never exported** — so a snippet can carry your account number without the export
 carrying it too. One name can hold two flavours, and the item picks the one it needs.
 

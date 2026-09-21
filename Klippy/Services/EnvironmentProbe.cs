@@ -42,7 +42,7 @@ public sealed partial record EnvironmentProbe(Func<string, string?> Value, Func<
     /// <c>%TEMP%</c> stays the user's own, because a child process inherits the
     /// environment and can read it for itself and the <c>.bat</c> refusal has to go on
     /// seeing what <c>cmd.exe</c> would see. Nothing downstream has ever heard of
-    /// <c>klippy.vars</c>, so there is no such reason to leave one of those as written:
+    /// the variables file, so there is no such reason to leave one of those as written:
     /// it would reach the program as a path with percent signs in the middle of it,
     /// naming nothing.
     ///

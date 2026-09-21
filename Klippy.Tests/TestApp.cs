@@ -19,7 +19,7 @@ internal static class TestSettings
     /// acceptable: it makes screenshots machine-dependent and a toggle test destructive.
     ///
     /// The variables file goes the same way, and for a sharper reason: a developer with a
-    /// real klippy.vars would otherwise have their own defines expanded into every copy
+    /// real variables file would otherwise have their own defines expanded into every copy
     /// the suite makes. Pointed at a path that does not exist, so the ambient answer is
     /// "no variables"; a test that wants some writes this file and reads it back.
     /// </summary>

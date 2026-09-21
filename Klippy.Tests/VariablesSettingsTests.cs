@@ -26,7 +26,7 @@ public class VariablesSettingsTests : IDisposable
         // Loaded from a temp path, not constructed: Save() follows SourcePath, and a bare
         // `new AppSettings()` would write over the developer's own settings.json.
         _settings = AppSettings.Load(Path.Combine(_root, "settings.json"));
-        _settings.VariablesFile = Path.Combine(_root, "klippy.vars");
+        _settings.VariablesFile = Path.Combine(_root, "variables.txt");
     }
 
     public void Dispose()
@@ -50,8 +50,8 @@ public class VariablesSettingsTests : IDisposable
     {
         var vm = Vm();
 
-        Assert.Equal(Path.Combine(_root, "klippy.vars"), vm.Variables.File);
-        Assert.Equal(Path.Combine(_root, "klippy.vars"), vm.Variables.Path);
+        Assert.Equal(Path.Combine(_root, "variables.txt"), vm.Variables.File);
+        Assert.Equal(Path.Combine(_root, "variables.txt"), vm.Variables.Path);
         Assert.Equal("no file yet", vm.Variables.Summary);
         Assert.False(vm.Variables.FileExists);
     }
@@ -258,8 +258,8 @@ public class VariablesSettingsTests : IDisposable
     public void ADocument_GoesToThePlatformsOwnDefault(ExecutionPlatform platform)
     {
         // The same gesture as double-clicking it: whatever the user opens a .vars with.
-        var plan = new ExecutionPlan { Kind = ExecutionKind.Document, Target = "/tmp/klippy.vars" };
-        var url = new ExecutionPlan { Kind = ExecutionKind.Url, Target = "/tmp/klippy.vars" };
+        var plan = new ExecutionPlan { Kind = ExecutionKind.Document, Target = "/tmp/variables.txt" };
+        var url = new ExecutionPlan { Kind = ExecutionKind.Url, Target = "/tmp/variables.txt" };
 
         var command = ExecutionPolicy.Resolve(plan, platform);
         var asLink = ExecutionPolicy.Resolve(url, platform);
@@ -274,6 +274,6 @@ public class VariablesSettingsTests : IDisposable
         Assert.Equal(asLink.Arguments, command.Arguments);
         Assert.Equal(asLink.UseShellExecute, command.UseShellExecute);
 
-        Assert.Equal("Opening klippy.vars", plan.Description);
+        Assert.Equal("Opening variables.txt", plan.Description);
     }
 }
