@@ -14,7 +14,7 @@ the rest go. The whole list is held in memory and each mutation rewrites the fil
 atomically (temp file + replace), so a crash can't corrupt it. A copy also writes, because
 `LastUsedAt` drives recency ranking.
 
-**Three of those were renamed in 1.0.21.** They used to be `history.json`,
+**Three of those were renamed.** Up to 1.0.20 they were `history.json`,
 `commands.json` and `klippy.vars`. A folder holding `history.json` beside `commands.json`
 left you to work out which history, and whether commands were a log or a list of things
 to run — so they now say what they are, and the defines file is a `.txt`, which every

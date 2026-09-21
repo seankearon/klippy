@@ -39,14 +39,14 @@ public static class StorageLocations
     /// <inheritdoc cref="HistoryFileName"/>
     public const string CommandsFileName = "command.history.json";
 
-    /// <summary>What those two were called before 1.0.21. See <see cref="MigrateLegacyNames"/>.</summary>
+    /// <summary>What those two were called up to 1.0.20. See <see cref="MigrateLegacyNames"/>.</summary>
     private const string LegacyHistoryFileName = "history.json";
 
     /// <inheritdoc cref="LegacyHistoryFileName"/>
     private const string LegacyCommandsFileName = "commands.json";
 
     /// <summary>
-    /// What the variables file was called by default before 1.0.21 — and only by default:
+    /// What the variables file was called by default up to 1.0.20 — and only by default:
     /// a <c>VariablesFile</c> that names it still means it, which is why
     /// <see cref="MigrateLegacyNames"/> leaves one alone.
     /// </summary>
