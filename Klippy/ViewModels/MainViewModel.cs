@@ -1170,6 +1170,22 @@ public partial class MainViewModel : ViewModelBase
         return false;
     }
 
+    /// <summary>
+    /// The window has been put away — the hotkey pressed a second time, Esc, a copy that
+    /// asked to be dismissed by, or the close button. What was being asked goes with it:
+    /// the box survives a change of view because the question is the same either way, but
+    /// a summons is a new question, and a hotkey pressed an hour later must not open onto
+    /// a list narrowed by one nobody remembers asking. Only the desktop head calls this —
+    /// mobile has no launcher to dismiss to.
+    /// </summary>
+    public void Dismissed()
+    {
+        // Not restore: putting back the line that was being typed is the opposite of what
+        // this is for. Ahead of the clear, which fires nothing when the box is already empty.
+        CloseCommands(restore: false);
+        FilterText = "";
+    }
+
     private const string CopiedToast = "Copied to clipboard";
 
     private const string CannotExecuteHere = "Klippy cannot run items on this device.";

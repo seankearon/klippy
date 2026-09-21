@@ -48,13 +48,13 @@ internal sealed class LauncherHost : IDisposable
             {
                 if (_shuttingDown) return; // real quit, let it through
                 e.Cancel = true;
-                window.Hide();
+                Dismiss(window);
             };
         }
 
         if (_lifetime.MainWindow is Klippy.Views.MainWindow main)
         {
-            main.HideRequested = () => main.Hide();
+            main.HideRequested = () => Dismiss(main);
             // The in-app quit ends exactly where the tray menu's does: closing the window
             // only hides it, so without this there is no way out that does not need the
             // tray icon — and on a crowded notification area that can be a hunt.
@@ -138,7 +138,7 @@ internal sealed class LauncherHost : IDisposable
 
         if (window.IsVisible && window.IsActive && vm?.IsHistoryMode == history)
         {
-            window.Hide();
+            Dismiss(window);
             return;
         }
 
@@ -146,6 +146,29 @@ internal sealed class LauncherHost : IDisposable
         else vm?.ShowSnippets();
 
         ShowWindow();
+
+        // The other key, pressed at a window that was already up, keeps what was typed —
+        // the same question, asked of the other half — and hands it back selected: the
+        // next keystroke replaces it, and → carries on typing where you left off, so
+        // asking something else costs no more than asking this again. A window summoned
+        // from dismissed has nothing to select, since being put away empties the box.
+        //
+        // After the show, not before: bringing a window forward settles focus, and a
+        // selection made ahead of that is one the search box may have lost by the time
+        // you can type into it.
+        if (window is Klippy.Views.MainWindow shown && vm is { FilterText.Length: > 0 })
+            shown.SelectSearchText();
+    }
+
+    /// <summary>
+    /// Putting the window away, however it was asked for: its own hotkey pressed twice,
+    /// Esc, a copy that asked to be dismissed by, or the close button. What was being
+    /// asked goes with it — see <see cref="MainViewModel.Dismissed"/>.
+    /// </summary>
+    private static void Dismiss(Window window)
+    {
+        (window.DataContext as MainViewModel)?.Dismissed();
+        window.Hide();
     }
 
     /// <summary>Kept for the tray icon, which has no view of its own to ask for.</summary>

@@ -24,6 +24,12 @@ the filter and any overlay are cleared. Switching views keeps what is in the sea
 you are looking for the same thing either way, and the other half of the answer should be
 one keystroke away rather than one keystroke and a retype.
 
+Switching a window that is already up hands that line back **selected**: the next
+keystroke replaces it, and `→` or `End` drops the selection to carry on typing where you
+left off — the same question gets a keystroke, a new one gets a keystroke. Being
+dismissed empties the box, so a hotkey pressed an hour later opens on a whole list rather
+than on one narrowed by a question you no longer remember asking.
+
 They register independently, so one losing the race for its combination leaves the other
 working, and Klippy says on stderr which one it could not claim. The history key is only
 registered where there is a history to summon — not on mobile, and not with history

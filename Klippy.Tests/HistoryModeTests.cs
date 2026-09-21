@@ -2,11 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Klippy.Models;
 using Klippy.Services;
 using Klippy.ViewModels;
@@ -32,6 +34,10 @@ public class HistoryModeTests
 
     private static TagChipViewModel HistoryChip(MainViewModel vm) =>
         vm.Tags.First(t => t.Name == MainViewModel.HistoryTag);
+
+    /// <summary>The window's search box. Named in the markup, and private to the window.</summary>
+    private static TextBox SearchBox(MainWindow window) =>
+        window.GetVisualDescendants().OfType<TextBox>().Single(b => b.Name == "SearchBox");
 
     /// <summary>A real PNG, so the row's thumbnail is exercised rather than stubbed.</summary>
     private static byte[] SamplePng()
@@ -203,6 +209,41 @@ public class HistoryModeTests
 
         vm.ShowSnippets();
         Assert.Equal("clip", vm.FilterText);
+    }
+
+    [AvaloniaFact]
+    public void TheTextThatSurvivesASwitchIsHandedOverSelected()
+    {
+        // The launcher asks for this once the window is up, so the line that came through
+        // the switch can be typed straight over rather than cleared by hand first.
+        var (vm, _) = NewVm("a clip");
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        vm.FilterText = "conn";
+
+        vm.ShowHistory();
+        window.SelectSearchText();
+        Dispatcher.UIThread.RunJobs();
+
+        var box = SearchBox(window);
+        Assert.Equal("conn", box.SelectedText);
+        Assert.True(box.IsFocused);
+    }
+
+    [AvaloniaFact]
+    public void BeingDismissedEmptiesTheSearchBox()
+    {
+        // The box survives a change of view, but not being put away: the next summons is a
+        // new question, and must not open onto a list narrowed by the last one.
+        var (vm, _) = NewVm("a clip");
+        vm.ShowHistory();
+        vm.FilterText = "conn";
+
+        vm.Dismissed();
+
+        Assert.Equal("", vm.FilterText);
+        Assert.Equal("a clip", Assert.Single(vm.Filtered).Label); // and the list is whole again
     }
 
     [AvaloniaFact]
