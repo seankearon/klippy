@@ -1,19 +1,6 @@
 # Fido settings for this repository — https://github.com/seankearon/fido
-#
-# Fido reads this file off the branch when a scan lands, before it offers the checkout
-# options. Commit it to share it with the team. Every setting below is at its default,
-# so the file changes nothing until you edit it.
 
-# Which checkout Fido offers by default once it has scanned: this clone's own working
-# tree rather than a worktree. Every location it finds is still listed, one click away.
 prefer main clone: false
 
-# Scripts offered under the Console button, in the order given; '*' stands for every
-# script in the repository root.  e.g.  run files: [build.ps1, '*']
-# Scripts in this tree right now: build.ps1, release.ps1
-run files: [
+commands:
   - run-klippy.ps1
-]
-
-# Offer `aspire start` under the Console button too.
-aspire start: false
