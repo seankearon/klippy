@@ -226,6 +226,26 @@ public class CommandMruTests
     }
 
     [AvaloniaFact]
+    public void BeingDismissedTakesTheMruWithTheLineItWasBrowsing()
+    {
+        // The window has been put away, so restoring the line being typed would only be
+        // restoring it into a box that is about to be emptied anyway.
+        var (vm, _) = NewVm("? cats");
+        var window = Open(vm);
+
+        vm.FilterText = "? c";
+        Press(window, Key.Down);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.IsCommandsOpen);
+
+        vm.Dismissed();
+
+        Assert.False(vm.IsCommandsOpen);
+        Assert.Empty(vm.Commands);
+        Assert.Equal("", vm.FilterText);
+    }
+
+    [AvaloniaFact]
     public void ClearingTheBoxByHandClosesTheMruRatherThanOfferingEverything()
     {
         var (vm, _) = NewVm("? cats");

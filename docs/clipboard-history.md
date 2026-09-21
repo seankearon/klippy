@@ -10,12 +10,14 @@ Klippy also keeps what you copy. `Ctrl+Alt+J` summons it directly (see
 row, switches the list from saved snippets to captured clips — newest first, searchable with the same
 prefix matching, and copied back with the same Enter or click. Whatever is in the search
 box comes with you, in both directions, so "that connection string" can be asked of the
-snippets and of the clips without being typed twice. A *tag* chip is a narrowing of the
-view you are already in rather than a change of view, and still clears the box: a search
-drops the tag filter the moment you type, so the two never stand together. A clip carries the app it
-came from and its age instead of a tag and a quick-code, and keeps whatever flavours it
-was captured with, so pasting one back into a rich-text editor gives what the original
-copy would have.
+snippets and of the clips without being typed twice. A hotkey that switches a window
+already in front of you hands that line back selected, so it can be typed straight over,
+and being dismissed empties the box — see [Global hotkeys](global-hotkeys.md). A *tag*
+chip is a narrowing of the view you are already in rather than a change of view, and
+still clears the box: a search drops the tag filter the moment you type, so the two never
+stand together. A clip carries the app it came from and its age instead of a tag and a
+quick-code, and keeps whatever flavours it was captured with, so pasting one back into a
+rich-text editor gives what the original copy would have.
 
 ## Text, files and images
 

@@ -89,10 +89,12 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// After a copy the search term has done its job, so hand focus back to the box with the
-    /// text selected — the next keystroke starts a fresh search instead of appending to the old one.
+    /// Hands focus back to the search box with its text selected, so the next keystroke
+    /// starts a fresh search instead of appending to the old one. What a copy wants once
+    /// its search term has done its job, and what the launcher asks for once the other
+    /// hotkey has switched views with a line still in the box.
     /// </summary>
-    private void SelectSearchText()
+    public void SelectSearchText()
     {
         SearchBox.Focus();
         SearchBox.SelectAll();
