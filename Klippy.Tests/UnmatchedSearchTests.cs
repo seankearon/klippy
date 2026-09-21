@@ -155,16 +155,31 @@ public class UnmatchedSearchTests
     }
 
     [Theory]
+    [InlineData("http://localhost:8000", "http://localhost:8000")]  // the dev server
+    [InlineData("http://localhost", "http://localhost")]
+    [InlineData("https://localhost:5001", "https://localhost:5001")]
+    [InlineData("http://build-server/job/klippy", "http://build-server/job/klippy")]
+    [InlineData("http://[::1]:8000", "http://[::1]:8000")]
+    public void ATypedSchemeCarriesItsHostHoweverItIsSpelled(string query, string target)
+    {
+        // Writing the scheme out is the line saying it meant a URL, so the host is taken
+        // as written — no dot needed. localhost is the case worth naming: a dev server on
+        // a port is exactly what someone has open beside Klippy.
+        var plan = Plan(query);
+
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal(target, plan.Target);
+    }
+
+    [Theory]
     [InlineData("mailto:someone@example.com")]  // deliberately narrower than a marked item
     [InlineData("ftp://example.com")]
     [InlineData("file:///C:/Windows")]          // the shell would happily open it
     [InlineData("javascript:alert(1)")]
     [InlineData("shell:startup")]
-    [InlineData("https://")]                    // a scheme is not a URL
+    [InlineData("https://")]                    // a scheme with no host does not parse
     [InlineData("http://")]
-    [InlineData("www.")]
-    [InlineData("https://localhost")]           // no dot: not what a filter box meant
-    [InlineData("http://localhost")]
+    [InlineData("www.")]                        // half-typed: a bare www. still wants its dot
     [InlineData("www.qwe.com and more words")]  // a sentence that starts with a host
     public void TypedLinksAreTheWebSchemesAndWwwOnly(string query)
     {

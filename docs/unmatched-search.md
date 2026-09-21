@@ -54,11 +54,15 @@ a marked item was written on purpose and this is whatever landed in a filter box
 
 - **Links are `http:`, `https:` and a bare `www.` only.** A marked snippet may also carry
   `mailto:`; typed text may not, and the rest of the schemes were never on the list. A
-  typed `http://` opens on the scheme you typed — a box on the LAN reached by its address
-  answers on that and nothing else, so quietly promoting it to `https://` would send you
-  to a port with nothing listening on it. A bare `www.` still gets an `https://` in front
-  of it, exactly as a browser does, and the host still has to carry a dot either way, so a
-  bare `http://localhost` is no more a link here than `https://localhost` ever was.
+  typed `http://` opens on the scheme you typed — a dev server on `localhost:8000`, or a
+  box on the LAN, answers on that and nothing else, so quietly promoting it to `https://`
+  would send you to a port with nothing listening on it. A bare `www.` still gets an
+  `https://` in front of it, exactly as a browser does.
+
+  Writing the scheme out is you saying you meant a link, so the host is taken as you spelled
+  it: `http://localhost:8000` and `http://build-server/job/klippy` open, dot or no dot. A
+  bare `www.` has said no such thing, so it still wants a dot with something either side of
+  it — otherwise a half-typed `www.` would count as a host.
 - **Paths must be rooted** — a drive, a UNC share, a leading `/`, a `~`, or a variable that
   expands to one. A relative path would resolve against wherever Klippy happened to be
   started from, which is nobody's mental model, and without the rule every unmatched word

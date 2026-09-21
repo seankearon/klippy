@@ -124,15 +124,12 @@ public static class UnmatchedSearch
 
     /// <summary>
     /// The URL a typed line stands for, or null. The two web schemes and a bare
-    /// <c>www.</c>: a box on the LAN reached by its address answers on <c>http://</c>
-    /// and nothing else, and a launcher that refuses what the browser beside it would
-    /// open is the one being unhelpful. Every other scheme — <c>file:</c>,
-    /// <c>shell:</c>, <c>javascript:</c> — stays out, being a program waiting to be
-    /// launched under another name. A marked item's own rules are wider still; see the
-    /// class summary.
-    ///
-    /// The host still has to carry a dot, so a bare <c>http://localhost</c> is no more
-    /// a URL here than <c>https://localhost</c> ever was.
+    /// <c>www.</c>: a dev server on <c>localhost:8000</c>, or a box on the LAN, answers
+    /// on <c>http://</c> and nothing else, and a launcher that refuses what the browser
+    /// beside it would open is the one being unhelpful. Every other scheme —
+    /// <c>file:</c>, <c>shell:</c>, <c>javascript:</c> — stays out, being a program
+    /// waiting to be launched under another name. A marked item's own rules are wider
+    /// still; see the class summary.
     /// </summary>
     public static string? AsUrl(string text)
     {
@@ -141,9 +138,10 @@ public static class UnmatchedSearch
         foreach (var c in text)
             if (char.IsWhiteSpace(c)) return null;
 
-        if (!text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-            && !text.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-            && !text.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+        bool typedScheme = text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+        if (!typedScheme && !text.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
             return null;
 
         // Past the narrowing, the app's own rule decides — including putting the https in
@@ -154,8 +152,14 @@ public static class UnmatchedSearch
             || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return null;
 
-        // A dot with something either side of it, which is what keeps "https://localhost"
-        // and a half-typed "www." from counting as hosts.
+        // Typing the scheme out is the line saying it meant a URL, so the host stands as
+        // written: localhost:8000 is a dev server, and a LAN machine's bare name is how
+        // its own network reaches it. A scheme with nothing behind it never gets this
+        // far, "https://" and "http://" being unparseable rather than hosts.
+        if (typedScheme) return url;
+
+        // A bare www. has said no such thing, and still wants a dot with something either
+        // side of it — which is what keeps a half-typed "www." from counting as a host.
         int dot = uri.Host.IndexOf('.');
         return dot > 0 && dot < uri.Host.Length - 1 ? url : null;
     }
