@@ -46,16 +46,19 @@ someone hunting for the clip they copied than an instruction.
 | `%appdata%`, `$HOME`, `~/work`, `%appdata%\Klippy` | The variable expands and the folder opens |
 | `C:\work\invoices`, `\\nas\share`, `/usr/local/bin` | The folder opens in Explorer / Finder |
 | `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `/Applications/Safari.app` | The script or application runs, exactly as a marked snippet naming it would |
-| `https://…`, `www.…` | The page opens |
+| `http://…`, `https://…`, `www.…` | The page opens |
 | `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
 
 Two things are deliberately narrower here than for a snippet you marked yourself, because
 a marked item was written on purpose and this is whatever landed in a filter box:
 
-- **Links are `https:` and a bare `www.` only.** A marked snippet may also carry `http:`
-  and `mailto:`; typed text may not. `http://` is left out because a launcher that
-  silently sends you over plaintext is not doing you a favour, and the rest of the schemes
-  were never on the list.
+- **Links are `http:`, `https:` and a bare `www.` only.** A marked snippet may also carry
+  `mailto:`; typed text may not, and the rest of the schemes were never on the list. A
+  typed `http://` opens on the scheme you typed — a box on the LAN reached by its address
+  answers on that and nothing else, so quietly promoting it to `https://` would send you
+  to a port with nothing listening on it. A bare `www.` still gets an `https://` in front
+  of it, exactly as a browser does, and the host still has to carry a dot either way, so a
+  bare `http://localhost` is no more a link here than `https://localhost` ever was.
 - **Paths must be rooted** — a drive, a UNC share, a leading `/`, a `~`, or a variable that
   expands to one. A relative path would resolve against wherever Klippy happened to be
   started from, which is nobody's mental model, and without the rule every unmatched word

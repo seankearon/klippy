@@ -139,18 +139,34 @@ public class UnmatchedSearchTests
         Assert.Equal("https://www.bbc.co.uk/news", plan.Target);
     }
 
+    [Fact]
+    public void HttpLinksAreOfferedOnTheSchemeTheyWereTypedWith()
+    {
+        // Plenty of LAN devices and intranet boxes answer on http and nothing else, so a
+        // typed one is offered — and offered as typed, since promoting it to https would
+        // send the user to a port those hosts are not listening on.
+        var plan = Plan("http://192.168.1.10:8080/status");
+
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal("http://192.168.1.10:8080/status", plan.Target);
+
+        // And the two routes now agree on http, where the typed one used to refuse it.
+        Assert.Equal(ExecutionKind.Url, ExecutionPolicy.Plan("http://example.com").Kind);
+    }
+
     [Theory]
-    [InlineData("http://example.com")]          // plaintext, deliberately narrower than a marked item
-    [InlineData("mailto:someone@example.com")]  // likewise
+    [InlineData("mailto:someone@example.com")]  // deliberately narrower than a marked item
     [InlineData("ftp://example.com")]
     [InlineData("file:///C:/Windows")]          // the shell would happily open it
     [InlineData("javascript:alert(1)")]
     [InlineData("shell:startup")]
     [InlineData("https://")]                    // a scheme is not a URL
+    [InlineData("http://")]
     [InlineData("www.")]
     [InlineData("https://localhost")]           // no dot: not what a filter box meant
+    [InlineData("http://localhost")]
     [InlineData("www.qwe.com and more words")]  // a sentence that starts with a host
-    public void TypedLinksAreHttpsAndWwwOnly(string query)
+    public void TypedLinksAreTheWebSchemesAndWwwOnly(string query)
     {
         Assert.Equal(ExecutionKind.None, Plan(query).Kind);
     }
@@ -160,7 +176,6 @@ public class UnmatchedSearchTests
     {
         // The narrowing belongs to typed text, and must not have leaked into the rules a
         // snippet marked Execute goes through.
-        Assert.Equal(ExecutionKind.Url, ExecutionPolicy.Plan("http://example.com").Kind);
         Assert.Equal(ExecutionKind.Url, ExecutionPolicy.Plan("mailto:someone@example.com").Kind);
     }
 

@@ -31,11 +31,11 @@ public sealed record PathProbe(Func<string, bool> DirectoryExists, Func<string, 
 /// where that rule lives.
 ///
 /// Deliberately narrower than <see cref="ExecutionPolicy"/> is for a marked item, in two
-/// ways. URLs here are <c>https</c> and a bare <c>www.</c> only, where a marked item may
-/// also carry <c>http</c> and <c>mailto</c>: an item was written and marked on purpose,
-/// while this is whatever happened to be typed into a filter box. And a path has to be
-/// rooted, because a relative one would resolve against wherever Klippy was started from,
-/// which is nobody's mental model.
+/// ways. URLs here are <c>http</c>, <c>https</c> and a bare <c>www.</c>, where a marked
+/// item may also carry <c>mailto</c>: an item was written and marked on purpose, while
+/// this is whatever happened to be typed into a filter box. And a path has to be rooted,
+/// because a relative one would resolve against wherever Klippy was started from, which
+/// is nobody's mental model.
 ///
 /// Variables are not one of the two: <see cref="EnvironmentProbe"/> reads the same
 /// shorthands for both routes, so <c>%APPDATA%</c> names one folder whether it was typed
@@ -123,11 +123,16 @@ public static class UnmatchedSearch
     };
 
     /// <summary>
-    /// The URL a typed line stands for, or null. <c>https://</c> and a bare <c>www.</c>
-    /// only: <c>http</c> would silently send the user over plaintext, and every other
-    /// scheme — <c>file:</c>, <c>shell:</c>, <c>javascript:</c> — is a program waiting to
-    /// be launched under another name. A marked item's own rules are wider on purpose;
-    /// see the class summary.
+    /// The URL a typed line stands for, or null. The two web schemes and a bare
+    /// <c>www.</c>: a box on the LAN reached by its address answers on <c>http://</c>
+    /// and nothing else, and a launcher that refuses what the browser beside it would
+    /// open is the one being unhelpful. Every other scheme — <c>file:</c>,
+    /// <c>shell:</c>, <c>javascript:</c> — stays out, being a program waiting to be
+    /// launched under another name. A marked item's own rules are wider still; see the
+    /// class summary.
+    ///
+    /// The host still has to carry a dot, so a bare <c>http://localhost</c> is no more
+    /// a URL here than <c>https://localhost</c> ever was.
     /// </summary>
     public static string? AsUrl(string text)
     {
@@ -136,12 +141,15 @@ public static class UnmatchedSearch
         foreach (var c in text)
             if (char.IsWhiteSpace(c)) return null;
 
-        if (!text.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+        if (!text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !text.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
             && !text.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
             return null;
 
         // Past the narrowing, the app's own rule decides — including putting the https in
-        // front of a www., which is the one place both agree exactly.
+        // front of a www., which is the one place both agree exactly. A typed http:// is
+        // left on the scheme it was typed with: promoting it would send the request to a
+        // port the host may well have nothing listening on.
         if (ExecutionPolicy.AsUrl(text) is not { } url
             || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return null;
