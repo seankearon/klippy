@@ -80,9 +80,10 @@ public partial class SettingsViewModel : ViewModelBase
 
     /// <summary>
     /// The data folder, as configured: the folder a file named by a bare name lands in,
-    /// and empty for the platform's own app-data folder. Editable, like the files below
-    /// it — hunting down settings.json to change a path is the sort of errand this screen
-    /// exists to spare you.
+    /// and empty for the platform's own app-data folder. The snippets and the variables
+    /// file only — the clipboard history and the command MRU stay beside settings.json
+    /// wherever this points. Editable, like the files below it: hunting down settings.json
+    /// to change a path is the sort of errand this screen exists to spare you.
     /// </summary>
     [ObservableProperty]
     private string _dataFolder;

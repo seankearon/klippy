@@ -100,7 +100,7 @@ boxes: the data folder, the snippets, and the [variables file](variables.md).
 
 | Box | Empty means | Point it elsewhere to |
 |---|---|---|
-| **Data folder** | the platform's app-data folder | keep the lot on another drive |
+| **Data folder** | the platform's app-data folder | keep the snippets and defines on another drive |
 | **Snippets** | `snippets.json` in the data folder | share one set between two machines through a synced folder |
 | **Variables file** | `variables.txt` in the data folder | keep this machine's `%ws%` local while the snippets are shared |
 
@@ -108,9 +108,12 @@ Those last two are the reason the boxes exist at all: a snippet is the same text
 machine and a path is not, so the store can be shared exactly because the file that
 translates it is not.
 
-The **clipboard history**, the **recent commands** and the clip images have no box. They
-are the record of what happened on this machine, so they live in the data folder and
-nowhere else — a synced folder is the last place you would want them.
+The **clipboard history**, the **recent commands** and the clip images have no box, and
+do not follow the data folder either. They stay in the platform's own app-data folder
+beside `settings.json`, wherever you point the other three. They are the record of what
+happened on this machine, and the data folder is a thing people aim at a synced drive: a
+log of everything you have copied should not end up there as a side effect of moving your
+snippets.
 
 For the two files that are settable, a bare name is another file in the data folder — a
 work set beside a personal one. An absolute path is taken as given, and environment

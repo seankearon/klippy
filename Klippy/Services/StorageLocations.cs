@@ -22,7 +22,7 @@ namespace Klippy.Services;
 /// Windows box exactly because the variables file that translates it stays on each
 /// machine. Nothing else is worth pointing anywhere: the history, the command MRU and
 /// settings.json are records of what happened on *this* machine, so they stay in the
-/// folder Klippy keeps.
+/// platform's own app-data folder even when the data folder is somewhere else.
 /// </summary>
 public static class StorageLocations
 {
@@ -55,9 +55,14 @@ public static class StorageLocations
     /// <summary>
     /// The platform's own app-data folder for Klippy: <c>%APPDATA%\Klippy</c> on Windows,
     /// <c>~/.config/Klippy</c> elsewhere. Where Klippy looks before it is told otherwise,
-    /// and where <see cref="SettingsPath"/> stays whatever it is told.
+    /// and where the files that are about this machine stay whatever it is told —
+    /// <see cref="SettingsPath"/>, <see cref="HistoryPath"/> and <see cref="CommandsPath"/>.
+    ///
+    /// Settable for the reason <see cref="BackupExemptDirectory"/> is: a platform head may
+    /// know a different app-data root, and the test suite points it at a throwaway folder
+    /// rather than write into the developer's own.
     /// </summary>
-    public static string DefaultDirectory { get; } = Path.Combine(
+    public static string DefaultDirectory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create),
         "Klippy");
 
@@ -110,25 +115,29 @@ public static class StorageLocations
     public static string SettingsPath => Path.Combine(DefaultDirectory, SettingsFileName);
 
     /// <summary>
-    /// Captured clipboard history. Always <see cref="Directory"/>, and never a file of
-    /// its own: it is the record of what passed through *this* machine's clipboard, so
-    /// there is nowhere else to sensibly point it — least of all the synced folder the
-    /// snippets may have gone to. Clip images go in a <c>clips</c> folder beside it,
-    /// because a blob is only meaningful next to the entry that names it.
+    /// Captured clipboard history. Always <see cref="DefaultDirectory"/> — not
+    /// <see cref="Directory"/>, and never a file of its own.
+    ///
+    /// It is the record of what passed through *this* machine's clipboard, so it belongs
+    /// with the other file that is about this machine and nothing else, the settings. A
+    /// data folder is a thing people point at a synced drive, and a log of everything
+    /// copied is the last thing that should follow the snippets there as a side effect of
+    /// moving them. Clip images go in a <c>clips</c> folder beside it, because a blob is
+    /// only meaningful next to the entry that names it.
     ///
     /// Never the backup-exempt directory either: history is a desktop-only feature
     /// (Android forbids background clipboard reads), and desktop has no backup-exempt
     /// location to choose between.
     /// </summary>
-    public static string HistoryPath => Path.Combine(Directory, HistoryFileName);
+    public static string HistoryPath => Path.Combine(DefaultDirectory, HistoryFileName);
 
     /// <summary>
-    /// The command MRU. Always <see cref="Directory"/>, for the reason the history is —
-    /// a list of lines typed into this machine's search box is about this machine. Never
-    /// the backup-exempt directory, for the reason the settings are not: the "wipe on
-    /// uninstall" choice is about snippet data, and this is not that.
+    /// The command MRU. Always <see cref="DefaultDirectory"/>, for the reason the history
+    /// is — a list of lines typed into this machine's search box is about this machine.
+    /// Never the backup-exempt directory, for the reason the settings are not: the "wipe
+    /// on uninstall" choice is about snippet data, and this is not that.
     /// </summary>
-    public static string CommandsPath => Path.Combine(Directory, CommandsFileName);
+    public static string CommandsPath => Path.Combine(DefaultDirectory, CommandsFileName);
 
     /// <summary>
     /// Where a backup-exempt snippet store would sit, or null when there is no such place
@@ -285,17 +294,18 @@ public static class StorageLocations
     }
 
     /// <summary>
-    /// Renames the files that 1.0.20 and earlier wrote under other names, so an upgrade
-    /// keeps the clipboard history, the command MRU and the local defines it already had
-    /// rather than starting empty beside three files nothing reads.
+    /// Brings forward what 1.0.20 and earlier wrote: three files under other names, and —
+    /// for anyone who had set <c>DataDirectory</c> — a clipboard history and command MRU
+    /// sitting in a folder they no longer belong in. An upgrade keeps what it had rather
+    /// than starting empty beside files nothing reads.
     ///
-    /// A rename rather than a fallback that reads either name: two names for one file is
-    /// something every later reader has to keep knowing, whereas this is done once and the
-    /// version after it can forget the old names entirely.
+    /// A move rather than a fallback that reads either place: two names and two folders
+    /// for one file is something every later reader has to keep knowing, whereas this is
+    /// done once and the version after it can forget all of it.
     ///
     /// Called by the head after <see cref="TryApply"/> and before anything opens a file,
     /// rather than from inside it — a test that hands <see cref="TryApply"/> a folder it
-    /// refuses would otherwise rename files in the developer's own app-data folder.
+    /// refuses would otherwise move files in the developer's own app-data folder.
     /// </summary>
     /// <param name="settings">
     /// Read for <c>VariablesFile</c> only. A blank one is on the default name and gets the
@@ -304,30 +314,75 @@ public static class StorageLocations
     /// </param>
     public static void MigrateLegacyNames(AppSettings settings)
     {
-        TryRename(LegacyHistoryFileName, HistoryFileName);
-        TryRename(LegacyCommandsFileName, CommandsFileName);
+        // The history and the MRU changed folder as well as name. From the data folder
+        // first, since a custom one is where they were actually being written; then from
+        // the app-data folder, which is both the ordinary case and where a copy from
+        // before DataDirectory was set would have been left behind.
+        TryMoveFile(Path.Combine(Directory, LegacyHistoryFileName), HistoryPath);
+        TryMoveFile(Path.Combine(DefaultDirectory, LegacyHistoryFileName), HistoryPath);
+        TryMoveFile(Path.Combine(Directory, LegacyCommandsFileName), CommandsPath);
+        TryMoveFile(Path.Combine(DefaultDirectory, LegacyCommandsFileName), CommandsPath);
 
+        // Clip images are addressed by name from inside the history, so they have to
+        // arrive with it or every picture in it becomes a missing blob.
+        MoveClipsBesideTheHistory();
+
+        // The variables file only changed name: it still sits in the data folder, beside
+        // the snippets it is there to translate.
         if (string.IsNullOrWhiteSpace(settings.VariablesFile))
-            TryRename(LegacyVariablesFileName, KlippyVariables.DefaultFileName);
+            TryMoveFile(
+                Path.Combine(Directory, LegacyVariablesFileName),
+                Path.Combine(Directory, KlippyVariables.DefaultFileName));
+    }
 
-        static void TryRename(string from, string to)
+    /// <summary>
+    /// File by file rather than moving the folder whole: the destination may already
+    /// exist — someone who used the default folder before setting <c>DataDirectory</c>
+    /// has one at each end — and moving a directory onto an existing one fails outright,
+    /// which would strand every blob rather than the few that clash.
+    /// </summary>
+    private static void MoveClipsBesideTheHistory()
+    {
+        var from = Path.Combine(Directory, ClipBlobs.DirectoryName);
+        var to = Path.Combine(
+            Path.GetDirectoryName(HistoryPath) ?? DefaultDirectory, ClipBlobs.DirectoryName);
+        if (string.Equals(from, to, StringComparison.OrdinalIgnoreCase)) return;
+
+        try
         {
-            var legacy = Path.Combine(Directory, from);
-            var renamed = Path.Combine(Directory, to);
-            try
-            {
-                // Never over an existing file: one already at the new name is the current
-                // one, and the old one beside it is a leftover, not an update.
-                if (File.Exists(legacy) && !File.Exists(renamed)) File.Move(legacy, renamed);
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException
-                                        or NotSupportedException or ArgumentException)
-            {
-                // An upgrade that cannot rename a clipboard history still has to start,
-                // and the file it could not move is still sitting there to be renamed by
-                // hand. Nothing is read from the old name, so this costs the history
-                // rather than the launch.
-            }
+            if (!System.IO.Directory.Exists(from)) return;
+            foreach (var blob in System.IO.Directory.GetFiles(from))
+                TryMoveFile(blob, Path.Combine(to, Path.GetFileName(blob)));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // As below: an upgrade that cannot move a picture still has to start.
+        }
+    }
+
+    /// <summary>
+    /// Moves one file, if it is there and nothing is at the destination. Never over an
+    /// existing file: one already at the new name is the current one, and the old one
+    /// beside it is a leftover rather than an update — which matters, because this runs
+    /// on every launch.
+    ///
+    /// A failure is swallowed. An upgrade that cannot move a clipboard history must still
+    /// start, and the file it could not move is still sitting there to be moved by hand;
+    /// nothing reads the old name, so this costs the history rather than the launch.
+    /// </summary>
+    private static void TryMoveFile(string from, string to)
+    {
+        try
+        {
+            if (!File.Exists(from) || File.Exists(to)) return;
+
+            var folder = Path.GetDirectoryName(to);
+            if (!string.IsNullOrEmpty(folder)) System.IO.Directory.CreateDirectory(folder);
+            File.Move(from, to);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                    or NotSupportedException or ArgumentException)
+        {
         }
     }
 }

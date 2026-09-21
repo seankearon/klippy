@@ -146,11 +146,15 @@ public sealed class AppSettings
     public string SummonPlacement { get; set; } = nameof(LauncherPlacement.Remembered);
 
     /// <summary>
-    /// The folder Klippy keeps its files in: the clipboard history, the command MRU and
-    /// the clip images always, and the snippets and variables file unless those name a
-    /// path of their own. Empty means the platform's own app-data folder, which is what
-    /// it has always been. Environment variables and a leading <c>~</c> are expanded, so
+    /// The folder the snippets and the variables file live in, unless those name a path
+    /// of their own. Empty means the platform's own app-data folder, which is what it has
+    /// always been. Environment variables and a leading <c>~</c> are expanded, so
     /// <c>"%OneDrive%\\Klippy"</c> is a legitimate way to write it.
+    ///
+    /// Not the clipboard history, the command MRU or the clip images: those are the
+    /// record of what happened on this machine and stay beside settings.json, because
+    /// this is a setting people point at a synced drive and a log of everything copied
+    /// must not follow the snippets there as a side effect of moving them.
     ///
     /// Read once at startup, since a store that changed folder mid-session would have to
     /// decide what to do with the file it already had open. Nothing is moved for you:

@@ -17,13 +17,27 @@ public class StorageConfigTests : IDisposable
     private readonly string _originalDir = StorageLocations.Directory;
     private readonly string _originalVariablesFile = AppSettings.Current.VariablesFile;
     private readonly string _originalSnippetsFile = StorageLocations.SnippetsFile;
+    private readonly string _originalDefaultDir = StorageLocations.DefaultDirectory;
 
     public void Dispose()
     {
         StorageLocations.Directory = _originalDir;
+        StorageLocations.DefaultDirectory = _originalDefaultDir;
         StorageLocations.SnippetsFile = _originalSnippetsFile;
         AppSettings.Current.VariablesFile = _originalVariablesFile;
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+    }
+
+    /// <summary>
+    /// A throwaway app-data folder, so a test that migrates files never moves anything in
+    /// the developer's real one. Returns it, already created.
+    /// </summary>
+    private string UseAThrowawayAppDataFolder()
+    {
+        var appData = Path.Combine(_root, "appdata");
+        Directory.CreateDirectory(appData);
+        StorageLocations.DefaultDirectory = appData;
+        return appData;
     }
 
     // ---- defaults ----
@@ -66,9 +80,31 @@ public class StorageConfigTests : IDisposable
         AppSettings.Current.VariablesFile = KlippyVariables.DefaultFileName;
 
         Assert.Equal(Path.Combine(_root, "snippets.json"), StorageLocations.BackedUpPath);
-        Assert.Equal(Path.Combine(_root, "clipboard.history.json"), StorageLocations.HistoryPath);
         Assert.Equal(Path.Combine(_root, KlippyVariables.DefaultFileName), KlippyVariables.CurrentPath);
         Assert.True(Directory.Exists(_root)); // created, so the first save has somewhere to land
+
+        // But not the history or the MRU: those are about this machine and stay with the
+        // settings, whatever the data folder is doing.
+        Assert.Equal(
+            Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.HistoryFileName),
+            StorageLocations.HistoryPath);
+        Assert.Equal(
+            Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.CommandsFileName),
+            StorageLocations.CommandsPath);
+    }
+
+    [Fact]
+    public void TheHistoryAndMru_StayWithTheSettings_WhereverTheDataGoes()
+    {
+        // They are the record of what passed through *this* machine. A data folder is a
+        // thing people point at a synced drive, and a log of everything copied must not
+        // follow the snippets there as a side effect of moving them.
+        var appData = UseAThrowawayAppDataFolder();
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+
+        Assert.Equal(Path.Combine(appData, "clipboard.history.json"), StorageLocations.HistoryPath);
+        Assert.Equal(Path.Combine(appData, "command.history.json"), StorageLocations.CommandsPath);
+        Assert.Equal(Path.Combine(appData, "settings.json"), StorageLocations.SettingsPath);
     }
 
     [Fact]
@@ -179,26 +215,15 @@ public class StorageConfigTests : IDisposable
         Assert.Equal("", problem);
 
         Assert.Equal(shared, StorageLocations.BackedUpPath);
-        Assert.Equal(Path.Combine(_root, StorageLocations.HistoryFileName), StorageLocations.HistoryPath);
-        Assert.Equal(Path.Combine(_root, StorageLocations.CommandsFileName), StorageLocations.CommandsPath);
-    }
 
-    [Fact]
-    public void TheHistoryAndCommandMru_AreNotPointedAnywhere()
-    {
-        // They are records of what passed through *this* machine, so there is nowhere
-        // sensible to point them — least of all the synced folder the snippets went to.
-        // They follow the data folder, exactly as they always have.
-        StorageLocations.TryApply(
-            new AppSettings
-            {
-                DataDirectory = _root,
-                SnippetsFile = Path.Combine(_root, "OneDrive", "snippets.json"),
-            },
-            out _);
-
-        Assert.Equal(Path.Combine(_root, StorageLocations.HistoryFileName), StorageLocations.HistoryPath);
-        Assert.Equal(Path.Combine(_root, StorageLocations.CommandsFileName), StorageLocations.CommandsPath);
+        // Neither the data folder nor the synced one: the history and the MRU are about
+        // this machine, so they sit with the settings.
+        Assert.Equal(
+            Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.HistoryFileName),
+            StorageLocations.HistoryPath);
+        Assert.Equal(
+            Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.CommandsFileName),
+            StorageLocations.CommandsPath);
     }
 
     [Fact]
@@ -289,14 +314,15 @@ public class StorageConfigTests : IDisposable
     // ---- the names 1.0.20 used ----
 
     [Fact]
-    public void TheFilesThatHadOtherNames_AreRenamedOnce()
+    public void TheFilesThatHadOtherNames_AreCarriedForward()
     {
         // An upgrade must carry the clipboard history, the command MRU and the defines
         // across rather than start empty beside three files nothing reads.
-        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
-        File.WriteAllText(Path.Combine(_root, "history.json"), "[]");
-        File.WriteAllText(Path.Combine(_root, "commands.json"), "[\"slf\"]");
-        File.WriteAllText(Path.Combine(_root, "klippy.vars"), "ws=/usr/bin/webstorm");
+        var appData = UseAThrowawayAppDataFolder();
+        StorageLocations.Directory = appData; // the ordinary case: no DataDirectory set
+        File.WriteAllText(Path.Combine(appData, "history.json"), "[]");
+        File.WriteAllText(Path.Combine(appData, "commands.json"), "[\"slf\"]");
+        File.WriteAllText(Path.Combine(appData, "klippy.vars"), "ws=/usr/bin/webstorm");
 
         StorageLocations.MigrateLegacyNames(new AppSettings());
 
@@ -304,12 +330,49 @@ public class StorageConfigTests : IDisposable
         Assert.Equal("[\"slf\"]", File.ReadAllText(StorageLocations.CommandsPath));
         Assert.Equal(
             "ws=/usr/bin/webstorm",
-            File.ReadAllText(Path.Combine(_root, KlippyVariables.DefaultFileName)));
+            File.ReadAllText(Path.Combine(appData, KlippyVariables.DefaultFileName)));
 
         // Moved, not copied: a leftover under the old name is one more file to wonder about.
+        Assert.False(File.Exists(Path.Combine(appData, "history.json")));
+        Assert.False(File.Exists(Path.Combine(appData, "commands.json")));
+        Assert.False(File.Exists(Path.Combine(appData, "klippy.vars")));
+    }
+
+    [Fact]
+    public void AHistoryLeftInADataFolder_ComesBackToTheAppDataFolder()
+    {
+        // Anyone who had set DataDirectory on 1.0.20 has a history and an MRU sitting in
+        // it. They no longer belong there, so the upgrade fetches them home rather than
+        // leaving them behind to be found years later.
+        var appData = UseAThrowawayAppDataFolder();
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+        File.WriteAllText(Path.Combine(_root, "history.json"), "[]");
+        File.WriteAllText(Path.Combine(_root, "commands.json"), "[\"slf\"]");
+
+        StorageLocations.MigrateLegacyNames(new AppSettings());
+
+        Assert.Equal("[]", File.ReadAllText(Path.Combine(appData, "clipboard.history.json")));
+        Assert.Equal("[\"slf\"]", File.ReadAllText(Path.Combine(appData, "command.history.json")));
         Assert.False(File.Exists(Path.Combine(_root, "history.json")));
         Assert.False(File.Exists(Path.Combine(_root, "commands.json")));
-        Assert.False(File.Exists(Path.Combine(_root, "klippy.vars")));
+    }
+
+    [Fact]
+    public void ClipImagesTravelWithTheHistory()
+    {
+        // A clip names its blob, so an image left behind in the old folder is a picture
+        // the history can no longer show.
+        var appData = UseAThrowawayAppDataFolder();
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+        Directory.CreateDirectory(Path.Combine(_root, "clips"));
+        File.WriteAllBytes(Path.Combine(_root, "clips", "abc123.png"), new byte[] { 1, 2, 3 });
+
+        StorageLocations.MigrateLegacyNames(new AppSettings());
+
+        Assert.Equal(
+            new byte[] { 1, 2, 3 },
+            File.ReadAllBytes(Path.Combine(appData, "clips", "abc123.png")));
+        Assert.False(File.Exists(Path.Combine(_root, "clips", "abc123.png")));
     }
 
     [Fact]
@@ -317,14 +380,15 @@ public class StorageConfigTests : IDisposable
     {
         // One already at the new name is the current file; an old one beside it is a
         // leftover, not an update — and this runs on every launch.
-        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
-        File.WriteAllText(Path.Combine(_root, "history.json"), "stale");
+        var appData = UseAThrowawayAppDataFolder();
+        StorageLocations.Directory = appData;
+        File.WriteAllText(Path.Combine(appData, "history.json"), "stale");
         File.WriteAllText(StorageLocations.HistoryPath, "current");
 
         StorageLocations.MigrateLegacyNames(new AppSettings());
 
         Assert.Equal("current", File.ReadAllText(StorageLocations.HistoryPath));
-        Assert.Equal("stale", File.ReadAllText(Path.Combine(_root, "history.json")));
+        Assert.Equal("stale", File.ReadAllText(Path.Combine(appData, "history.json")));
     }
 
     [Fact]
@@ -333,6 +397,7 @@ public class StorageConfigTests : IDisposable
         // Only the *default* name changed. Someone whose settings say "klippy.vars" has
         // said where they want their defines, and renaming it would point the setting at
         // a file that is no longer there.
+        UseAThrowawayAppDataFolder();
         Assert.True(StorageLocations.TryUseDirectory(_root, out _));
         var named = Path.Combine(_root, "klippy.vars");
         File.WriteAllText(named, "ws=/usr/bin/webstorm");
@@ -344,15 +409,32 @@ public class StorageConfigTests : IDisposable
     }
 
     [Fact]
-    public void WithNothingToRename_MigratingIsHarmless()
+    public void TheVariablesFileStaysInTheDataFolder()
+    {
+        // Unlike the history, it belongs beside the snippets it translates — so it is
+        // renamed where it stands rather than fetched into the app-data folder.
+        var appData = UseAThrowawayAppDataFolder();
+        Assert.True(StorageLocations.TryUseDirectory(_root, out _));
+        File.WriteAllText(Path.Combine(_root, "klippy.vars"), "ws=/usr/bin/webstorm");
+
+        StorageLocations.MigrateLegacyNames(new AppSettings());
+
+        Assert.True(File.Exists(Path.Combine(_root, KlippyVariables.DefaultFileName)));
+        Assert.False(File.Exists(Path.Combine(appData, KlippyVariables.DefaultFileName)));
+    }
+
+    [Fact]
+    public void WithNothingToCarryForward_MigratingIsHarmless()
     {
         // It runs on every launch, so much the commonest case is that there is nothing
         // to do — and a fresh install must not end up with files it never wrote.
+        var appData = UseAThrowawayAppDataFolder();
         Assert.True(StorageLocations.TryUseDirectory(_root, out _));
 
         StorageLocations.MigrateLegacyNames(new AppSettings());
 
         Assert.Empty(Directory.GetFiles(_root));
+        Assert.Empty(Directory.GetFiles(appData));
     }
 
     [Fact]

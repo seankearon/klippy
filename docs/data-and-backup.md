@@ -7,10 +7,10 @@ description: "The store, the folder you choose, and how to back it up."
 
 Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy\snippets.json`
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
-sandbox on Android (mode `0600`, app-private). `clipboard.history.json`,
-`command.history.json` and `clips/` sit in the same folder, and so do `variables.txt` and
-the snippets themselves unless told otherwise; `settings.json` is always there, wherever
-the rest go. The whole list is held in memory and each mutation rewrites the file
+sandbox on Android (mode `0600`, app-private). `variables.txt` sits in the same folder
+unless told otherwise, and the snippets can be pointed elsewhere too; `settings.json`,
+`clipboard.history.json`, `command.history.json` and `clips/` are always there, wherever
+those two go. The whole list is held in memory and each mutation rewrites the file
 atomically (temp file + replace), so a crash can't corrupt it. A copy also writes, because
 `LastUsedAt` drives recency ranking.
 
@@ -20,16 +20,18 @@ left you to work out which history, and whether commands were a log or a list of
 to run — so they now say what they are, and the defines file is a `.txt`, which every
 desktop already knows how to open.
 
-Klippy renames them on the first launch after the upgrade, so nothing is lost and there
-is nothing to do. It never writes over a file already at the new name, and one it cannot
-move is left where it is to be renamed by hand. The one exception is a `VariablesFile`
-setting that names `klippy.vars` outright: only the *default* name changed, so a file you
-have named stays exactly where you put it.
+Klippy moves them on the first launch after the upgrade, so nothing is lost and there is
+nothing to do. If you had set `DataDirectory`, the history, the MRU and the clip images
+are fetched back out of it into the app-data folder at the same time — they used to
+follow it and no longer do. Klippy never writes over a file already at the new name, and
+one it cannot move is left where it is to be dealt with by hand. The one exception is a
+`VariablesFile` setting that names `klippy.vars` outright: only the *default* name
+changed, so a file you have named stays exactly where you put it.
 
 ## Choosing where the files go (desktop)
 
-`DataDirectory` is the folder everything lives in, and two files may name their way out of
-it — the snippets and the variables file:
+`DataDirectory` is the folder the snippets and the variables file live in, and each of
+those two may name its way out of it as well:
 
 ```json
 {
@@ -41,11 +43,15 @@ it — the snippets and the variables file:
 
 Those two and no others, because that pairing is the whole point: **the snippets are worth
 sharing between a Mac and a Windows box, and `variables.txt` — the file that says where
-`%ws%` is on *this* machine — is exactly what must not go with them.** The clipboard
-history, the command MRU and the clip images stay in the data folder: they are the record
-of what happened on one machine, and a synced folder is the last place for them.
-`settings.json` stays behind too, in the platform's own app-data folder, because it is the
-note saying where the snippets went — it cannot live in the folder it names.
+`%ws%` is on *this* machine — is exactly what must not go with them.**
+
+**The clipboard history, the command MRU and the clip images ignore all of it** and stay
+in the platform's own app-data folder — `%APPDATA%\Klippy` on Windows — beside
+`settings.json`. They are the record of what happened on one machine, and `DataDirectory`
+is a setting people point at a synced drive: a log of everything you have copied must not
+follow the snippets there as a side effect of moving them. `settings.json` stays for its
+own reason — it is the note saying where the snippets went, so it cannot live in the
+folder it names.
 
 For the two that are settable, empty means the usual name in the data folder —
 `snippets.json` and `variables.txt`. A bare name is another file in that folder, which is
