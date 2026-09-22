@@ -362,10 +362,13 @@ public partial class MainViewModel : ViewModelBase
     {
         // Klippy's own quit, ahead of the gate below and deliberately outside it: that
         // setting governs handing typed text to the machine, and closing the app is
-        // neither typed text nor the machine's business. An item still beats it exactly as
-        // one beats "lock" — "quit" is an ordinary word, and a snippet answering to it was
-        // plausibly what was being looked for. The tray menu and the footer link remain.
-        if (CanQuit && Names(FilterText, QuitWord) && Filtered.Count == 0)
+        // neither typed text nor the machine's business. Unlike the rest of this method, no
+        // matching item beats it here: the footer link and the tray are the only other ways
+        // out, and a snippet that merely mentions "quit" — in its label, content or tag —
+        // must not silently take the keyboard route away. A matching row still keeps the
+        // selection and answers to Enter, exactly as it does beside any other offer; it is
+        // only the offer's own standing that stops depending on the list being empty.
+        if (CanQuit && Names(FilterText, QuitWord))
         {
             Offer = OfferViewModel.Quit();
             return;

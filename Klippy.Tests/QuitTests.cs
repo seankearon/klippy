@@ -203,21 +203,62 @@ public class QuitTests
         Assert.Null(f.Vm.Offer);
     }
 
-    [AvaloniaFact]
-    public void AMatchingSnippetKeepsTheWordAFilter()
+    [Theory]
+    [InlineData("Quit the trial", "Settings → Account → End trial")]        // a label match
+    [InlineData("Trial", "Press Quit to end the trial")]                    // a content-only match
+    public void AMatchingSnippetStillLeavesTheWordAWayOut(string label, string content)
     {
-        // The same rule that keeps "lock" a filter while a snippet answers to it: "quit"
-        // is an ordinary word, and the snippet was plausibly what was wanted.
-        var f = NewVm(("Quit the trial", "Settings → Account → End trial"));
+        // Unlike "lock", where a matching snippet takes the offer away, "quit" is the only
+        // keyboard route out of the app — so a snippet that merely mentions it, in its
+        // label or its content, must not silently remove it. The row still keeps the
+        // selection and answers to Enter; it is only the offer's standing that no longer
+        // depends on the list being empty.
+        var f = NewVm((label, content));
 
         f.Vm.FilterText = "quit";
 
-        Assert.Null(f.Vm.Offer);
+        Assert.True(f.Vm.Offer?.IsQuit);
+        Assert.Equal(label, f.Vm.SelectedSnippet?.Label);
+        Assert.False(f.Vm.IsOfferSelected);
+    }
+
+    [AvaloniaFact]
+    public void EnterOnAMatchingSnippetStillCopiesItRatherThanQuitting()
+    {
+        // The row still has the keystroke while it holds the selection, offer or no offer.
+        var (window, f) = NewWindow(("Quit the trial", "Settings → Account → End trial"));
+
+        f.Vm.FilterText = "quit";
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(f.Vm.Offer?.IsQuit);
+        Assert.False(f.Vm.IsOfferSelected);
+
+        Press(window, Key.Enter);
+
+        Assert.Null(f.Vm.PendingOffer);
+        Assert.Equal(0, f.Quits);
+    }
+
+    [AvaloniaFact]
+    public void UpArrowFromAMatchingSnippetReachesTheQuitOfferAndEnterThenAsks()
+    {
+        // ↑ off the top row is how the offer is reached at all once a row holds the
+        // selection — the same climb that reaches any other offer standing beside a list.
+        var (window, f) = NewWindow(("Quit the trial", "Settings → Account → End trial"));
+
+        f.Vm.FilterText = "quit";
+        Dispatcher.UIThread.RunJobs();
         Assert.Equal("Quit the trial", f.Vm.SelectedSnippet?.Label);
 
-        // ...and the footer link is still a way out, which is why it is not only the word
-        f.Vm.RequestQuitCommand.Execute(null);
+        f.Vm.Navigate(-1);
+        Assert.True(f.Vm.IsOfferSelected);
+
+        Press(window, Key.Enter);
         Assert.True(f.Vm.PendingOffer?.IsQuit);
+        Assert.Equal(0, f.Quits);
+
+        Press(window, Key.Enter);
+        Assert.Equal(1, f.Quits);
     }
 
     [AvaloniaFact]
