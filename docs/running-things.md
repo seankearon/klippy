@@ -28,6 +28,7 @@ once any environment variable in it has resolved:
 | `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only** |
 | `*.exe` | Started directly, arguments and all — **Windows only** |
 | `*.app` | `open -a`, which knows which executable inside the bundle to start — **macOS only** |
+| `*.app/Contents/MacOS/<program>` | Started directly, so its arguments reach it as they would from a terminal — the command line JetBrains IDEs and Zed document — **macOS only** |
 | `*.AppImage` | The image itself, which runs itself — **Linux only** |
 | anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
 

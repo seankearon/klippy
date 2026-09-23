@@ -447,15 +447,20 @@ public class VariablesTests
     public void TheRow_ShowsWhatTheArgumentResolvedTo()
     {
         // Which is how you can tell the name was found before pressing Enter. The item's
-        // own %r% still shows as written - that value is the same every time, and the row
-        // is what you would edit.
+        // own %r% resolves too, so the row reads as the line that will run or be copied.
         var (vm, _, scope) = CopyVm(OpenInRider(), RiderAndSolution);
         using (scope)
         {
             vm.FilterText = "r app";
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("%r% D:\\src\\myapp\\MyApp.sln", vm.Filtered[0].Content);
+            var row = vm.Filtered[0];
+            Assert.Equal("C:\\tools\\rider64.exe D:\\src\\myapp\\MyApp.sln", row.Content);
+
+            // Back as stored once the line no longer invokes it.
+            vm.FilterText = "";
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("%r% %P%", row.Content);
         }
     }
 
@@ -472,6 +477,25 @@ public class VariablesTests
             invocation.ValuesFor(template, vars),
             platform: ExecutionPlatform.Windows,
             environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+    }
+
+    [Fact]
+    public void Execute_ADefineNamingTheProgramInsideABundle_StartsIt()
+    {
+        // The Mac shape of the same item: the define names the executable inside
+        // Rider.app, the way JetBrains documents its command-line launcher.
+        var vars = Vars("r=/Applications/Rider.app/Contents/MacOS/rider\npir=/src/Pirform/Pirform.slnx");
+        Assert.True(QuickInvocation.TryParse("r pir", out var invocation));
+
+        var plan = ExecutionPolicy.Plan(
+            "%r% %P%",
+            invocation.ValuesFor("%r% %P%", vars),
+            platform: ExecutionPlatform.MacOS,
+            environment: vars.Ahead(new EnvironmentProbe(_ => null, () => "/Users/sam")));
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("/Applications/Rider.app/Contents/MacOS/rider", plan.Target);
+        Assert.Equal(new[] { "/src/Pirform/Pirform.slnx" }, plan.Arguments);
     }
 
     [Fact]
@@ -702,7 +726,7 @@ public class VariablesTests
             vm.FilterText = "r app";
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("%r% app", vm.Filtered[0].Content);
+            Assert.Equal("C:\\tools\\rider64.exe app", vm.Filtered[0].Content);
         }
     }
 

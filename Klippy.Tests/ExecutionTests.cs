@@ -286,6 +286,49 @@ public class ExecutionTests
         Assert.Equal(ExecutionKind.None, Plan("klippy.exe.txt").Kind);
     }
 
+    [Fact]
+    public void TheProgramInsideABundle_IsAnApplicationStartedDirectly()
+    {
+        // The command line a JetBrains IDE documents for itself: its arguments have to
+        // reach the program as argv, which `open -a` would not do for a running instance.
+        var plan = Plan("/Applications/Rider.app/Contents/MacOS/rider /src/App.slnx",
+            platform: ExecutionPlatform.MacOS);
+
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("/Applications/Rider.app/Contents/MacOS/rider", plan.Target);
+        Assert.Equal(new[] { "/src/App.slnx" }, plan.Arguments);
+        Assert.Equal("Starting Rider", plan.Description);
+
+        var command = ExecutionPolicy.Resolve(plan, ExecutionPlatform.MacOS)!;
+        Assert.Equal("/Applications/Rider.app/Contents/MacOS/rider", command.FileName);
+        Assert.Equal(new[] { "/src/App.slnx" }, command.Arguments);
+    }
+
+    [Fact]
+    public void TheProgramInsideABundle_OnlyRunsOnMacOS()
+    {
+        var plan = Plan("/Applications/Rider.app/Contents/MacOS/rider", platform: ExecutionPlatform.Linux);
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Equal(".app applications only run on macOS.", plan.Problem);
+        Assert.True(LooksExecutable("/Applications/Rider.app/Contents/MacOS/rider", ExecutionPlatform.MacOS));
+        Assert.False(LooksExecutable("/Applications/Rider.app/Contents/MacOS/rider", ExecutionPlatform.Linux));
+    }
+
+    [Fact]
+    public void OnlyTheProgramDirectlyInContentsMacOS_CountsAsTheBundles()
+    {
+        // The folder itself, something deeper, and a hidden ".app" are none of them it.
+        foreach (var path in new[]
+                 {
+                     "/Applications/Rider.app/Contents/MacOS/",
+                     "/Applications/Rider.app/Contents/MacOS/lib/helper",
+                     "/Applications/.app/Contents/MacOS/rider",
+                     "/Applications/Rider.app/Contents/Resources/rider",
+                 })
+            Assert.Equal(ExecutionKind.None, Plan(path, platform: ExecutionPlatform.MacOS).Kind);
+    }
+
     // ---- environment variables ----
 
     [Fact]
