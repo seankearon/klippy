@@ -9,6 +9,7 @@ namespace Klippy.ViewModels;
 public partial class SnippetViewModel : RowViewModel
 {
     private string[] _arguments = Array.Empty<string>();
+    private string? _invokedContent;
 
     public Snippet Model { get; }
 
@@ -20,11 +21,12 @@ public partial class SnippetViewModel : RowViewModel
     /// What the row shows: the snippet as stored, or — once a quick-code has been typed
     /// with arguments after it — what those arguments make of it. Typing "? stuff"
     /// against <c>…/search?q=%P%</c> shows <c>…/search?q=stuff</c>, so the result is
-    /// visible before Enter is pressed. <c>%C%</c> stays as written: previewing it would
-    /// mean reading the clipboard on every keystroke.
+    /// visible before Enter is pressed. The variables file is applied first, as copy and
+    /// run apply it, so <c>%r% %P%</c> shows the program it will start rather than half
+    /// of what it means. <c>%C%</c> stays as written: previewing it would mean reading
+    /// the clipboard on every keystroke.
     /// </summary>
-    public override string Content =>
-        _arguments.Length == 0 ? Model.Content : Macros.Expand(Model.Content, _arguments);
+    public override string Content => _invokedContent ?? Model.Content;
 
     public override string Template => Model.Content;
 
@@ -43,11 +45,14 @@ public partial class SnippetViewModel : RowViewModel
     /// search box no longer invokes it. Rows are cached across searches, so yesterday's
     /// arguments have to go when the line they came from does.
     /// </summary>
-    public void SetArguments(string[] arguments)
+    public void SetArguments(string[] arguments, KlippyVariables? variables = null)
     {
         if (_arguments.Length == 0 && arguments.Length == 0) return;
 
         _arguments = arguments;
+        _invokedContent = arguments.Length == 0
+            ? null
+            : Macros.Expand(variables?.Expand(Model.Content) ?? Model.Content, arguments);
         NotifyModelChanged(); // Content, Preview, IsMultiline and IsExecutable all move with them
     }
 }

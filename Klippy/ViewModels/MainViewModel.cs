@@ -457,7 +457,8 @@ public partial class MainViewModel : ViewModelBase
         if (!ReferenceEquals(_invoked, row)) ClearArguments();
 
         _invoked = row;
-        row.SetArguments(invocation.ValuesFor(snippet.Content, KlippyVariables.Current));
+        var variables = KlippyVariables.Current;
+        row.SetArguments(invocation.ValuesFor(snippet.Content, variables), variables);
 
         Filtered.Clear();
         Filtered.Add(row);

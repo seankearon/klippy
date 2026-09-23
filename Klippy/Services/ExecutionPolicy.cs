@@ -350,6 +350,23 @@ public static class ExecutionPolicy
             };
         }
 
+        // The program inside a bundle rather than the bundle itself — the path a
+        // JetBrains IDE or Zed documents for its command line. Still an application, and
+        // still only a macOS one; started directly so its arguments reach it as they
+        // would from a terminal, which is how these hand a folder to a running instance.
+        if (BundleOf(command) is not null)
+        {
+            if (os != ExecutionPlatform.MacOS)
+                return Nothing(".app applications only run on macOS.");
+
+            return new ExecutionPlan
+            {
+                Kind = ExecutionKind.Application,
+                Target = command,
+                Arguments = rest,
+            };
+        }
+
         return Nothing($"\"{Ellipsis(command)}\" is not a URL, an application or a script Klippy can run.");
     }
 
@@ -401,6 +418,7 @@ public static class ExecutionPolicy
 
         var os = platform ?? CurrentPlatform;
         if (ScriptExtension(first) is { } script) return Supports(script, os);
+        if (BundleOf(first) is not null) return os == ExecutionPlatform.MacOS;
 
         return ApplicationExtension(first) is { } application && Supports(application, os);
     }
@@ -538,6 +556,10 @@ public static class ExecutionPolicy
             ".appimage" when platform == ExecutionPlatform.Linux =>
                 new LaunchCommand(plan.Target, [.. plan.Arguments]),
 
+            // The program inside a bundle is an ordinary executable, and runs itself.
+            _ when platform == ExecutionPlatform.MacOS && BundleOf(plan.Target) is not null =>
+                new LaunchCommand(plan.Target, [.. plan.Arguments]),
+
             _ => null,
         };
 
@@ -618,6 +640,24 @@ public static class ExecutionPolicy
         return HomeOf(extension) is null ? null : extension;
     }
 
+    private const string BundleExecutableFolder = ".app/Contents/MacOS/";
+
+    /// <summary>
+    /// The bundle a path reaches into for its program — <c>/Applications/Rider.app</c> for
+    /// <c>/Applications/Rider.app/Contents/MacOS/rider</c> — or null when it does not name
+    /// the executable directly inside a bundle's <c>Contents/MacOS</c>.
+    /// </summary>
+    internal static string? BundleOf(string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return null;
+
+        int at = token.LastIndexOf(BundleExecutableFolder, StringComparison.OrdinalIgnoreCase);
+        if (at <= 0 || token[at - 1] == '/') return null; // ".app" on its own is a hidden folder
+
+        var program = token[(at + BundleExecutableFolder.Length)..];
+        return program.Length > 0 && program.IndexOf('/') < 0 ? token[..(at + ".app".Length)] : null;
+    }
+
     /// <summary>The platform an application extension belongs to, or null if it is not one.</summary>
     private static ExecutionPlatform? HomeOf(string extension)
     {
@@ -639,6 +679,8 @@ public static class ExecutionPolicy
     /// <summary>An application as a person names it: Safari, not Safari.app.</summary>
     internal static string ApplicationName(string path)
     {
+        if (BundleOf(path) is { } bundle) path = bundle;
+
         var name = FileNameOf(path.TrimEnd(PathSeparators));
         int dot = name.LastIndexOf('.');
         return dot > 0 ? name[..dot] : name;
