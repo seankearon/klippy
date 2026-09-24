@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Klippy.App"
+             Name="Klippy"
              RequestedThemeVariant="Dark">
 
   <Application.Resources>

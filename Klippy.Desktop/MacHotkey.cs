@@ -12,6 +12,12 @@ namespace Klippy.Desktop;
 /// hotkey, and — unlike CGEventTap or NSEvent global monitors — it needs no Accessibility
 /// permission, so the app works the moment it launches. Handlers are installed on the
 /// application event target, which Avalonia's own run loop pumps for us.
+///
+/// Every registration's handler sees every hotkey press, not just its own: they share
+/// that one target, and Carbon offers a press to the most recently installed handler
+/// first. So each key carries its own ID, and a handler hands on any press that is not
+/// its own — without that, whichever key registered last answers them all, and ⌥⌘K
+/// opened the clipboard history.
 /// </summary>
 [SupportedOSPlatform("macos")]
 internal sealed class MacHotkey : IGlobalHotkey
@@ -22,6 +28,13 @@ internal sealed class MacHotkey : IGlobalHotkey
     private const uint CmdKey = 0x0100, ShiftKey = 0x0200, OptionKey = 0x0800, ControlKey = 0x1000;
     private const uint EventClassKeyboard = 0x6B657962;  // 'keyb'
     private const uint EventHotKeyPressed = 5;
+    private const uint EventParamDirectObject = 0x2D2D2D2D; // '----'
+    private const uint TypeEventHotKeyID = 0x686B6964;      // 'hkid'
+    private const uint Signature = 0x4B4C5059;              // 'KLPY'
+    private const int EventNotHandledErr = -9874;
+
+    /// <summary>The last ID handed out. Registration happens on the UI thread only.</summary>
+    private static uint _lastId;
 
     private readonly IntPtr _hotkeyRef;
     private readonly IntPtr _handlerRef;
@@ -42,9 +55,18 @@ internal sealed class MacHotkey : IGlobalHotkey
     {
         if (!HotkeySpec.MacKeyCodes.TryGetValue(spec.Key, out var keyCode)) return null;
 
+        var id = new EventHotKeyID { signature = Signature, id = ++_lastId };
+
         MacHotkey? instance = null;
-        EventHandlerProc proc = (_, _, _) =>
+        EventHandlerProc proc = (_, eventRef, _) =>
         {
+            // Another key's press, or one that cannot be read: pass it down the chain to
+            // the handler it belongs to rather than swallowing it here.
+            if (GetEventParameter(eventRef, EventParamDirectObject, TypeEventHotKeyID, IntPtr.Zero,
+                    (nuint)Marshal.SizeOf<EventHotKeyID>(), IntPtr.Zero, out var pressed) != 0
+                || pressed.signature != id.signature || pressed.id != id.id)
+                return EventNotHandledErr;
+
             instance?.Invoke();
             return 0; // noErr
         };
@@ -53,7 +75,6 @@ internal sealed class MacHotkey : IGlobalHotkey
         if (InstallEventHandler(GetApplicationEventTarget(), proc, 1, ref spec32, IntPtr.Zero, out var handlerRef) != 0)
             return null;
 
-        var id = new EventHotKeyID { signature = 0x4B4C5059 /* 'KLPY' */, id = 1 };
         if (RegisterEventHotKey(keyCode, ToCarbonModifiers(spec.Modifiers), id,
                                 GetApplicationEventTarget(), 0, out var hotkeyRef) != 0)
         {
@@ -114,4 +135,9 @@ internal sealed class MacHotkey : IGlobalHotkey
         uint numTypes, ref EventTypeSpec typeList, IntPtr userData, out IntPtr outRef);
 
     [DllImport(Carbon)] private static extern int RemoveEventHandler(IntPtr handlerRef);
+
+    // ByteCount is unsigned long: 64 bits on every mac runtime Klippy publishes.
+    [DllImport(Carbon)]
+    private static extern int GetEventParameter(IntPtr eventRef, uint name, uint desiredType,
+        IntPtr outActualType, nuint bufferSize, IntPtr outActualSize, out EventHotKeyID data);
 }

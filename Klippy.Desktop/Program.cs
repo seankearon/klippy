@@ -92,5 +92,9 @@ sealed class Program
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            // LSUIElement in Info.plist is not enough on its own: Avalonia sets the
+            // activation policy at startup from this option, and its default puts Klippy
+            // back in the Dock and the Cmd-Tab list. Only read on macOS.
+            .With(new MacOSPlatformOptions { ShowInDock = false })
             .LogToTrace();
 }
