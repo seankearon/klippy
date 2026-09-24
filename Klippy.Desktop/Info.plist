@@ -8,6 +8,13 @@
     <key>LSUIElement</key>
     <true/>
 
+    <!-- The executable is Klippy.Desktop, after the project; these are the names macOS
+         shows for the app instead. -->
+    <key>CFBundleName</key>
+    <string>Klippy</string>
+    <key>CFBundleDisplayName</key>
+    <string>Klippy</string>
+
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
 </dict>

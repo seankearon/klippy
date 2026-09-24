@@ -7,8 +7,14 @@ description: "Summoning Klippy from anywhere on the desktop."
 
 Klippy runs as a resident launcher: it stays alive behind a tray / menu-bar icon, and a
 system-wide hotkey summons it. Closing the window hides it rather than quitting; see
-[Quitting](quitting.md) for the ways out. Only one instance runs at a time, so
-launching Klippy again just tells you it is already resident.
+[Quitting](quitting.md) for the ways out. Only one instance runs at a time: on Windows,
+launching Klippy again just tells you it is already resident; on macOS, opening it again
+from Spotlight, Finder or Launchpad brings the window up, as the menu-bar icon's
+**Show Klippy** does.
+
+On macOS Klippy is a menu-bar app, with no Dock icon and no place in the `⌘-Tab`
+switcher: the hotkeys and the menu-bar icon are how you reach it. A window left open on
+another Space comes to the one you are on when summoned, rather than taking you to it.
 
 There are two keys, one per half of the app:
 
@@ -16,6 +22,10 @@ There are two keys, one per half of the app:
 |---|---|
 | `Ctrl+Alt+K` / `⌥⌘K` | Saved snippets |
 | `Ctrl+Alt+J` / `⌥⌘J` | Clipboard history |
+
+On a Mac, `⌥⌘J` is also the JavaScript console in Chrome and Edge, and Klippy takes it
+system-wide for as long as it runs. If you use the console, change `HistoryHotkey`
+(below).
 
 Each means *show me this view*. Pressing a key while its view is already in front
 dismisses the window, as the single key always did; pressing the **other** key switches
@@ -64,5 +74,8 @@ which costs an idle thread apiece and buys independent failure:
 [`WindowsHotkey`](https://github.com/seankearon/klippy/blob/main/Klippy.Desktop/WindowsHotkey.cs) uses `RegisterHotKey`, and
 [`MacHotkey`](https://github.com/seankearon/klippy/blob/main/Klippy.Desktop/MacHotkey.cs) uses
 Carbon's `RegisterEventHotKey` — chosen over an event tap because it needs no Accessibility
-permission. **The macOS path compiles but has not been run**, since it cannot be tested
+permission. On macOS both keys' handlers sit on the one application event target, and
+Carbon offers every press to the most recently installed handler first, so each key
+carries its own ID and a handler passes on any press that is not its own.
+**The macOS path compiles but has not been run**, since it cannot be tested
 from Windows.

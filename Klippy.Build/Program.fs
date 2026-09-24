@@ -393,10 +393,15 @@ and certificate profile of the Trusted Signing resource)."""
         // disable-library-validation nor allow-unsigned-executable-memory - and under
         // the hardened runtime that comes with a Developer ID signature the CLR dies
         // before Main: a Dock bounce and no window.
-        let entitlements = sourceDir +/ "Entitlements.plist"
+        //
+        // Info.plist is found the same way and has to travel for the same reason. It was
+        // left behind when this copy was introduced, so from then on the bundles went out
+        // without LSUIElement, LSMinimumSystemVersion or the Klippy display name.
+        for plist in [ "Entitlements.plist"; "Info.plist" ] do
+            let source = sourceDir +/ plist
 
-        if File.Exists entitlements then
-            File.Copy(entitlements, destinationDir +/ "Entitlements.plist", true)
+            if File.Exists source then
+                File.Copy(source, destinationDir +/ plist, true)
 
         File.WriteAllText(destination, project.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
         Write.line $"Wrote signed Parcel project to {destination}"

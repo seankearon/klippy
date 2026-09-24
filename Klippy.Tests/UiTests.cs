@@ -51,6 +51,13 @@ public class UiTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>
+    /// macOS takes the process name, and Avalonia its app-menu items, from this. Left
+    /// unset, Klippy introduces itself as Avalonia.
+    /// </summary>
+    [AvaloniaFact]
+    public void Application_IsNamedKlippy() => Assert.Equal("Klippy", Application.Current!.Name);
+
     [AvaloniaFact]
     public void DesktopWindow_Renders_AndCapturesScreenshot()
     {

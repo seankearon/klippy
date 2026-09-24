@@ -15,6 +15,12 @@
          read the icon off the binary, and without this they fall back to the blank default
          placeholder. That is what an installed copy shows. -->
     <ApplicationIcon>..\Klippy\Assets\klippy.ico</ApplicationIcon>
+
+    <!-- The assembly is Klippy.Desktop, since Klippy.dll is the shared library's. These
+         are what Windows shows instead - Task Manager and the notification-area settings
+         read the title as the exe's description - so they say Klippy, not the project. -->
+    <AssemblyTitle>Klippy</AssemblyTitle>
+    <Product>Klippy</Product>
   </PropertyGroup>
 
   <!-- Native AOT publish: fast cold start, small self-contained binary.

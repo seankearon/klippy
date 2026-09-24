@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using Klippy.Services;
 using Klippy.ViewModels;
@@ -22,6 +23,7 @@ internal sealed class LauncherHost : IDisposable
     private bool _shuttingDown;
     private IGlobalHotkey? _hotkey;
     private IGlobalHotkey? _historyHotkey;
+    private IActivatableLifetime? _activatable;
 
     public LauncherHost(IClassicDesktopStyleApplicationLifetime lifetime, AppSettings settings)
     {
@@ -68,7 +70,19 @@ internal sealed class LauncherHost : IDisposable
         if (_lifetime.MainWindow is { } startup && PlaceFor(startup) is { } at)
             startup.Position = at;
 
+        InstallAppMenu();
         InstallTray();
+
+        if (OperatingSystem.IsMacOS() && _lifetime.MainWindow is { } spaced)
+            MacWindow.MoveToActiveSpace(spaced);
+
+        // Opening Klippy again while it is running — from Spotlight, Finder or Launchpad —
+        // starts no second copy on macOS, so the single-instance check in Program never
+        // sees it: the system asks the running copy to reopen instead. Answered the way
+        // the tray's Show is, or relaunching a dismissed Klippy would appear to do nothing.
+        _activatable = Application.Current?.TryGetFeature<IActivatableLifetime>();
+        if (_activatable is not null)
+            _activatable.Activated += OnActivated;
 
         if (!_settings.HotkeyEnabled) return;
 
@@ -81,6 +95,23 @@ internal sealed class LauncherHost : IDisposable
             _historyHotkey = GlobalHotkey.TryRegister(historySpec,
                 () => Dispatcher.UIThread.Post(ToggleHistory));
     }
+
+    /// <summary>
+    /// Avalonia's default macOS app menu opens with "About Avalonia". As an agent Klippy
+    /// shows no menu bar, but the menu is built all the same, so it gets one that names
+    /// Klippy instead. Avalonia appends its standard Hide and Quit items after this one.
+    /// </summary>
+    private void InstallAppMenu()
+    {
+        if (!OperatingSystem.IsMacOS() || Application.Current is not { } app) return;
+
+        var about = new NativeMenuItem("About Klippy");
+        about.Click += (_, _) => _ = _lifetime.MainWindow?.Launcher.LaunchUriAsync(DocumentationHome);
+
+        NativeMenu.SetMenu(app, new NativeMenu { about });
+    }
+
+    private static readonly Uri DocumentationHome = new("https://seankearon.github.io/klippy/");
 
     private void InstallTray()
     {
@@ -189,6 +220,13 @@ internal sealed class LauncherHost : IDisposable
         var summoning = !(window.IsVisible && window.IsActive)
                         || window.WindowState == WindowState.Minimized;
 
+        // macOS can hide Klippy as an application — Hide Others (⌥⌘H) in another app, for
+        // one — which is not the same as the window being hidden: Avalonia still reports
+        // it visible, and nothing below would bring it back. On an app that is not hidden
+        // this does nothing the Activate below would not do anyway.
+        if (summoning && OperatingSystem.IsMacOS())
+            _activatable?.TryLeaveBackground();
+
         // Ahead of the move: positioning a minimised window writes a rect that the restore
         // throws away. Safe to do while hidden — un-minimising a hidden window does not
         // reveal it, so there is no flash.
@@ -205,7 +243,11 @@ internal sealed class LauncherHost : IDisposable
         // dismissed-and-recalled case is hidden anyway, so the path this is used on most
         // pays nothing for it. A second press on a window that is in front and focused
         // never reaches here — Toggle has already dismissed it.
-        if (summoning && window.IsVisible)
+        //
+        // Not on macOS, which gets the same result from MoveToActiveSpace, set once in
+        // Start. There a minimised window is still animating its way out of the Dock at
+        // this point, and hiding it would cut the restore short rather than finish it.
+        if (summoning && window.IsVisible && !OperatingSystem.IsMacOS())
             window.Hide();
 
         // Computed once and assigned twice. Asking twice would re-read the cursor, and the
@@ -225,7 +267,21 @@ internal sealed class LauncherHost : IDisposable
         if (placed is { } again) window.Position = again;
 
         window.Activate();
+
+        // Activate asks macOS to make Klippy the active app, and since Sonoma it may say
+        // no. The window then stays behind whatever you were using, so the summons looks
+        // like it did nothing. Ordering it front regardless at least puts it in view.
+        if (OperatingSystem.IsMacOS())
+            MacWindow.OrderFrontRegardless(window);
+
         window.Focus();
+    }
+
+    /// <summary>Opening Klippy while it is already running: see Start.</summary>
+    private void OnActivated(object? sender, ActivatedEventArgs e)
+    {
+        if (e.Kind == ActivationKind.Reopen)
+            Dispatcher.UIThread.Post(ShowWindow);
     }
 
     /// <summary>
@@ -282,6 +338,11 @@ internal sealed class LauncherHost : IDisposable
         _hotkey = null;
         _historyHotkey?.Dispose();
         _historyHotkey = null;
+        if (_activatable is not null)
+        {
+            _activatable.Activated -= OnActivated;
+            _activatable = null;
+        }
         if (_tray is not null)
         {
             _tray.IsVisible = false;
