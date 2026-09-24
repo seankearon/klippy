@@ -238,6 +238,22 @@ public class ExecuteTests
     }
 
     [AvaloniaFact]
+    public async Task AMarkedDocument_IsOpenedWhenTriggered()
+    {
+        var f = NewVm(snippets: new Snippet
+        {
+            Label = "Release notes", Content = @"C:\Docs\release-notes.html", IsExecutable = true,
+        });
+
+        await f.Vm.ActivateCommand.ExecuteAsync(f.Row("Release notes"));
+
+        var plan = Assert.Single(f.Ran);
+        Assert.Equal(ExecutionKind.Document, plan.Kind);
+        Assert.Equal(@"C:\Docs\release-notes.html", plan.Target);
+        Assert.Null(f.Copied);
+    }
+
+    [AvaloniaFact]
     public async Task AnUnmarkedSnippet_IsCopiedWhenTriggered_AndNothingRuns()
     {
         // Even one whose text is a link: Klippy never decides on its own to run
@@ -292,7 +308,7 @@ public class ExecuteTests
         Assert.Null(f.Copied); // marked means run; it does not fall back to copying
         Assert.True(f.Vm.IsToastVisible);
         Assert.True(f.Vm.IsToastError);
-        Assert.Contains("not a URL, an application or a script", f.Vm.ToastText);
+        Assert.Contains("not a URL, a document, an application or a script", f.Vm.ToastText);
     }
 
     [AvaloniaFact]
@@ -415,11 +431,14 @@ public class ExecuteTests
         // Marked, but there is nothing here to run: better said now than as a toast later.
         editor.IsExecutable = true;
         Assert.True(editor.ExecuteHintIsWarning);
-        Assert.Contains("not a link, an application or a script", editor.ExecuteHint);
+        Assert.Contains("not a link, a document, an application or a script", editor.ExecuteHint);
 
         editor.Content = "https://www.google.com/search?q=%P%";
         Assert.False(editor.ExecuteHintIsWarning);
         Assert.Contains("Opened or run", editor.ExecuteHint);
+
+        editor.Content = @"C:\Docs\release-notes.html";
+        Assert.False(editor.ExecuteHintIsWarning);
     }
 
     [AvaloniaFact]

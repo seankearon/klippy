@@ -118,7 +118,7 @@ public class ExecutionTests
         var plan = Plan("Best regards, Sam Rivera · Klippy Support");
 
         Assert.Equal(ExecutionKind.None, plan.Kind);
-        Assert.Contains("not a URL, an application or a script", plan.Problem);
+        Assert.Contains("not a URL, a document, an application or a script", plan.Problem);
     }
 
     [Fact]
@@ -327,6 +327,94 @@ public class ExecutionTests
                      "/Applications/Rider.app/Contents/Resources/rider",
                  })
             Assert.Equal(ExecutionKind.None, Plan(path, platform: ExecutionPlatform.MacOS).Kind);
+    }
+
+    // ---- documents ----
+
+    [Fact]
+    public void ADocumentIsOpenedWhereItLies()
+    {
+        var page = Plan(@"C:\Docs\report.html");
+        Assert.Equal(ExecutionKind.Document, page.Kind);
+        Assert.Equal(@"C:\Docs\report.html", page.Target);
+        Assert.Empty(page.Arguments);
+
+        Assert.Equal(ExecutionKind.Document, Plan(@"C:\Docs\REPORT.HTM").Kind);
+        Assert.Equal(ExecutionKind.Document, Plan("/home/sam/notes.pdf", platform: ExecutionPlatform.Linux).Kind);
+
+        // Named the way every other path is: quoted where it has a space, or through a variable.
+        Assert.Equal(@"C:\My Docs\report.html", Plan(@"""C:\My Docs\report.html""").Target);
+        Assert.Equal(@"C:\Users\sam\AppData\Local\report.html", Plan(@"%LOCALAPPDATA%\report.html").Target);
+        Assert.Equal("/home/sam/report.html", Plan("~/report.html", platform: ExecutionPlatform.MacOS).Target);
+    }
+
+    [Fact]
+    public void ADocumentTakesNoArguments_SoTheRestOfTheLineIsLeftBehind()
+    {
+        // As for a link: a note under the path is prose, not a switch to pass to anything.
+        var plan = Plan("C:\\Docs\\report.html\nRead before the meeting");
+
+        Assert.Equal(@"C:\Docs\report.html", plan.Target);
+        Assert.Empty(plan.Arguments);
+    }
+
+    [Fact]
+    public void ADocumentNeedsItsFullPath()
+    {
+        // A bare name would be looked for beside Klippy, which is nobody's report.
+        var plan = Plan("report.html");
+
+        Assert.Equal(ExecutionKind.None, plan.Kind);
+        Assert.Contains("full path", plan.Problem);
+    }
+
+    [Fact]
+    public void AFileLinkToADocument_OpensThePathItSpells()
+    {
+        // What a browser's address bar shows for a page on disk.
+        var windows = Plan("file:///C:/Docs/My%20Report.html");
+        Assert.Equal(ExecutionKind.Document, windows.Kind);
+        Assert.Equal(@"C:\Docs\My Report.html", windows.Target);
+
+        Assert.Equal("/Users/sam/report.html",
+            Plan("file:///Users/sam/report.html", platform: ExecutionPlatform.MacOS).Target);
+        Assert.Equal(@"C:\Docs\report.html", Plan("file://localhost/C:/Docs/report.html").Target);
+
+        // A fragment belongs to the page, not to the file's name.
+        Assert.Equal(@"C:\Docs\report.html", Plan("file:///C:/Docs/report.html#summary").Target);
+    }
+
+    [Fact]
+    public void AFileLinkIsStillNoWayToRunAProgram()
+    {
+        // The documents are the only thing a file: link reaches, judged on the path it
+        // decodes to — an encoded dot hides no extension, and a quote misleads nothing.
+        Assert.Equal(ExecutionKind.None, Plan("file:///C:/Windows/System32/cmd.exe").Kind);
+        Assert.Equal(ExecutionKind.None, Plan("file:///C:/x/payload%2Ehta").Kind);
+        Assert.Equal(ExecutionKind.None, Plan("file:///C:/x/report.html%22.exe").Kind);
+
+        // This machine's files only: a link to a server is a request made to it.
+        Assert.Equal(ExecutionKind.None, Plan("file://server/share/report.html").Kind);
+
+        // On Windows a path has a drive, and drive-relative is no path at all.
+        Assert.Equal(ExecutionKind.None, Plan("file:///home/sam/report.html").Kind);
+        Assert.Equal(ExecutionKind.None, Plan("file:///C:report.html").Kind);
+    }
+
+    [Theory]
+    [InlineData(@"C:\x\invoice.js")]
+    [InlineData(@"C:\x\invoice.vbs")]
+    [InlineData(@"C:\x\invoice.hta")]
+    [InlineData(@"C:\x\invoice.lnk")]
+    [InlineData(@"C:\x\invoice.scr")]
+    [InlineData(@"C:\x\invoice.docm")]
+    [InlineData("/Users/sam/invoice.command")]
+    [InlineData(@"C:\x\.html")]
+    public void AFileThatRunsWhenOpened_IsNoDocument(string path)
+    {
+        // To the shell, open and run are the same verb, and the extension decides.
+        Assert.Equal(ExecutionKind.None, Plan(path).Kind);
+        Assert.Equal(ExecutionKind.None, Plan(path, platform: ExecutionPlatform.MacOS).Kind);
     }
 
     // ---- environment variables ----
@@ -593,6 +681,13 @@ public class ExecutionTests
         // .bat has nothing to run it on a Mac, so marking one there is worth a warning.
         Assert.False(LooksExecutable(@"C:\tools\build.bat", ExecutionPlatform.MacOS));
         Assert.True(LooksExecutable(@"C:\tools\build.bat", ExecutionPlatform.Windows));
+
+        // A document opens anywhere it can be found — which takes its full path.
+        Assert.True(LooksExecutable(@"C:\Docs\report.html"));
+        Assert.True(LooksExecutable("/home/sam/report.pdf", ExecutionPlatform.Linux));
+        Assert.True(LooksExecutable("file:///C:/Docs/My%20Report.html"));
+        Assert.False(LooksExecutable("report.html"));
+        Assert.False(LooksExecutable(@"C:\Docs\invoice.hta"));
     }
 
     // ---- the process each plan becomes ----
@@ -688,6 +783,24 @@ public class ExecutionTests
     }
 
     [Fact]
+    public void ADocumentIsHandedToWhateverOpensItsKind()
+    {
+        var plan = Plan(@"C:\Docs\report.html");
+
+        var windows = ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows)!;
+        Assert.Equal(@"C:\Docs\report.html", windows.FileName);
+        Assert.True(windows.UseShellExecute); // the shell is what knows the default browser
+
+        var mac = ExecutionPolicy.Resolve(
+            Plan("/Users/sam/report.html", platform: ExecutionPlatform.MacOS), ExecutionPlatform.MacOS)!;
+        Assert.Equal("open", mac.FileName);
+        Assert.Equal(new[] { "/Users/sam/report.html" }, mac.Arguments);
+
+        Assert.Equal("xdg-open", ExecutionPolicy.Resolve(
+            Plan("/home/sam/report.html", platform: ExecutionPlatform.Linux), ExecutionPlatform.Linux)!.FileName);
+    }
+
+    [Fact]
     public void NothingToRunResolvesToNoProcess()
     {
         Assert.Null(ExecutionPolicy.Resolve(Plan("just some text"), ExecutionPlatform.Windows));
@@ -706,6 +819,7 @@ public class ExecutionTests
             Plan(@"""C:\Program Files\Klippy\Klippy.Desktop.exe""").Description);
         Assert.Equal("Starting Klippy",
             Plan("/Applications/Klippy.app/", platform: ExecutionPlatform.MacOS).Description);
+        Assert.Equal("Opening report.html", Plan("file:///C:/Docs/report.html").Description);
         Assert.Equal(Plan("nope").Problem, Plan("nope").Description);
     }
 }

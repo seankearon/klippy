@@ -24,8 +24,8 @@ public enum ExecutionKind
     /// <summary>
     /// A file, handed to whatever the platform opens its kind with — the same gesture as
     /// double-clicking it. Distinct from <see cref="Application"/>, which starts a
-    /// program, and from <see cref="Script"/>, which hands one to an interpreter: a
-    /// the variables file is neither, and wants the user's text editor.
+    /// program, and from <see cref="Script"/>, which hands one to an interpreter: a web
+    /// page or the variables file is neither, and wants the user's browser or editor.
     /// </summary>
     Document,
 
@@ -60,12 +60,12 @@ public sealed record ExecutionPlan
 {
     public ExecutionKind Kind { get; init; } = ExecutionKind.None;
 
-    /// <summary>The URL to open, or the path of the script or application to run.</summary>
+    /// <summary>The URL to open, or the path of the script, application or document.</summary>
     public string Target { get; init; } = "";
 
     /// <summary>
     /// Arguments for a script or an application. Always empty for a URL, which carries
-    /// its own.
+    /// its own, and for a document, which is opened rather than run.
     /// </summary>
     public string[] Arguments { get; init; } = Array.Empty<string>();
 
@@ -122,7 +122,7 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 /// silently getting a path with percent signs in it. <see cref="ProcessLauncher"/> does the
 /// actual starting.
 ///
-/// Three things can be executed:
+/// Four things can be executed:
 ///
 /// <list type="bullet">
 /// <item><b>URLs</b> — http, https and mailto (and a bare <c>www.</c>, which gets an
@@ -132,13 +132,16 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 /// <item><b>Applications</b> — whatever the platform calls one: an <c>.exe</c> on
 /// Windows, an <c>.app</c> bundle on macOS, an <c>.AppImage</c> on Linux. Started with
 /// the rest of the line as arguments, as a shortcut on the desktop would.</item>
+/// <item><b>Documents</b> — a web page, a PDF, an image and the like, named by its full
+/// path or by a <c>file:///</c> link. Handed to whatever the platform opens its kind with,
+/// as double-clicking it would. See <see cref="DocumentExtension"/> for the list.</item>
 /// </list>
 ///
 /// The allow-list is still the point, even now that it has applications on it: a
-/// snippet naming something that is none of the three is simply not executable, so a
+/// snippet naming something that is none of the four is simply not executable, so a
 /// bare <c>docker system prune -af</c> is text however firmly it is marked to run. It is
 /// read off the first word once that word's variables have resolved — a variable may say
-/// where a program lives, and it still has to be one of the three when it gets there.
+/// where a program lives, and it still has to be one of the four when it gets there.
 /// </summary>
 public static class ExecutionPolicy
 {
@@ -292,6 +295,14 @@ public static class ExecutionPolicy
         var command = Unquote(parts[0]);
         var rest = parts.GetRange(1, parts.Count - 1).ConvertAll(Unquote).ToArray();
 
+        // The one scheme let past the refusal below, and only as far as a document: a
+        // file:/// link is how a browser's address bar names a page on disk, and it is the
+        // same page as the path it spells. What is judged and what is opened is that path,
+        // decoded, so a %2E cannot hide an extension and the link itself never reaches the
+        // shell — file:///C:/Windows/System32/cmd.exe is still refused, being no document.
+        if (FileUrlPath(command, os) is { } local && DocumentExtension(local) is not null)
+            return DocumentPlan(local);
+
         // Something carrying a scheme is not a path, whatever it happens to end in:
         // file:///C:/Windows/System32/cmd.exe names an .exe without being one, and
         // javascript: names nothing at all. Neither survived the URL allow-list above,
@@ -307,6 +318,9 @@ public static class ExecutionPolicy
         // fact that lets UnmatchedSearch.Unquote strip a pasted pair with no ambiguity.
         if (command.Contains('"'))
             return Nothing($"\"{Ellipsis(command)}\" is not a path Klippy can run: paths carry no quotes.");
+
+        if (DocumentExtension(command) is not null)
+            return DocumentPlan(command);
 
         if (ScriptExtension(command) is { } script)
         {
@@ -367,8 +381,20 @@ public static class ExecutionPolicy
             };
         }
 
-        return Nothing($"\"{Ellipsis(command)}\" is not a URL, an application or a script Klippy can run.");
+        return Nothing($"\"{Ellipsis(command)}\" is not a URL, a document, an application or a script Klippy can run.");
     }
+
+    /// <summary>
+    /// A document is opened where it lies, so it has to say where that is. A bare
+    /// <c>report.html</c> would be looked for beside Klippy itself, which is nobody's idea
+    /// of where their report is — the same reason a typed path has to be rooted. Whatever
+    /// else was on the line is left behind, as it is for a URL: a document takes no
+    /// arguments, and a note under a link is prose rather than a switch.
+    /// </summary>
+    private static ExecutionPlan DocumentPlan(string path) =>
+        UnmatchedSearch.IsRooted(path)
+            ? new ExecutionPlan { Kind = ExecutionKind.Document, Target = path }
+            : Nothing($"\"{Ellipsis(path)}\" needs its full path for Klippy to open it.");
 
     /// <summary>
     /// Takes off a pair of double quotes wrapping a whole word — a path pasted from
@@ -414,9 +440,12 @@ public static class ExecutionPolicy
         // by them.
         first = (environment ?? EnvironmentProbe.Real).Expand(first);
         if (AsUrl(first) is not null) return true;
-        if (HasScheme(first)) return false; // a scheme the allow-list above turned down
 
         var os = platform ?? CurrentPlatform;
+        if (FileUrlPath(first, os) is { } local) return DocumentExtension(local) is not null;
+        if (HasScheme(first)) return false; // a scheme the allow-list above turned down
+
+        if (DocumentExtension(first) is not null) return UnmatchedSearch.IsRooted(first);
         if (ScriptExtension(first) is { } script) return Supports(script, os);
         if (BundleOf(first) is not null) return os == ExecutionPlatform.MacOS;
 
@@ -657,6 +686,79 @@ public static class ExecutionPolicy
         var program = token[(at + BundleExecutableFolder.Length)..];
         return program.Length > 0 && program.IndexOf('/') < 0 ? token[..(at + ".app".Length)] : null;
     }
+
+    /// <summary>
+    /// The kinds of file a marked item may open, each in whatever the platform opens it
+    /// with. An allow-list for the same reason the rest of this class is one: to the
+    /// shell, "open" and "run" are the same verb, and what decides between them is the
+    /// extension — a <c>.js</c>, <c>.vbs</c>, <c>.hta</c>, <c>.lnk</c> or <c>.scr</c> on
+    /// Windows, or a <c>.command</c> on macOS, is a program however it is opened. So these
+    /// are the kinds that are read rather than run: pages, prose, pictures, and the Office
+    /// formats that cannot carry macros.
+    /// </summary>
+    private static readonly string[] Documents =
+    {
+        ".html", ".htm",
+        ".pdf", ".txt", ".md",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+        ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp",
+    };
+
+    /// <summary>The document types a marked item opens, or null for anything else.</summary>
+    public static string? DocumentExtension(string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return null;
+
+        var name = FileNameOf(token);
+        int dot = name.LastIndexOf('.');
+        if (dot <= 0) return null; // ".txt" on its own is a hidden file, not a document
+
+        var extension = name[dot..].ToLowerInvariant();
+        return Array.IndexOf(Documents, extension) >= 0 ? extension : null;
+    }
+
+    private const string FileScheme = "file://";
+
+    /// <summary>
+    /// The local path a <c>file:</c> link names — <c>C:\Docs\report.html</c> for
+    /// <c>file:///C:/Docs/report.html</c> on Windows, <c>/home/sam/report.html</c> for
+    /// <c>file:///home/sam/report.html</c> elsewhere — or null when it is not one.
+    ///
+    /// Read by hand rather than through <see cref="Uri.LocalPath"/>, which answers for the
+    /// machine it is running on, for the reason <see cref="FileNameOf"/> gives. Only this
+    /// machine's files: an empty host or <c>localhost</c>, never a server, since a link to
+    /// one is a request to it made on the user's behalf. And nothing a path cannot carry
+    /// once decoded — a quote or a control character is a link built to mislead.
+    /// </summary>
+    internal static string? FileUrlPath(string? token, ExecutionPlatform platform)
+    {
+        if (token is null || !token.StartsWith(FileScheme, StringComparison.OrdinalIgnoreCase)) return null;
+
+        var rest = token[FileScheme.Length..];
+        int slash = rest.IndexOf('/');
+        if (slash < 0) return null;
+
+        var host = rest[..slash];
+        if (host.Length > 0 && !host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return null;
+
+        // A query or a fragment belongs to the page rather than to the file.
+        var encoded = rest[slash..];
+        int cut = encoded.IndexOfAny(QueryOrFragment);
+        if (cut >= 0) encoded = encoded[..cut];
+
+        var path = Uri.UnescapeDataString(encoded);
+        foreach (var c in path)
+            if (c == '"' || char.IsControl(c)) return null;
+
+        if (platform != ExecutionPlatform.Windows) return path;
+
+        // /C:/Docs/report.html: the drive is the path's first segment, behind a slash.
+        return path.Length >= 3 && path[0] == '/' && char.IsAsciiLetter(path[1]) && path[2] == ':'
+            ? path[1..].Replace('/', '\\')
+            : null;
+    }
+
+    private static readonly char[] QueryOrFragment = { '?', '#' };
 
     /// <summary>The platform an application extension belongs to, or null if it is not one.</summary>
     private static ExecutionPlatform? HomeOf(string extension)

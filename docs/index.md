@@ -27,7 +27,7 @@ hide:
 
     ---
 
-    Some snippets are a link to open, a script to run or an app to start. Mark one
+    Some snippets are a link or a file to open, a script to run or an app to start. Mark one
     **Execute** and triggering it runs it. Without the marker nothing runs — Klippy
     never decides on its own that something looks launchable.
 
