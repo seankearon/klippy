@@ -49,7 +49,7 @@ someone hunting for the clip they copied than an instruction.
 | `http://…`, `https://…`, `www.…` | The page opens |
 | `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
 
-Two things are deliberately narrower here than for a snippet you marked yourself, because
+Three things are deliberately narrower here than for a snippet you marked yourself, because
 a marked item was written on purpose and this is whatever landed in a filter box:
 
 - **Links are `http:`, `https:` and a bare `www.` only.** A marked snippet may also carry
@@ -67,6 +67,10 @@ a marked item was written on purpose and this is whatever landed in a filter box
   expands to one. A relative path would resolve against wherever Klippy happened to be
   started from, which is nobody's mental model, and without the rule every unmatched word
   with a dot in it would look like a file.
+- **No documents.** A marked snippet may open a [document](running-things.md#documents) —
+  a web page, a PDF — by its path or a `file:///` link. A typed one is left as the search it
+  is: a path to a file you have just typed is far more often a path you are hunting a
+  snippet for than one you want opened.
 
 Everything else is the allow-list you already know: a script or an application Klippy can
 run on this platform, and nothing besides. A folder is the one addition — it is opened,

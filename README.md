@@ -28,11 +28,11 @@ scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 
 ## Running things
 
-Some snippets are not text you want to paste — they are a link you want open, a script
-you want run, or an application you want started. A snippet can be marked **Execute** in
-the editor, and then triggering it runs it instead of copying it. Without the marker
-nothing runs: Klippy never decides on its own that a snippet looks like a link and
-should therefore be launched.
+Some snippets are not text you want to paste — they are a link or a document you want
+open, a script you want run, or an application you want started. A snippet can be marked
+**Execute** in the editor, and then triggering it runs it instead of copying it. Without
+the marker nothing runs: Klippy never decides on its own that a snippet looks like a link
+and should therefore be launched.
 
 → [Running things](https://seankearon.github.io/klippy/running-things/) ·
 [Running an unmatched search](https://seankearon.github.io/klippy/unmatched-search/)
@@ -62,7 +62,7 @@ Everything above, in full:
 | | |
 | --- | --- |
 | [Finding snippets](https://seankearon.github.io/klippy/finding-snippets/) | Quick-codes, search, ranking, the keyboard |
-| [Running things](https://seankearon.github.io/klippy/running-things/) | Links, scripts, applications, macros, environment variables |
+| [Running things](https://seankearon.github.io/klippy/running-things/) | Links, documents, scripts, applications, macros, environment variables |
 | [Running an unmatched search](https://seankearon.github.io/klippy/unmatched-search/) | Typing a line nothing matches, and running it |
 | [Recent commands](https://seankearon.github.io/klippy/recent-commands/) | The MRU, and what stays out of it |
 | [Markdown snippets](https://seankearon.github.io/klippy/markdown-snippets/) | Pasting rich text into editors that accept it |

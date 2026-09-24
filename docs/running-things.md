@@ -1,16 +1,16 @@
 ---
 icon: lucide/play
-description: "Links, scripts, applications and macros — and what Klippy will never do on its own."
+description: "Links, documents, scripts, applications and macros — and what Klippy will never do on its own."
 ---
 
 # Running things
 
-Some snippets are not text you want to paste — they are a link you want open, a script
-you want run, or an application you want started. A snippet can be marked **Execute** in
-the editor (WHEN TRIGGERED → Execute), exactly as it can be marked Markdown, and then
-triggering it — `Enter`, a click, a tap — runs it instead of copying it. Without the
-marker nothing runs: Klippy never decides on its own that a snippet looks like a link
-and should therefore be launched.
+Some snippets are not text you want to paste — they are a link or a document you want
+open, a script you want run, or an application you want started. A snippet can be marked
+**Execute** in the editor (WHEN TRIGGERED → Execute), exactly as it can be marked
+Markdown, and then triggering it — `Enter`, a click, a tap — runs it instead of copying
+it. Without the marker nothing runs: Klippy never decides on its own that a snippet looks
+like a link and should therefore be launched.
 
 Marked rows show a small amber `run` marker, the way Markdown ones show `md`, and their
 primary hover action becomes **▷** rather than the copy glyph. `Ctrl/⌘+Enter` always
@@ -23,6 +23,7 @@ once any environment variable in it has resolved:
 | Snippet starts with | Runs as |
 |---|---|
 | `http://`, `https://`, `mailto:`, or a bare `www.` | Opened in the default browser |
+| The full path of a document, or a `file:///` link to one | Opened with whatever opens its kind, as double-clicking it would — see [Documents](#documents) |
 | `*.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` on Windows, `pwsh -NoProfile -File` elsewhere |
 | `*.sh` | The script itself where it is executable, so its `#!` line chooses; otherwise `/bin/sh`. `bash.exe` (Git Bash, WSL) on Windows |
 | `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only** |
@@ -50,6 +51,42 @@ has been split into words: `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe`
 path however many spaces your user name has in it. Scripts and applications alike run from
 their own folder, which is where each normally expects to be, and a bare `notepad.exe` is
 left to Windows to find on `PATH`, as Run would.
+
+## Documents
+
+A web page, a PDF or a picture kept on disk is not something to run, but it is something
+to open — the same gesture as double-clicking it, handed to whatever your machine opens
+that kind of file with. Name it by its full path, or paste the `file:///` link your
+browser's address bar shows for it:
+
+```
+C:\Docs\release-notes.html
+"C:\My Docs\release-notes.html"
+%USERPROFILE%\Docs\release-notes.html
+file:///C:/My%20Docs/release-notes.html
+```
+
+A document has to say where it is — a bare `release-notes.html` would be looked for
+beside Klippy itself, which is nobody's idea of where their notes are. It takes no
+arguments, so anything after it on the line is left behind, as it is for a link.
+
+Only these kinds open:
+
+| Kind | Extensions |
+|---|---|
+| Web pages | `.html`, `.htm` |
+| Reading | `.pdf`, `.txt`, `.md` |
+| Pictures | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
+| Office, without macros | `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` |
+
+It is a short list on purpose. To the shell, *open* and *run* are the same verb and the
+extension decides between them: opening a `.js`, `.vbs`, `.hta`, `.lnk` or `.scr` on
+Windows, or a `.command` on macOS, runs it. These are the kinds that are read.
+
+A `file:` link is otherwise refused, as every scheme but the web ones is. It is let through
+only as far as a document, judged on the path it decodes to — so an encoded `%2E` hides no
+extension — and only for this machine's files: `file://server/…` is a request to a server,
+and stays refused.
 
 ## Environment variables
 
@@ -152,11 +189,12 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   every snippet that exists today — and every one an import brings in — goes on being
   copied.
 - **Only the allow-list above runs**, applied to the first word once its variables have
-  resolved. A snippet naming something that is neither link, script nor application is not
-  runnable however firmly it is marked, so `docker system prune -af` stays text. A scheme
-  is not a path whatever it ends in, either:
+  resolved. A snippet naming something that is neither link, document, script nor
+  application is not runnable however firmly it is marked, so `docker system prune -af`
+  stays text. A scheme is not a path whatever it ends in, either:
   `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
-  refused along with `javascript:`.
+  refused along with `javascript:` — a `file:` link reaches a [document](#documents)
+  and nothing else.
 - **An application is a program, and starting one is starting a program.** That is the
   point of the feature and also its edge: a snippet of `%C%` marked Execute will start
   whatever application path is on the clipboard, `cmd.exe` and its switches included. The
@@ -183,8 +221,8 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
 
 Running something dismisses the window, as copying can: the browser, the script or the
 application is where you are going next. On a phone a marked link opens in the mobile
-browser; a marked script or application says there is nothing to run it in rather than
-doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
+browser; a marked document, script or application says there is nothing to open it with
+rather than doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
 
 ## Pull first
 
