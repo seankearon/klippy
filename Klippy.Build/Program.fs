@@ -110,7 +110,7 @@ let ensureNativeLinkerIsReachable () =
 
 // --- local configuration ---------------------------------------------------
 
-/// The machine's private configuration: %USERPROFILE%\.config\klippy.env, a KEY=value
+/// The machine's private configuration: %USERPROFILE%\.config\appbuild.env, a KEY=value
 /// file with # comments, shared by every build on this machine and never checked in.
 /// Anything here that identifies an Azure tenant, account or company belongs in that
 /// file, not in this repo, which may one day be public.
@@ -126,7 +126,7 @@ module LocalEnv =
             |> Option.ofObj
             |> Option.defaultWith (fun () -> Environment.GetEnvironmentVariable "HOME")
 
-        home +/ ".config" +/ "klippy.env"
+        home +/ ".config" +/ "appbuild.env"
 
     let load () =
         if File.Exists Path then
@@ -163,7 +163,7 @@ let private setting name =
 /// The release runs on Windows, so the Keychain is not an option: Parcel signs with
 /// rcodesign from a P12 export of the "Developer ID Application" certificate, and
 /// notarizes with an Apple ID plus an app-specific password. All five values live in
-/// klippy.env beside the Azure ones and are injected into the copied .parcel project the
+/// appbuild.env beside the Azure ones and are injected into the copied .parcel project the
 /// same way, for the same reason (Parcel's env: prefix is not reliable for these).
 ///
 /// Optional, unlike Azure signing: with none of the keys set the bundles stay ad-hoc
@@ -319,7 +319,7 @@ Set all of {String.Join(", ", Required)} in {LocalEnv.Path}, or none of them to 
 /// the shape Defender's Wacatac.B!ml heuristic flags, and v1.0.2 was quarantined on
 /// download. The bare exe scanned clean; the signed installer scans clean too.
 module AzureSigning =
-    /// Every variable Parcel or the build reads. Named in the klippy.env Section__Key style.
+    /// Every variable Parcel or the build reads. Named in the appbuild.env Section__Key style.
     let TenantId    = "CodeSigning__TenantId"
     let ClientId    = "CodeSigning__ClientId"
     let ClientSecret = "CodeSigning__ClientSecret"

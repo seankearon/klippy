@@ -110,10 +110,10 @@ if (-not $DryRun) {
 
 # Parcel signs the Windows exe and installer with Azure Trusted Signing. Everything it
 # needs - tenant, app registration, endpoint, account, certificate profile - lives in the
-# machine's private klippy.env, never in the repo. The build loads that file itself and
+# machine's private appbuild.env, never in the repo. The build loads that file itself and
 # checks the same keys; checking here as well keeps the failure ahead of the
 # confirmation prompt rather than behind it.
-$localEnv = Join-Path $env:USERPROFILE '.config\klippy.env'
+$localEnv = Join-Path $env:USERPROFILE '.config\appbuild.env'
 $signingKeys = @(
     'CodeSigning__TenantId', 'CodeSigning__ClientId', 'CodeSigning__ClientSecret',
     'CodeSigning__Endpoint', 'CodeSigning__AccountName', 'CodeSigning__CertificateProfileName'
@@ -195,12 +195,12 @@ else {
     Write-Host ''
     if (-not $macSigningConfigured) {
         Write-Warn 'The macOS disk images are ad-hoc signed: every other Mac will show Apple''s'
-        Write-Warn '"could not verify" dialog. Add the MacSigning__* keys to klippy.env to fix that.'
+        Write-Warn '"could not verify" dialog. Add the MacSigning__* keys to appbuild.env to fix that.'
     }
     if (-not $androidSigningConfigured) {
         Write-Warn 'The APK is signed with the Android debug key: it sideloads, but a later'
         Write-Warn 'properly-signed build will refuse to install over it. Add the'
-        Write-Warn 'AndroidSigning__* keys to klippy.env to fix that.'
+        Write-Warn 'AndroidSigning__* keys to appbuild.env to fix that.'
     }
 
     if (-not $AndroidAot) {

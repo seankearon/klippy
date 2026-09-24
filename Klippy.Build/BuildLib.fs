@@ -11,7 +11,7 @@ open System.Text
 // Klippy has no obfuscator and no InstallMate, and Parcel owns packaging and signing,
 // so the signtool, MSIX and AssemblyInfo machinery was left behind. (Signing is still
 // Azure Trusted Signing - see AzureSigning in Program.fs - but Parcel drives signtool
-// itself; the build only loads the configuration from klippy.env and lends it on.)
+// itself; the build only loads the configuration from appbuild.env and lends it on.)
 //
 // Declarations are ordered so nothing refers forward. `module rec` is kept only so this
 // file stays interchangeable with its counterpart — if the two are ever pulled into a
