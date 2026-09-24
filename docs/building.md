@@ -43,7 +43,7 @@ On Windows use [`build.ps1`](build.ps1), which publishes the desktop head in Rel
 > **Code signing (releases).** [`release.ps1`](release.ps1) hands packaging to Parcel,
 > which signs the Windows exe, uninstaller and NSIS installer with **Azure Trusted
 > Signing**. Nothing that identifies the signing account is in the repo: the build and
-> the script load `%USERPROFILE%\.config\klippy.env` (a private `KEY=value` file, never
+> the script load `%USERPROFILE%\.config\appbuild.env` (a private `KEY=value` file, never
 > checked in) and refuse to start unless it holds all six keys —
 > `CodeSigning__TenantId`, `CodeSigning__ClientId`, `CodeSigning__ClientSecret` for the
 > Entra app registration that has the *Trusted Signing Certificate Profile Signer* role,
