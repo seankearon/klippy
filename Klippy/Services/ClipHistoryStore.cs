@@ -221,7 +221,7 @@ public sealed class ClipHistoryStore
         var tmp = _filePath + ".tmp";
         using (var stream = File.Create(tmp))
             JsonSerializer.Serialize(stream, _entries, ClipHistoryJsonContext.Default.ListClipEntry);
-        File.Move(tmp, _filePath, overwrite: true);
+        AtomicFile.Replace(tmp, _filePath);
         _dirty = false;
     }
 

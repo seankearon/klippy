@@ -252,7 +252,7 @@ public sealed class SnippetStore
         var tmp = _filePath + ".tmp";
         using (var stream = File.Create(tmp))
             JsonSerializer.Serialize(stream, _snippets, KlippyJsonContext.Default.ListSnippet);
-        File.Move(tmp, _filePath, overwrite: true);
+        AtomicFile.Replace(tmp, _filePath);
     }
 
     private static IEnumerable<Snippet> SeedSnippets()

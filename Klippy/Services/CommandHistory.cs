@@ -173,7 +173,7 @@ public sealed class CommandHistory
             var tmp = _filePath + ".tmp";
             using (var stream = File.Create(tmp))
                 JsonSerializer.Serialize(stream, _commands, CommandHistoryJsonContext.Default.ListString);
-            File.Move(tmp, _filePath, overwrite: true);
+            AtomicFile.Replace(tmp, _filePath);
         }
         catch (Exception)
         {

@@ -38,7 +38,7 @@ public sealed class FileClipBlobStore : IClipBlobStore
         var path = Path.Combine(_directory, name);
         var tmp = path + ".tmp";
         File.WriteAllBytes(tmp, bytes);
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.Replace(tmp, path);
     }
 
     public byte[]? TryLoad(string name)
