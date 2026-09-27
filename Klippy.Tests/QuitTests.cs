@@ -106,6 +106,7 @@ public class QuitTests
             Key.Enter => PhysicalKey.Enter,
             Key.Escape => PhysicalKey.Escape,
             Key.Down => PhysicalKey.ArrowDown,
+            Key.Tab => PhysicalKey.Tab,
             _ => PhysicalKey.None,
         };
         window.KeyPress(key, RawInputModifiers.None, physical, text);
@@ -152,9 +153,26 @@ public class QuitTests
         Assert.NotNull(frame);
         frame!.Save(Path.Combine(ArtifactsDir, "screenshot-quit.png"));
 
+        // It opens on Cancel: Tab reaches Quit Klippy, and Enter takes it.
+        Press(window, Key.Tab);
         Press(window, Key.Enter);
         Assert.Null(f.Vm.PendingOffer);
         Assert.Equal(1, f.Quits);
+    }
+
+    [AvaloniaFact]
+    public void ASecondEnterGoesBack_RatherThanClosing()
+    {
+        // The Enter that asked, pressed again or held a beat too long, lands on Cancel.
+        var (window, f) = NewWindow();
+
+        f.Vm.FilterText = "quit";
+        Press(window, Key.Enter);
+        Press(window, Key.Enter);
+
+        Assert.Null(f.Vm.PendingOffer);
+        Assert.Equal(0, f.Quits);
+        Assert.Equal("quit", f.Vm.FilterText);
     }
 
     [AvaloniaFact]
@@ -166,6 +184,7 @@ public class QuitTests
 
         f.Vm.FilterText = "quit";
         Press(window, Key.Enter);
+        Press(window, Key.Tab);
         Press(window, Key.Enter);
 
         Assert.Equal(1, f.Quits);
@@ -257,6 +276,7 @@ public class QuitTests
         Assert.True(f.Vm.PendingOffer?.IsQuit);
         Assert.Equal(0, f.Quits);
 
+        Press(window, Key.Tab);
         Press(window, Key.Enter);
         Assert.Equal(1, f.Quits);
     }
@@ -313,6 +333,7 @@ public class QuitTests
         Assert.True(f.Vm.PendingOffer?.IsQuit);
         Assert.Equal(0, f.Quits);
 
+        Press(window, Key.Tab);
         Press(window, Key.Enter);
         Assert.Equal(1, f.Quits);
     }
