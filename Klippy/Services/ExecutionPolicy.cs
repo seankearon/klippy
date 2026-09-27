@@ -29,6 +29,14 @@ public enum ExecutionKind
     /// </summary>
     Document,
 
+    /// <summary>
+    /// A file shown where it lies: the folder it is in, opened in the platform's file
+    /// manager with the file selected. Nothing is opened and nothing runs, which is why
+    /// any file may be shown where only <see cref="Document"/>'s short list may be opened
+    /// — to the shell, opening an <c>.hta</c> runs it, while showing one only points at it.
+    /// </summary>
+    Reveal,
+
     /// <summary>A machine-level action: lock, sleep, hibernate or restart.</summary>
     System,
 }
@@ -90,6 +98,7 @@ public sealed record ExecutionPlan
         ExecutionKind.Application => "Starting " + ExecutionPolicy.ApplicationName(Target),
         ExecutionKind.Folder => "Opening " + ExecutionPolicy.FolderName(Target),
         ExecutionKind.Document => "Opening " + ExecutionPolicy.FileNameOf(Target),
+        ExecutionKind.Reveal => "Showing " + ExecutionPolicy.FileNameOf(Target),
         ExecutionKind.System => Action switch
         {
             SystemAction.Lock => "Locking the screen",
@@ -142,6 +151,11 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 /// bare <c>docker system prune -af</c> is text however firmly it is marked to run. It is
 /// read off the first word once that word's variables have resolved — a variable may say
 /// where a program lives, and it still has to be one of the four when it gets there.
+///
+/// A full path to anything else is not run but <see cref="Reveal(string, bool, ExecutionPlatform)">shown</see>:
+/// a folder opens in Explorer or Finder, and a file is selected in the folder it is in.
+/// That starts nothing, so it widens nothing — an <c>.hta</c> is never opened, only
+/// pointed at.
 /// </summary>
 public static class ExecutionPolicy
 {
@@ -206,12 +220,18 @@ public static class ExecutionPolicy
     /// execute bit, whose null default is to ask nothing, this default does read the
     /// machine; a test that means to stay portable has to pass one.
     /// </param>
+    /// <param name="paths">
+    /// The disk, asked only whether a full path that is none of the four kinds is a folder
+    /// — the one thing about a path its spelling cannot say. Null is the real disk, for the
+    /// reason null is the real environment above.
+    /// </param>
     public static ExecutionPlan Plan(
         string? text,
         IReadOnlyList<string>? arguments = null,
         string? clipboardText = null,
         ExecutionPlatform? platform = null,
-        EnvironmentProbe? environment = null)
+        EnvironmentProbe? environment = null,
+        PathProbe? paths = null)
     {
         var os = platform ?? CurrentPlatform;
         var machine = environment ?? EnvironmentProbe.Real;
@@ -381,8 +401,156 @@ public static class ExecutionPolicy
             };
         }
 
-        return Nothing($"\"{Ellipsis(command)}\" is not a URL, a document, an application or a script Klippy can run.");
+        // A full path to anything else is still somewhere on the disk, and there is one
+        // thing Klippy can do with it whatever it is: show it there. Nothing is started, so
+        // this widens nothing the rules above refuse — they have all had their say by now,
+        // and a .bat on a Mac is still told it cannot run rather than quietly shown. Like a
+        // document, it takes no arguments: the rest of the line is left behind.
+        if (UnmatchedSearch.IsRooted(command))
+        {
+            var disk = paths ?? PathProbe.Real;
+            return Reveal(command, EndsWithSeparator(command) || disk.DirectoryExists(command), os);
+        }
+
+        return Nothing($"\"{Ellipsis(command)}\" is not a URL, a full path, an application or a script Klippy can run.");
     }
+
+    /// <summary>
+    /// What showing a path in the platform's file manager comes to: a folder opened, and
+    /// anything else selected in the folder it is in. Every route that hands a path to
+    /// Explorer or Finder comes through here — a marked item, a typed line, and the gesture
+    /// that shows whatever a row names — so what those two may be handed is decided once.
+    /// Whether it is a folder is the caller's answer, from the disk or a trailing
+    /// separator; nothing here looks.
+    /// </summary>
+    public static ExecutionPlan Reveal(string path, bool isFolder, ExecutionPlatform platform)
+    {
+        if (platform == ExecutionPlatform.Windows && ExplorerProblem(path) is { } problem)
+            return Nothing(problem);
+
+        // A folder is opened rather than pointed at from its parent: someone asking to see
+        // D:\work\invoices wants what is in it. Except a macOS package, which is a folder to
+        // the disk but a program or a document to `open` — Safari.app starts, a .prefPane
+        // installs itself — so it is shown in Finder instead, the one gesture that runs
+        // nothing.
+        return isFolder && !(platform == ExecutionPlatform.MacOS && MayBeAPackage(path))
+            ? new ExecutionPlan { Kind = ExecutionKind.Folder, Target = path }
+            : new ExecutionPlan { Kind = ExecutionKind.Reveal, Target = path };
+    }
+
+    /// <summary>
+    /// What showing <paramref name="text"/> in the file manager would mean: the gesture that
+    /// asks where a row's file is. Any row may make it, marked or not, since showing
+    /// something runs nothing.
+    ///
+    /// Two readings, in order. First the whole line, as a line typed into the search box is
+    /// read: spaces and all, once a pair of quotes wrapping it is off and its variables have
+    /// resolved, and a <c>file:///</c> link names the path it spells — a path copied out of
+    /// an address bar has no quotes round its spaces. Then, if nothing is there, its first
+    /// word as a command line reads it, so <c>%ws% %src%\myapp</c> shows the program it
+    /// starts. The disk decides between them, since only it knows which one is a file.
+    /// </summary>
+    public static ExecutionPlan PlanReveal(
+        string? text,
+        ExecutionPlatform? platform = null,
+        PathProbe? paths = null,
+        EnvironmentProbe? environment = null)
+    {
+        var os = platform ?? CurrentPlatform;
+        var machine = environment ?? EnvironmentProbe.Real;
+        var disk = paths ?? PathProbe.Real;
+
+        string? missing = null;
+        foreach (var reading in new[] { text, Macros.FirstArgument(text) })
+        {
+            if (PathIn(reading, os, machine) is not { } path) continue;
+
+            bool folder = disk.DirectoryExists(path);
+            if (folder || disk.FileExists(path)) return Reveal(path, folder, os);
+            missing ??= path;
+        }
+
+        return Nothing(missing is null
+            ? "That does not name a file or folder by its full path."
+            : $"Not found: {missing}");
+    }
+
+    /// <summary>
+    /// Whether text reads as the full path of a file or folder, by either of
+    /// <see cref="PlanReveal"/>'s readings, without asking the disk — what decides whether a
+    /// row offers to show it. A row is drawn on every keystroke, so whether the file is really
+    /// there is left for the gesture to find out when someone makes it.
+    /// </summary>
+    public static bool NamesAPath(
+        string? text,
+        ExecutionPlatform? platform = null,
+        EnvironmentProbe? environment = null)
+    {
+        var os = platform ?? CurrentPlatform;
+        var machine = environment ?? EnvironmentProbe.Real;
+        return PathIn(text, os, machine) is not null || PathIn(Macros.FirstArgument(text), os, machine) is not null;
+    }
+
+    /// <summary>
+    /// The path one line of text names, or null. One line only: a snippet of several is
+    /// prose, or a list, and picking one of its lines would be guessing.
+    /// </summary>
+    private static string? PathIn(string? text, ExecutionPlatform platform, EnvironmentProbe machine)
+    {
+        var line = Unquote((text ?? "").Trim());
+        if (line.Length == 0 || line.AsSpan().IndexOfAny('\r', '\n') >= 0) return null;
+
+        var path = FileUrlPath(line, platform) ?? machine.Expand(line);
+        return UnmatchedSearch.IsRooted(path) ? path : null;
+    }
+
+    /// <summary>
+    /// Why Explorer cannot be trusted with a path, or null when it can.
+    ///
+    /// Explorer reads its own command line rather than being handed a list: a comma ends a
+    /// path there, and a word beginning with a slash is a switch. So a path reaching it bare
+    /// with a comma in it could carry a switch of its own, and <c>/root,</c> opens whatever
+    /// it names — an <c>.hta</c> "shown" that way would run.
+    ///
+    /// .NET quotes an argument that carries whitespace, and a comma inside quotes is part of
+    /// the name to Explorer, so <c>OneDrive - Acme, Inc.</c> is fine. It is the comma in a
+    /// path with no whitespace — which reaches Explorer unquoted — that is refused, the same
+    /// honest answer the <c>.bat</c> rules give rather than an escape that would be a lie.
+    /// </summary>
+    private static string? ExplorerProblem(string path)
+    {
+        // A drive or a share, never a switch. A path rooted at "/" is a Unix path, and names
+        // nothing on this machine for Explorer to show.
+        bool drive = path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/';
+        if (!drive && !path.StartsWith(@"\\", StringComparison.Ordinal))
+            return $"\"{Ellipsis(path)}\" is not a Windows path: it has no drive or share.";
+
+        if (path.Contains(',') && !ContainsWhitespace(path))
+            return $"\"{Ellipsis(path)}\" cannot be shown in Explorer, which reads a comma as the end of a path.";
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a macOS folder might be a package — an app, a preference pane, an installer —
+    /// which <c>open</c> would run or install rather than show. Finder decides by the kind
+    /// registered for the extension, which cannot be read off the name, so any extension is
+    /// taken as possibly one: an ordinary folder called <c>my.project</c> is then selected in
+    /// its parent rather than opened, which costs one double-click.
+    /// </summary>
+    private static bool MayBeAPackage(string path) =>
+        FileNameOf(path.TrimEnd(PathSeparators)).LastIndexOf('.') > 0;
+
+    private static bool EndsWithSeparator(string path) =>
+        path.Length > 0 && (path[^1] == '\\' || path[^1] == '/');
+
+    /// <summary>What the platform calls the thing a path is shown in, for the words on screen.</summary>
+    public static string FileManager(ExecutionPlatform platform) => platform switch
+    {
+        ExecutionPlatform.Windows => "Explorer",
+        ExecutionPlatform.MacOS => "Finder",
+        _ => "the file manager",
+    };
 
     /// <summary>
     /// A document is opened where it lies, so it has to say where that is. A bare
@@ -412,8 +580,9 @@ public static class ExecutionPolicy
 
     /// <summary>
     /// Whether text has any chance of running: its first word is a URL, a script this
-    /// platform can run, or a macro that might resolve to either — a variable in it
-    /// resolved first, since that is the word <see cref="Plan"/> will judge. What the editor asks
+    /// platform can run, a full path it can at least show, or a macro that might resolve to
+    /// any of those — a variable in it resolved first, since that is the word
+    /// <see cref="Plan"/> will judge. What the editor asks
     /// while the Execute marker is being ticked, so marking something that can never run
     /// is caught there rather than as a toast afterwards. It says nothing about whether
     /// an item <em>should</em> run — only the marker does — and it deliberately does not
@@ -422,15 +591,42 @@ public static class ExecutionPolicy
     public static bool LooksExecutable(
         string? text,
         ExecutionPlatform? platform = null,
-        EnvironmentProbe? environment = null)
+        EnvironmentProbe? environment = null) =>
+        Read(text, platform, environment).Promise != FirstWord.Nothing;
+
+    /// <summary>
+    /// The path triggering text would <see cref="Reveal(string, bool, ExecutionPlatform)">show</see>
+    /// rather than open or run, or null when it would do something else — a full path to
+    /// something that is none of the four kinds. The editor names it beside the marker, so
+    /// that marking a log file to run finds out it will be pointed at in Explorer before
+    /// Enter does it, and a path with a space and no quotes is seen to stop at the space.
+    /// The same first word <see cref="LooksExecutable"/> reads, and the same caveats.
+    /// </summary>
+    public static string? PathToReveal(
+        string? text,
+        ExecutionPlatform? platform = null,
+        EnvironmentProbe? environment = null) =>
+        Read(text, platform, environment) is (FirstWord.Shown, var path) ? path : null;
+
+    /// <summary>What the first word of an item promises, as far as it can be told without running it.</summary>
+    private enum FirstWord
+    {
+        Nothing,
+        Runs,
+        Shown,
+    }
+
+    /// <returns>The promise, and the first word it was read from once its variables resolved.</returns>
+    private static (FirstWord Promise, string Word) Read(
+        string? text, ExecutionPlatform? platform, EnvironmentProbe? environment)
     {
         // Only the first word, never the whole item: the editor asks this on every
         // keystroke in a content box that may be pages long.
         var first = Macros.FirstArgument(text);
-        if (first.Length == 0) return false;
+        if (first.Length == 0) return (FirstWord.Nothing, first);
 
-        if (Macros.IsPresent(first)) return true;
-        if (AsUrl(first) is not null) return true;
+        if (Macros.IsPresent(first)) return (FirstWord.Runs, first);
+        if (AsUrl(first) is not null) return (FirstWord.Runs, first);
 
         // The word Plan will actually judge, not the word before its variables resolve:
         // the warning beside the marker is there to be read while the marker is being
@@ -439,17 +635,30 @@ public static class ExecutionPolicy
         // reaches Enter looking fine — that gap is older than the variables and unchanged
         // by them.
         first = (environment ?? EnvironmentProbe.Real).Expand(first);
-        if (AsUrl(first) is not null) return true;
+        return (Promise(), first);
 
-        var os = platform ?? CurrentPlatform;
-        if (FileUrlPath(first, os) is { } local) return DocumentExtension(local) is not null;
-        if (HasScheme(first)) return false; // a scheme the allow-list above turned down
+        FirstWord Promise()
+        {
+            if (AsUrl(first) is not null) return FirstWord.Runs;
 
-        if (DocumentExtension(first) is not null) return UnmatchedSearch.IsRooted(first);
-        if (ScriptExtension(first) is { } script) return Supports(script, os);
-        if (BundleOf(first) is not null) return os == ExecutionPlatform.MacOS;
+            var os = platform ?? CurrentPlatform;
+            if (FileUrlPath(first, os) is { } local) return Runs(DocumentExtension(local) is not null);
+            if (HasScheme(first)) return FirstWord.Nothing; // a scheme the allow-list above turned down
 
-        return ApplicationExtension(first) is { } application && Supports(application, os);
+            if (DocumentExtension(first) is not null) return Runs(UnmatchedSearch.IsRooted(first));
+            if (ScriptExtension(first) is { } script) return Runs(Supports(script, os));
+            if (BundleOf(first) is not null) return Runs(os == ExecutionPlatform.MacOS);
+            if (ApplicationExtension(first) is { } application) return Runs(Supports(application, os));
+
+            // Anything else with a full path is shown where it lies, on Explorer's terms
+            // where Explorer is what shows it. A folder and a file both count: which one it
+            // is waits for the disk.
+            return UnmatchedSearch.IsRooted(first) && Reveal(first, isFolder: false, os).Kind != ExecutionKind.None
+                ? FirstWord.Shown
+                : FirstWord.Nothing;
+        }
+
+        static FirstWord Runs(bool can) => can ? FirstWord.Runs : FirstWord.Nothing;
     }
 
     /// <summary>
@@ -475,13 +684,45 @@ public static class ExecutionPolicy
         {
             // Explorer takes the path as its one argument; open and xdg-open are the same
             // commands a URL uses, since to both a folder is just another thing to open.
-            ExecutionPlatform.Windows => new LaunchCommand("explorer.exe", [plan.Target]),
+            ExecutionPlatform.Windows => new LaunchCommand("explorer.exe", [ForExplorer(plan.Target)]),
             ExecutionPlatform.MacOS => new LaunchCommand("open", [plan.Target]),
             _ => new LaunchCommand("xdg-open", [plan.Target]),
+        },
+        ExecutionKind.Reveal => platform switch
+        {
+            // "/select," and the path as two words, so the path is an argument of its own —
+            // one .NET quotes when it carries a space — rather than the tail of a switch
+            // Explorer would have to find the end of. Explorer skips the space between.
+            ExecutionPlatform.Windows => new LaunchCommand("explorer.exe", ["/select,", ForExplorer(plan.Target)]),
+            // Finder's "Show in Enclosing Folder".
+            ExecutionPlatform.MacOS => new LaunchCommand("open", ["-R", plan.Target]),
+            // There is no one file manager on Linux, and so no one way to ask for a file to
+            // be selected in it. The folder it is in opens, which is most of the answer.
+            _ => new LaunchCommand("xdg-open", [FolderOf(plan.Target)]),
         },
         ExecutionKind.System => SystemCommand(plan.Action, platform),
         _ => null,
     };
+
+    /// <summary>
+    /// A path in the separator Explorer expects. <c>D:/media</c> is a path to everything
+    /// else on Windows, but <c>/select,</c> finds nothing to select in it.
+    /// </summary>
+    private static string ForExplorer(string path) => path.Replace('/', '\\');
+
+    /// <summary>
+    /// The folder a path is in, cut at either separator for the reason
+    /// <see cref="FileNameOf"/> gives. A root keeps its separator, since the folder
+    /// <c>/notes.txt</c> is in is <c>/</c> and not the empty string.
+    /// </summary>
+    internal static string FolderOf(string path)
+    {
+        int cut = path.TrimEnd(PathSeparators).LastIndexOfAny(PathSeparators);
+        if (cut < 0) return path;
+
+        bool root = cut == 0 || (cut == 2 && path[1] == ':');
+        return root ? path[..(cut + 1)] : path[..cut];
+    }
 
     /// <summary>
     /// What the platform opens something with when it is not told: ShellExecute consults

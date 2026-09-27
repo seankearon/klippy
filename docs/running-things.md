@@ -1,6 +1,6 @@
 ---
 icon: lucide/play
-description: "Links, documents, scripts, applications and macros — and what Klippy will never do on its own."
+description: "Links, documents, scripts, applications, macros and file locations — and what Klippy will never do on its own."
 ---
 
 # Running things
@@ -31,6 +31,7 @@ once any environment variable in it has resolved:
 | `*.app` | `open -a`, which knows which executable inside the bundle to start — **macOS only** |
 | `*.app/Contents/MacOS/<program>` | Started directly, so its arguments reach it as they would from a terminal — the command line JetBrains IDEs and Zed document — **macOS only** |
 | `*.AppImage` | The image itself, which runs itself — **Linux only** |
+| The full path of anything else — a folder, a log file, an `.hta` | Shown in Explorer or Finder: a folder opens, a file is selected in its folder — see [Showing where a file is](#showing-where-a-file-is) |
 | anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
 
 The last three are what each platform calls an application, and each runs only at home:
@@ -45,7 +46,9 @@ two arguments, not three. That is also how a path with a space in it stays one p
 "C:\Program Files\Klippy\Klippy.Desktop.exe" --minimised
 ```
 
-— and without the quotes the first word is `C:\Program`, which names nothing. A variable
+— and without the quotes the first word is `C:\Program`, which names nothing. The editor
+shows you that as you tick the marker: *Shows C:\Program in Explorer when triggered* is
+the cue that a path has stopped at its first space. A variable
 whose value contains a space needs no quotes at all, because it resolves *after* the line
 has been split into words: `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe` is one
 path however many spaces your user name has in it. Scripts and applications alike run from
@@ -191,7 +194,9 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
 - **Only the allow-list above runs**, applied to the first word once its variables have
   resolved. A snippet naming something that is neither link, document, script nor
   application is not runnable however firmly it is marked, so `docker system prune -af`
-  stays text. A scheme is not a path whatever it ends in, either:
+  stays text. A full path to anything else is [shown](#showing-where-a-file-is) rather
+  than run, which starts nothing: an `.hta` is pointed at in Explorer, never opened. A
+  scheme is not a path whatever it ends in, either:
   `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
   refused along with `javascript:` — a `file:` link reaches a [document](#documents)
   and nothing else.
@@ -221,8 +226,56 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
 
 Running something dismisses the window, as copying can: the browser, the script or the
 application is where you are going next. On a phone a marked link opens in the mobile
-browser; a marked document, script or application says there is nothing to open it with
-rather than doing nothing, and `%C%` and `%P%` expand on a copy there as they do everywhere.
+browser; a marked document, script, application or path says there is nothing to open it
+with rather than doing nothing, and `%C%` and `%P%` expand on a copy there as they do
+everywhere.
+
+## Showing where a file is
+
+A path you keep in Klippy is often somewhere you want to *go* rather than something to
+paste: a logs folder, the file a support call is about, the installer you downloaded. Klippy
+resolves it — its variables, `~`, a pair of quotes, a `file:///` link — and shows it in the
+platform's file manager. A folder opens; a file is shown selected in the folder it is in.
+Nothing is opened and nothing runs, so any kind of file can be shown, where only the short
+list of [documents](#documents) can be opened.
+
+There are three ways to get there:
+
+- **`Ctrl/⌘+R`, or the folder button in a row's hover actions** on desktop, on any row
+  whose text names a path — a snippet, marked or not, or a clip in the
+  [clipboard history](clipboard-history.md). A clip of copied files shows the first of them.
+  The button only appears where the row's text reads as a full path; whether the file is
+  still there is checked when you press it, and the toast says *Not found* if it is not.
+- **A snippet marked Execute** whose first word is the full path of anything that is not a
+  link, document, script or application — the second-to-last row of the table above.
+  `%LOCALAPPDATA%\Klippy` or `D:\work\invoices` opens the folder, and `C:\logs\app.log` is
+  shown selected in `C:\logs`. The rest of the line is left behind, as it is for a document.
+- **Typing the path** into the search box when nothing else matches — see
+  [Running an unmatched search](unmatched-search.md).
+
+For the first of these, a snippet is read as a copy would put it on the clipboard, its
+variables and macros filled in, and then as a line typed into the search box: the whole of
+it is the path, spaces and all, since a path copied out of an address bar has no quotes round
+them. If nothing is there, its first word is tried the way a run reads it, so a snippet of
+`%ws% %src%\myapp` shows WebStorm itself.
+
+| Platform | What it runs |
+|---|---|
+| Windows | `explorer.exe` with the folder, or `explorer.exe /select, <file>` |
+| macOS | `open <folder>`, or `open -R <file>` — Finder's *Show in Enclosing Folder* |
+| Linux | `xdg-open` with the folder — for a file, the folder it is in, since there is no one file manager to ask for a selection in |
+
+Two edges, both about not letting "show" turn into "run":
+
+- **A macOS package is shown, not opened.** A `.app`, a `.prefPane` or an installer bundle
+  is a folder to the disk, but `open` starts it or installs it. So on a Mac a folder whose
+  name has an extension is shown selected in its parent rather than opened — an ordinary
+  folder called `my.project` costs you one double-click.
+- **Explorer reads its own command line**, and a comma ends a path there. A path with a
+  comma in it and no space would reach Explorer unquoted and could carry a switch of its
+  own, so it is refused with a message; one that has a space, like `OneDrive - Acme, Inc`,
+  is quoted on the way and is fine. On Windows a path also has to start with a drive or a
+  `\\share` — a path starting with `/` is a Unix path, and Explorer would read it as a switch.
 
 ## Pull first
 

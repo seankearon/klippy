@@ -41,13 +41,41 @@ public class ExecutionTests
         name => Variables.TryGetValue(name, out var value) ? value : null,
         () => "/home/sam");
 
+    /// <summary>
+    /// The disk, described for the same reason the environment is. A marked item only asks
+    /// it whether a full path that is none of the four kinds is a folder; the gesture that
+    /// shows a row's path also asks whether a file is there.
+    /// </summary>
+    private static readonly HashSet<string> Folders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        @"C:\work\invoices",
+        @"C:\Users\sam\AppData\Local\Klippy",
+        @"C:\Users\sam\OneDrive - Acme, Inc",
+        "/Users/sam/Projects",
+        "/Library/PreferencePanes/Klippy.prefPane",
+    };
+
+    private static readonly HashSet<string> Files = new(StringComparer.OrdinalIgnoreCase)
+    {
+        @"C:\logs\app.log",
+        @"C:\Users\John Smith\notes.txt",
+        @"C:\apps\code.exe",
+        "/home/sam/notes.txt",
+    };
+
+    private static readonly PathProbe Disk = new(Folders.Contains, Files.Contains);
+
     private static ExecutionPlan Plan(
         string text,
         string[]? arguments = null,
         string? clipboardText = null,
         ExecutionPlatform platform = ExecutionPlatform.Windows,
         EnvironmentProbe? environment = null) =>
-        ExecutionPolicy.Plan(text, arguments, clipboardText, platform, environment ?? Env);
+        ExecutionPolicy.Plan(text, arguments, clipboardText, platform, environment ?? Env, Disk);
+
+    /// <summary>The gesture that shows what a row names, against the same described machine.</summary>
+    private static ExecutionPlan PlanReveal(string? text, ExecutionPlatform platform = ExecutionPlatform.Windows) =>
+        ExecutionPolicy.PlanReveal(text, platform, Disk, Env);
 
     /// <summary>
     /// The editor's question, asked of the same described environment. Direct calls to
@@ -59,6 +87,12 @@ public class ExecutionTests
         ExecutionPlatform platform = ExecutionPlatform.Windows,
         EnvironmentProbe? environment = null) =>
         ExecutionPolicy.LooksExecutable(text, platform, environment ?? Env);
+
+    private static string? PathToReveal(string? text, ExecutionPlatform platform = ExecutionPlatform.Windows) =>
+        ExecutionPolicy.PathToReveal(text, platform, Env);
+
+    private static bool NamesAPath(string? text, ExecutionPlatform platform = ExecutionPlatform.Windows) =>
+        ExecutionPolicy.NamesAPath(text, platform, Env);
 
     // ---- URLs ----
 
@@ -118,7 +152,7 @@ public class ExecutionTests
         var plan = Plan("Best regards, Sam Rivera · Klippy Support");
 
         Assert.Equal(ExecutionKind.None, plan.Kind);
-        Assert.Contains("not a URL, a document, an application or a script", plan.Problem);
+        Assert.Contains("not a URL, a full path, an application or a script", plan.Problem);
     }
 
     [Fact]
@@ -282,8 +316,11 @@ public class ExecutionTests
         // The extension is read off the last path segment, so a folder called .app or a
         // hidden file named for one is not an application.
         Assert.Equal(ExecutionKind.None, Plan(".exe").Kind);
-        Assert.Equal(ExecutionKind.None, Plan("/Applications/.app", platform: ExecutionPlatform.MacOS).Kind);
         Assert.Equal(ExecutionKind.None, Plan("klippy.exe.txt").Kind);
+
+        // With a full path it is still somewhere on the disk, and is shown there — pointed
+        // at in Finder, never started.
+        Assert.Equal(ExecutionKind.Reveal, Plan("/Applications/.app", platform: ExecutionPlatform.MacOS).Kind);
     }
 
     [Fact]
@@ -318,7 +355,8 @@ public class ExecutionTests
     [Fact]
     public void OnlyTheProgramDirectlyInContentsMacOS_CountsAsTheBundles()
     {
-        // The folder itself, something deeper, and a hidden ".app" are none of them it.
+        // The folder itself, something deeper, and a hidden ".app" are none of them it. Each
+        // is a full path, so each is shown where it lies — and none of them is started.
         foreach (var path in new[]
                  {
                      "/Applications/Rider.app/Contents/MacOS/",
@@ -326,7 +364,8 @@ public class ExecutionTests
                      "/Applications/.app/Contents/MacOS/rider",
                      "/Applications/Rider.app/Contents/Resources/rider",
                  })
-            Assert.Equal(ExecutionKind.None, Plan(path, platform: ExecutionPlatform.MacOS).Kind);
+            Assert.Contains(Plan(path, platform: ExecutionPlatform.MacOS).Kind,
+                new[] { ExecutionKind.Folder, ExecutionKind.Reveal });
     }
 
     // ---- documents ----
@@ -410,11 +449,24 @@ public class ExecutionTests
     [InlineData(@"C:\x\invoice.docm")]
     [InlineData("/Users/sam/invoice.command")]
     [InlineData(@"C:\x\.html")]
-    public void AFileThatRunsWhenOpened_IsNoDocument(string path)
+    public void AFileThatRunsWhenOpened_IsNoDocument_SoItIsOnlyEverShown(string path)
     {
-        // To the shell, open and run are the same verb, and the extension decides.
-        Assert.Equal(ExecutionKind.None, Plan(path).Kind);
-        Assert.Equal(ExecutionKind.None, Plan(path, platform: ExecutionPlatform.MacOS).Kind);
+        // To the shell, open and run are the same verb, and the extension decides. So these
+        // are never opened: a full path to one is shown in its folder instead, which hands
+        // Explorer or Finder a path to point at rather than the shell a file to open.
+        foreach (var platform in new[] { ExecutionPlatform.Windows, ExecutionPlatform.MacOS })
+        {
+            var plan = Plan(path, platform: platform);
+            Assert.NotEqual(ExecutionKind.Document, plan.Kind);
+
+            // A Unix path is no path to Explorer, and is refused before it gets that far.
+            if (ExecutionPolicy.Resolve(plan, platform) is not { } command) continue;
+
+            Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+            Assert.False(command.UseShellExecute);
+            Assert.Equal(platform == ExecutionPlatform.Windows ? "explorer.exe" : "open", command.FileName);
+            Assert.Equal(platform == ExecutionPlatform.Windows ? "/select," : "-R", command.Arguments[0]);
+        }
     }
 
     // ---- environment variables ----
@@ -667,7 +719,7 @@ public class ExecutionTests
         Assert.True(LooksExecutable(
             @"""C:\Program Files\Klippy\Klippy.Desktop.exe""", ExecutionPlatform.Windows));
         Assert.False(LooksExecutable(
-            @"C:\Program Files\Klippy\Klippy.Desktop.exe", ExecutionPlatform.MacOS));
+            @"""C:\Program Files\Klippy\Klippy.Desktop.exe""", ExecutionPlatform.MacOS));
         Assert.True(LooksExecutable("/Applications/Klippy.app", ExecutionPlatform.MacOS));
         Assert.True(LooksExecutable("/opt/Klippy.AppImage", ExecutionPlatform.Linux));
 
@@ -687,7 +739,207 @@ public class ExecutionTests
         Assert.True(LooksExecutable("/home/sam/report.pdf", ExecutionPlatform.Linux));
         Assert.True(LooksExecutable("file:///C:/Docs/My%20Report.html"));
         Assert.False(LooksExecutable("report.html"));
-        Assert.False(LooksExecutable(@"C:\Docs\invoice.hta"));
+
+        // Any other full path is shown where it lies, which is something — and the editor
+        // can tell that from opening it, so it says which.
+        Assert.True(LooksExecutable(@"C:\Docs\invoice.hta"));
+        Assert.NotNull(PathToReveal(@"C:\Docs\invoice.hta"));
+        Assert.Null(PathToReveal(@"C:\Docs\report.html"));
+    }
+
+    [Fact]
+    public void TheEditorTellsAPathThatWillBeShown_FromOneThatWillBeOpenedOrRun()
+    {
+        Assert.Equal(@"C:\logs\app.log", PathToReveal(@"C:\logs\app.log"));
+        Assert.Equal(@"C:\Users\sam\AppData\Local\Klippy", PathToReveal(@"%LOCALAPPDATA%\Klippy"));
+        Assert.NotNull(PathToReveal("/Users/sam/Projects", ExecutionPlatform.MacOS));
+
+        // Named, so a path with a space and no quotes round it is seen to stop at the space
+        // — the mistake the quoting rule exists for, caught while the marker is going on.
+        Assert.Equal(@"C:\Program", PathToReveal(@"C:\Program Files\Klippy\Klippy.Desktop.exe --minimised"));
+
+        Assert.Null(PathToReveal(@"C:\tools\deploy.ps1"));
+        Assert.Null(PathToReveal("https://klippy.app"));
+        Assert.Null(PathToReveal("%C%"));      // taken on trust as something that runs
+        Assert.Null(PathToReveal("app.log"));  // no full path, so nothing at all
+
+        // Explorer's terms are the editor's too: a path it would misread is not on offer.
+        Assert.Null(PathToReveal(@"C:\x,/root,C:\x\payload.hta"));
+        Assert.False(LooksExecutable(@"C:\x,/root,C:\x\payload.hta"));
+        Assert.NotNull(PathToReveal("/home/sam/a,b.log", ExecutionPlatform.Linux));
+    }
+
+    // ---- showing a path in Explorer or Finder ----
+
+    [Fact]
+    public void AMarkedFolderOpensInTheFileManager()
+    {
+        var plan = Plan(@"C:\work\invoices");
+
+        Assert.Equal(ExecutionKind.Folder, plan.Kind);
+        Assert.Equal(@"C:\work\invoices", plan.Target);
+        Assert.Equal("Opening invoices", plan.Description);
+
+        // Named the way every other path is.
+        var named = Plan(@"%LOCALAPPDATA%\Klippy");
+        Assert.Equal(ExecutionKind.Folder, named.Kind);
+        Assert.Equal(@"C:\Users\sam\AppData\Local\Klippy", named.Target);
+
+        // A trailing separator says folder where the disk has nothing to say, and the
+        // launcher reports it missing if it is.
+        Assert.Equal(ExecutionKind.Folder, Plan(@"D:\not\there\").Kind);
+    }
+
+    [Fact]
+    public void AMarkedPathToAnyOtherFile_IsShownWhereItLies()
+    {
+        var plan = Plan(@"C:\logs\app.log --tail");
+
+        Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+        Assert.Equal(@"C:\logs\app.log", plan.Target);
+        Assert.Empty(plan.Arguments); // as for a document: the rest of the line is left behind
+        Assert.Equal("Showing app.log", plan.Description);
+
+        // Only a full path: a bare name would be looked for beside Klippy.
+        var bare = Plan("app.log");
+        Assert.Equal(ExecutionKind.None, bare.Kind);
+        Assert.Contains("full path", bare.Problem);
+    }
+
+    [Fact]
+    public void SomethingThatCannotRunHere_IsStillSaid_NotQuietlyShown()
+    {
+        // A .bat marked on a Mac was written to run, and is told it cannot rather than
+        // turning into a different gesture behind the marker's back.
+        Assert.Equal(".bat scripts only run on Windows.",
+            Plan(@"C:\tools\build.bat", platform: ExecutionPlatform.MacOS).Problem);
+        Assert.Equal(ExecutionKind.None, Plan(@"C:\apps\code.exe", platform: ExecutionPlatform.MacOS).Kind);
+    }
+
+    [Fact]
+    public void AFileIsShownByHandingItsPathToTheFileManager()
+    {
+        var windows = ExecutionPolicy.Resolve(Plan(@"C:\logs\app.log"), ExecutionPlatform.Windows)!;
+        Assert.Equal("explorer.exe", windows.FileName);
+        Assert.Equal(new[] { "/select,", @"C:\logs\app.log" }, windows.Arguments);
+        Assert.False(windows.UseShellExecute); // pointed at, never handed to the shell to open
+
+        // Explorer finds nothing to select along forward slashes.
+        Assert.Equal(new[] { "/select,", @"D:\media\clip.mov" },
+            ExecutionPolicy.Resolve(Plan("D:/media/clip.mov"), ExecutionPlatform.Windows)!.Arguments);
+
+        var mac = ExecutionPolicy.Resolve(
+            Plan("/Users/sam/app.log", platform: ExecutionPlatform.MacOS), ExecutionPlatform.MacOS)!;
+        Assert.Equal("open", mac.FileName);
+        Assert.Equal(new[] { "-R", "/Users/sam/app.log" }, mac.Arguments);
+
+        // No one file manager on Linux to ask for a selection in, so the folder it is in
+        // opens — the root keeping its separator.
+        var linux = ExecutionPolicy.Resolve(
+            Plan("/home/sam/app.log", platform: ExecutionPlatform.Linux), ExecutionPlatform.Linux)!;
+        Assert.Equal("xdg-open", linux.FileName);
+        Assert.Equal(new[] { "/home/sam" }, linux.Arguments);
+        Assert.Equal(new[] { "/" }, ExecutionPolicy.Resolve(
+            Plan("/app.log", platform: ExecutionPlatform.Linux), ExecutionPlatform.Linux)!.Arguments);
+    }
+
+    [Fact]
+    public void ExplorerIsOnlyHandedPathsItCannotMisread()
+    {
+        // Explorer reads its own command line, where a comma ends a path: one reaching it
+        // bare could carry a switch of its own, and /root, opens what it names.
+        var smuggled = Plan(@"C:\x,/root,C:\x\payload.hta");
+        Assert.Equal(ExecutionKind.None, smuggled.Kind);
+        Assert.Contains("comma", smuggled.Problem);
+        Assert.Equal(ExecutionKind.None, Plan(@"C:\a,b\").Kind); // a folder is no exception
+
+        // .NET quotes a path with a space in it, and inside quotes a comma is part of the name.
+        var onedrive = Plan(@"""C:\Users\sam\OneDrive - Acme, Inc""");
+        Assert.Equal(ExecutionKind.Folder, onedrive.Kind);
+
+        // No drive and no share is a Unix path, which Explorer would read as a switch.
+        Assert.Equal(ExecutionKind.None, Plan("/home/sam/app.log").Kind);
+        Assert.Equal(ExecutionKind.Reveal, Plan(@"\\nas\share\app.log").Kind);
+
+        // Everywhere else a comma is only a character.
+        Assert.Equal(ExecutionKind.Reveal, Plan("/home/sam/a,b.log", platform: ExecutionPlatform.Linux).Kind);
+    }
+
+    [Fact]
+    public void AMacPackageIsShownInFinder_NeverOpened()
+    {
+        // `open` on a .prefPane installs it and on an .app starts it: a package is a folder
+        // to the disk and something to run to `open`, so it is pointed at instead.
+        var pane = Plan("/Library/PreferencePanes/Klippy.prefPane", platform: ExecutionPlatform.MacOS);
+        Assert.Equal(ExecutionKind.Reveal, pane.Kind);
+        Assert.Equal(new[] { "-R", "/Library/PreferencePanes/Klippy.prefPane" },
+            ExecutionPolicy.Resolve(pane, ExecutionPlatform.MacOS)!.Arguments);
+
+        // An ordinary folder opens.
+        Assert.Equal(ExecutionKind.Folder, Plan("/Users/sam/Projects", platform: ExecutionPlatform.MacOS).Kind);
+    }
+
+    // ---- showing what a row names ----
+
+    [Fact]
+    public void ShowingARow_ReadsTheWholeLineAsOnePath()
+    {
+        // Spaces and all, the way an address bar gives a path: nobody quotes one to paste it.
+        var plan = PlanReveal(@"C:\Users\John Smith\notes.txt");
+        Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+        Assert.Equal(@"C:\Users\John Smith\notes.txt", plan.Target);
+
+        // And the other ways a path arrives: Copy as path, a variable, a browser's link.
+        Assert.Equal(ExecutionKind.Reveal, PlanReveal(@"""C:\Users\John Smith\notes.txt""").Kind);
+        Assert.Equal(ExecutionKind.Folder, PlanReveal(@"%LOCALAPPDATA%\Klippy").Kind);
+        Assert.Equal(@"C:\Users\John Smith\notes.txt",
+            PlanReveal("file:///C:/Users/John%20Smith/notes.txt").Target);
+        Assert.Equal("/home/sam/notes.txt", PlanReveal("~/notes.txt", ExecutionPlatform.Linux).Target);
+    }
+
+    [Fact]
+    public void ShowingARow_FallsBackToTheFirstWord_SoACommandShowsItsProgram()
+    {
+        var plan = PlanReveal(@"%EDITOR% D:\src\myapp");
+        Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+        Assert.Equal(@"C:\apps\code.exe", plan.Target);
+
+        // The rest of a multi-line snippet is prose around the path, as it is for a run.
+        Assert.Equal(@"C:\logs\app.log", PlanReveal("C:\\logs\\app.log\nSee line 40").Target);
+    }
+
+    [Fact]
+    public void ShowingARow_SaysWhatItCouldNotFind()
+    {
+        var gone = PlanReveal(@"C:\logs\gone.log");
+        Assert.Equal(ExecutionKind.None, gone.Kind);
+        Assert.Equal(@"Not found: C:\logs\gone.log", gone.Problem);
+
+        Assert.Contains("full path", PlanReveal("send us the log files").Problem);
+        Assert.Contains("full path", PlanReveal("app.log").Problem);
+        Assert.Equal(ExecutionKind.None, PlanReveal(null).Kind);
+
+        // A scheme is not a path, and a link to a server is a request made to it.
+        Assert.Equal(ExecutionKind.None, PlanReveal("https://klippy.app").Kind);
+        Assert.Equal(ExecutionKind.None, PlanReveal("file://server/share/notes.txt").Kind);
+    }
+
+    [Fact]
+    public void WhetherARowNamesAPath_IsReadOffTheTextAlone()
+    {
+        Assert.True(NamesAPath(@"C:\Users\John Smith\notes.txt"));
+        Assert.True(NamesAPath(@"%LOCALAPPDATA%\Klippy"));
+        Assert.True(NamesAPath("~/notes.txt", ExecutionPlatform.MacOS));
+        Assert.True(NamesAPath("file:///C:/Docs/report.html"));
+        Assert.True(NamesAPath(@"""C:\My Docs\deploy.ps1"" --env west"));
+
+        // Never the disk: a path that is not there still reads as one, and says so if asked.
+        Assert.True(NamesAPath(@"C:\logs\gone.log"));
+
+        Assert.False(NamesAPath("send us the log files"));
+        Assert.False(NamesAPath("app.log"));
+        Assert.False(NamesAPath("https://klippy.app"));
+        Assert.False(NamesAPath(""));
     }
 
     // ---- the process each plan becomes ----
@@ -820,6 +1072,8 @@ public class ExecutionTests
         Assert.Equal("Starting Klippy",
             Plan("/Applications/Klippy.app/", platform: ExecutionPlatform.MacOS).Description);
         Assert.Equal("Opening report.html", Plan("file:///C:/Docs/report.html").Description);
+        Assert.Equal("Opening invoices", Plan(@"C:\work\invoices").Description);
+        Assert.Equal("Showing app.log", Plan(@"C:\logs\app.log").Description);
         Assert.Equal(Plan("nope").Problem, Plan("nope").Description);
     }
 }

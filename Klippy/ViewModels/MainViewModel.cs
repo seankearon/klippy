@@ -704,6 +704,61 @@ public partial class MainViewModel : ViewModelBase
     private Task ExecuteSelected() => Execute(SelectedSnippet);
 
     /// <summary>
+    /// Shows the file or folder a row names in Explorer or Finder: a folder opens, a file is
+    /// selected in the folder it is in. Any row may ask, marked or not, snippet or clip —
+    /// showing something runs nothing, so it needs no marker to have been put there first.
+    ///
+    /// A snippet is read as a copy would put it on the clipboard, variables and macros
+    /// filled in, since that text is what the row stands for. A clip of files shows the
+    /// first of them, which is the one its row is named after; a clip of text is the path
+    /// it holds, read as if it had been pasted into the search box.
+    /// </summary>
+    [RelayCommand]
+    private async Task Reveal(RowViewModel? row)
+    {
+        if (row is null) return;
+
+        CloseCommands(restore: false);
+
+        if (Executor is not { } run)
+        {
+            ShowToast(CannotExecuteHere, isError: true);
+            return;
+        }
+
+        var text = row switch
+        {
+            SnippetViewModel snippet => await ResolveMacrosAsync(
+                KlippyVariables.Current.Expand(snippet.Model.Content), snippet.Arguments),
+            ClipViewModel { Model.Kind: ClipKind.Files, Model.Files: [var first, ..] } => first,
+            ClipViewModel { Model.Kind: ClipKind.Text } clip => clip.Content,
+            _ => null, // a picture, or a file clip with no files: nothing on disk to point at
+        };
+
+        var plan = ExecutionPolicy.PlanReveal(
+            text, environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real));
+
+        if (plan.Kind == ExecutionKind.None)
+        {
+            ShowToast(plan.Problem, isError: true);
+            return;
+        }
+
+        var result = await run(plan);
+        ShowToast(result.Message, isError: !result.Started);
+        if (!result.Started) return;
+
+        // Not marked as used, and nothing recorded: looking at where a file is leaves what
+        // the item is for where it was. The window gets out of the way as it does for a
+        // run, since the file manager is where you are going next.
+        Copied?.Invoke();
+        CloseRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private Task RevealSelected() => Reveal(SelectedSnippet);
+
+    /// <summary>
     /// Stamps the preferences about *how* to run onto a plan the policy has just worked
     /// out from what to run. Read per run rather than cached, as the copy preferences are:
     /// the Settings overlay writes through to the same instance, so a toggle applies to

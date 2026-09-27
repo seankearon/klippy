@@ -34,6 +34,10 @@ open, a script you want run, or an application you want started. A snippet can b
 the marker nothing runs: Klippy never decides on its own that a snippet looks like a link
 and should therefore be launched.
 
+A snippet or a clip that names a file or folder can also be **shown in Explorer or Finder**
+with `Ctrl/⌘+R` — marked or not, since showing something runs nothing. Klippy resolves the
+path first, variables and all: a folder opens, and a file is selected in its folder.
+
 → [Running things](https://seankearon.github.io/klippy/running-things/) ·
 [Running an unmatched search](https://seankearon.github.io/klippy/unmatched-search/)
 
@@ -62,7 +66,7 @@ Everything above, in full:
 | | |
 | --- | --- |
 | [Finding snippets](https://seankearon.github.io/klippy/finding-snippets/) | Quick-codes, search, ranking, the keyboard |
-| [Running things](https://seankearon.github.io/klippy/running-things/) | Links, documents, scripts, applications, macros, environment variables |
+| [Running things](https://seankearon.github.io/klippy/running-things/) | Links, documents, scripts, applications, macros, environment variables, showing files in Explorer / Finder |
 | [Running an unmatched search](https://seankearon.github.io/klippy/unmatched-search/) | Typing a line nothing matches, and running it |
 | [Recent commands](https://seankearon.github.io/klippy/recent-commands/) | The MRU, and what stays out of it |
 | [Markdown snippets](https://seankearon.github.io/klippy/markdown-snippets/) | Pasting rich text into editors that accept it |

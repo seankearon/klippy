@@ -53,9 +53,16 @@ public partial class EditorViewModel : ViewModelBase
     /// </summary>
     public string ExecuteHint =>
         !IsExecutable ? "Copied to the clipboard when triggered, as usual"
+        // A path to a log file marked to run is shown rather than opened, and finding that
+        // out here beats finding it out from Explorer. Naming the path is what shows a
+        // path with a space and no quotes stopping at the space.
+        : ExecutionPolicy.PathToReveal(Content) is { } shown
+            ? $"Shows {shown} in {FileManager} when triggered — {CopyKeyHint} still copies it"
         : ExecutionPolicy.LooksExecutable(Content)
             ? $"Opened or run when triggered — {CopyKeyHint} still copies it"
-            : "This is not a link, a document, an application or a script Klippy can run, so triggering it will say so";
+            : "This is not a link, a full path, an application or a script Klippy can run, so triggering it will say so";
+
+    private static readonly string FileManager = ExecutionPolicy.FileManager(ExecutionPolicy.CurrentPlatform);
 
     public bool ExecuteHintIsWarning => IsExecutable && !ExecutionPolicy.LooksExecutable(Content);
 

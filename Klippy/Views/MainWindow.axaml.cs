@@ -208,6 +208,12 @@ public partial class MainWindow : Window
                     vm.TogglePreviewCommand.Execute(null);
                     e.Handled = true;
                     return;
+                case Key.R:
+                    // R for reveal: where the path the selected row names is, in Explorer
+                    // or Finder, whatever the row is marked for.
+                    vm.RevealSelectedCommand.Execute(null);
+                    e.Handled = true;
+                    return;
                 case Key.OemComma:
                     vm.OpenSettingsCommand.Execute(null);
                     e.Handled = true;

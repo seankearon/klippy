@@ -14,8 +14,8 @@ public sealed record PathProbe(Func<string, bool> DirectoryExists, Func<string, 
 }
 
 /// <summary>
-/// What a search that matched nothing might mean, if anything: a link, a folder, a
-/// script or application to run, or one of the machine's own controls.
+/// What a search that matched nothing might mean, if anything: a link, a folder or a file
+/// to show, a script or application to run, or one of the machine's own controls.
 ///
 /// It answers in an <see cref="ExecutionPlan"/>, the same thing an item marked Execute
 /// produces, so both go to the one execution engine — this decides <em>what</em>, and
@@ -190,16 +190,19 @@ public static class UnmatchedSearch
             };
         }
 
-        if (probe.DirectoryExists(path)) return Folder(path);
+        // Anything else that is there is shown where it lies: a folder opened, a file
+        // selected in the folder it is in. A file is never *opened* from here — a path typed
+        // into a filter box is more often one being hunted for than one to open — but
+        // showing it runs nothing, so any kind of file may be shown where only a few may be
+        // opened. ExecutionPolicy.Reveal holds what Explorer and Finder may be handed.
+        bool folder = probe.DirectoryExists(path);
+        if (folder || probe.FileExists(path)) return ExecutionPolicy.Reveal(path, folder, os);
 
         // Nothing there to look at, so the shape decides — and a trailing separator is the
         // only thing left that still says "folder". Anything else is not offered at all:
-        // the allow-list is the point, so a path Klippy cannot name is a path it declines.
-        return !verifyPaths && EndsWithSeparator(path) ? Folder(path) : Nothing;
+        // a file has to be there to be shown, and nothing else is on the list.
+        return !verifyPaths && EndsWithSeparator(path) ? ExecutionPolicy.Reveal(path, isFolder: true, os) : Nothing;
     }
-
-    private static ExecutionPlan Folder(string path) =>
-        new() { Kind = ExecutionKind.Folder, Target = path };
 
     /// <summary>
     /// Whether a path names a place rather than somewhere relative to something else.
