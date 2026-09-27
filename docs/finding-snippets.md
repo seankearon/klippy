@@ -29,6 +29,10 @@ search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it, the
 same as `Enter`. Typing `quit` offers to [close Klippy](quitting.md).
 
+A **confirmation** — deleting a snippet, a [machine control](unmatched-search.md), quitting —
+opens with the keyboard on Cancel, so `Enter` straight away goes back. `Tab` or the arrow
+keys move to the button that goes ahead, and `Tab` stays inside the dialog.
+
 > `F2` is the edit key everywhere else, and `Ctrl/⌘+I` is there for Mac keyboards, where
 > `F2` is the brightness key unless the function-key setting says otherwise. Both open
 > the editor on the selected snippet; in the clipboard history, where a clip has no

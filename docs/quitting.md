@@ -16,8 +16,9 @@ already looking at:
 - **The tray / menu-bar icon's Quit**, which is where it has always been.
 
 Both of the in-window routes land on the same confirmation, because the search box and a
-footer full of links are places a stray keystroke or click can reach: `↵` or **Quit Klippy**
-closes, `Esc` or **Cancel** goes back. The tray menu asks nothing and never did — picking
+footer full of links are places a stray keystroke or click can reach. It opens on
+**Cancel**, so `↵` straight away goes back, as does `Esc`; `Tab` or `→` and then `↵`, or a
+click on **Quit Klippy**, closes. The tray menu asks nothing and never did — picking
 **Quit** off a two-item menu is already a deliberate act.
 
 Nothing is at stake in the data — snippets are written per edit and the clipboard history

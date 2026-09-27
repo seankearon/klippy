@@ -92,9 +92,11 @@ quietly becoming a path with a hole in the middle of it. An item's own `%C%` and
 left alone — those are filled when an item runs, and a search box is not an item.
 
 The four machine controls are matched as the whole line and nothing else, so "restarting"
-and "please restart" stay searches. Each asks before it happens, and that confirmation is
-one `Enter` away so the whole gesture stays on the keyboard; it can be switched off. They
-are planned as ordinary processes, which is why they need no second execution path:
+and "please restart" stay searches. Each asks before it happens, and the confirmation opens
+on Cancel: a second `Enter`, or the first held a beat too long, backs out, while `Tab` or `→`
+and then `Enter` goes ahead, so the whole gesture stays on the keyboard. The confirmation
+can be switched off. They are planned as ordinary processes, which is why they need no
+second execution path:
 
 | Control | Windows | macOS | Linux |
 |---|---|---|---|

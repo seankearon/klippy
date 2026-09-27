@@ -9,6 +9,7 @@ public partial class ConfirmOverlay : UserControl
     public ConfirmOverlay()
     {
         InitializeComponent();
+        ConfirmFocus.Attach(Overlay, CancelButton, ConfirmButton);
     }
 
     private void ScrimPressed(object? sender, PointerPressedEventArgs e)

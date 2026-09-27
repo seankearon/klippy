@@ -553,7 +553,7 @@ public class OfferTests
     }
 
     [AvaloniaFact]
-    public void Enter_ConfirmsAMachineControl_SoTheGestureStaysOnTheKeyboard()
+    public void TabThenEnter_ConfirmsAMachineControl_SoTheGestureStaysOnTheKeyboard()
     {
         var f = NewVm();
         var window = new MainWindow { DataContext = f.Vm };
@@ -566,9 +566,30 @@ public class OfferTests
         Assert.NotNull(f.Vm.PendingOffer);
         Assert.Empty(f.Ran);
 
+        // The dialog opens on Cancel, so the Enter that asked cannot also answer.
+        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+        Dispatcher.UIThread.RunJobs();
         Enter(window);
 
         Assert.Equal(SystemAction.Restart, Assert.Single(f.Ran).Action);
+    }
+
+    [AvaloniaFact]
+    public void Enter_AtTheConfirmation_GoesBackWithoutRunningIt()
+    {
+        // A second Enter, or the first held a beat too long, lands on Cancel.
+        var f = NewVm();
+        var window = new MainWindow { DataContext = f.Vm };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        f.Attach();
+
+        f.Vm.FilterText = "restart";
+        Enter(window);
+        Enter(window);
+
+        Assert.Null(f.Vm.PendingOffer);
+        Assert.Empty(f.Ran);
     }
 
     [AvaloniaFact]

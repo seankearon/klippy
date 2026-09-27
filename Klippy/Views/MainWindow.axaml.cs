@@ -152,6 +152,8 @@ public partial class MainWindow : Window
         var cmdMod = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
         // While an overlay is open only Esc (cancel) and Cmd/Ctrl+Enter (save) are global.
+        // A bare Enter is left to the focused button, which in a confirmation starts out
+        // as Cancel — see ConfirmFocus.
         if (vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
             || vm.Settings is not null || vm.PendingOffer is not null)
         {
@@ -164,14 +166,6 @@ public partial class MainWindow : Window
                      && vm.Editor?.SaveCommand.CanExecute(null) == true)
             {
                 vm.Editor.SaveCommand.Execute(null);
-                e.Handled = true;
-            }
-            // The one confirmation a bare Enter answers. It is the last step of a keyboard
-            // gesture that began with typing "restart", so reaching for the mouse to finish
-            // it would be the odd thing — and the dialog it confirms is the deliberation.
-            else if (e.Key == Key.Enter && vm.PendingOffer is not null)
-            {
-                vm.ConfirmOfferCommand.Execute(null);
                 e.Handled = true;
             }
             return;
