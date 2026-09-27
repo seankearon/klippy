@@ -21,7 +21,9 @@ scan of ordinal `StartsWith` checks — microseconds for thousands of snippets.
 **Keyboard (desktop):** type to filter, `↑`/`↓` to navigate, `Enter` to copy — or to
 [run](running-things.md) a snippet marked for it, or
 [what you typed](unmatched-search.md) when nothing matched at all —
-`Ctrl/⌘+Enter` to copy one of those anyway, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
+`Ctrl/⌘+Enter` to copy one of those anyway, `Ctrl/⌘+R` to
+[show the path the selected row names](running-things.md#showing-where-a-file-is) in
+Explorer or Finder, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `↓` on an empty search box opens

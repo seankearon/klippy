@@ -4,8 +4,8 @@ namespace Klippy.ViewModels;
 
 /// <summary>
 /// The offer made when a search matched nothing but named something runnable: a link, a
-/// folder, a script or application, or one of the machine's controls — or, in the one case
-/// that runs nothing at all, Klippy's own <c>quit</c>.
+/// folder or file to show, a script or application, or one of the machine's controls — or,
+/// in the one case that runs nothing at all, Klippy's own <c>quit</c>.
 ///
 /// It is not a <see cref="RowViewModel"/> on purpose. Rows are items you copy or execute,
 /// and this is neither — keeping it out of <c>Filtered</c> is what makes "an item match
@@ -38,11 +38,16 @@ public sealed class OfferViewModel : ViewModelBase
         ExecutionKind.Url => "Open link",
         ExecutionKind.Folder => "Open folder",
         ExecutionKind.Document => "Open file",
+        ExecutionKind.Reveal => ShowVerb,
         ExecutionKind.Script => "Run script",
         ExecutionKind.Application => "Start",
         ExecutionKind.System => Plan.Action.ToString(),
         _ => "",
     };
+
+    /// <summary>"Show in Explorer", "Show in Finder": named for where the file is about to appear.</summary>
+    private static readonly string ShowVerb =
+        "Show in " + ExecutionPolicy.FileManager(ExecutionPolicy.CurrentPlatform);
 
     /// <summary>
     /// The badge that says what Enter does here. "run" for everything that starts

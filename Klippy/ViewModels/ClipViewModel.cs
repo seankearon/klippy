@@ -30,6 +30,17 @@ public partial class ClipViewModel : RowViewModel
     public bool IsImage => Model.Kind == ClipKind.Image;
     public bool IsFiles => Model.Kind == ClipKind.Files;
 
+    /// <summary>
+    /// A clip of files is nothing but paths, and a picture has none; only text has to be
+    /// read to find out.
+    /// </summary>
+    protected override bool ReadsAsAPath() => Model.Kind switch
+    {
+        ClipKind.Files => Model.Files.Length > 0,
+        ClipKind.Image => false,
+        _ => base.ReadsAsAPath(),
+    };
+
     /// <summary>Where it was copied from, e.g. "chrome". Empty when the owner could not be identified.</summary>
     public string SourceApp => Model.SourceApp;
 

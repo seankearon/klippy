@@ -45,6 +45,7 @@ someone hunting for the clip they copied than an instruction.
 |---|---|
 | `%appdata%`, `$HOME`, `~/work`, `%appdata%\Klippy` | The variable expands and the folder opens |
 | `C:\work\invoices`, `\\nas\share`, `/usr/local/bin` | The folder opens in Explorer / Finder |
+| `C:\work\notes.txt`, `%appdata%\Klippy\settings.json`, `/var/log/system.log` | The file is [shown](running-things.md#showing-where-a-file-is) in Explorer / Finder, selected in its folder — never opened |
 | `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `/Applications/Safari.app` | The script or application runs, exactly as a marked snippet naming it would |
 | `http://…`, `https://…`, `www.…` | The page opens |
 | `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
@@ -67,14 +68,18 @@ a marked item was written on purpose and this is whatever landed in a filter box
   expands to one. A relative path would resolve against wherever Klippy happened to be
   started from, which is nobody's mental model, and without the rule every unmatched word
   with a dot in it would look like a file.
-- **No documents.** A marked snippet may open a [document](running-things.md#documents) —
-  a web page, a PDF — by its path or a `file:///` link. A typed one is left as the search it
-  is: a path to a file you have just typed is far more often a path you are hunting a
-  snippet for than one you want opened.
+- **Files are shown, never opened.** A marked snippet may open a
+  [document](running-things.md#documents) — a web page, a PDF — by its path or a `file:///`
+  link. A typed one is not: a path to a file you have just typed is far more often a path
+  you are hunting a snippet for than one you want opened. What it is offered instead is to
+  be [shown where it lies](running-things.md#showing-where-a-file-is) — its folder opened in
+  Explorer or Finder with the file selected — which runs nothing, and so is offered for a
+  file of any kind that is there.
 
 Everything else is the allow-list you already know: a script or an application Klippy can
-run on this platform, and nothing besides. A folder is the one addition — it is opened,
-not executed — so a typed `C:\work\notes.txt` is still just text that matched nothing.
+run on this platform, and nothing besides. Folders and files are the additions — shown, not
+executed — so a typed `C:\work\notes.txt` offers *Show in Explorer*, and `C:\work\setup.hta`
+is pointed at in its folder rather than run.
 
 **Quotes come off.** Explorer's Shift+right-click → *Copy as path* wraps what it gives you
 in double quotes, whether or not the path has a space in it, so a pasted path would

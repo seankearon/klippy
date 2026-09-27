@@ -147,6 +147,29 @@ public class OfferTests
     }
 
     [Fact]
+    public async Task AFileThatIsThere_IsOfferedToBeShown_AndEnterShowsIt()
+    {
+        using var folder = new TempFolder();
+        var file = System.IO.Path.Combine(folder.Path, "app.log");
+        File.WriteAllText(file, "");
+        var f = NewVm();
+
+        f.Vm.FilterText = file;
+
+        Assert.NotNull(f.Vm.Offer);
+        Assert.Equal(ExecutionKind.Reveal, f.Vm.Offer!.Plan.Kind);
+        Assert.StartsWith("Show in ", f.Vm.Offer.Verb); // Explorer, Finder, or the file manager
+        Assert.Equal(file, f.Vm.Offer.Detail);
+
+        await f.Vm.RunOfferCommand.ExecuteAsync(null);
+
+        var ran = Assert.Single(f.Ran);
+        Assert.Equal(ExecutionKind.Reveal, ran.Kind);
+        Assert.Equal(file, ran.Target);
+        Assert.Equal(1, f.Closes);
+    }
+
+    [Fact]
     public void TheOfferTakesTheSelection_SoEnterActsOnWhatItSays()
     {
         // Standing beside rows, the offer is what Enter runs — so no row may sit there

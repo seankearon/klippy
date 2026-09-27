@@ -25,8 +25,9 @@ create the file nothing about copying changes at all.
 
 The rest of the rules are short:
 
-- `name=value`, one per line. `#` and `;` start a whole-line comment; a line that is not a
-  define is skipped rather than rejected, so one typo costs one variable.
+- `name=value`, one per line — or `%name%=value`, written the way it is used; the percent
+  signs come off, since a name cannot contain one. `#` and `;` start a whole-line comment;
+  a line that is not a define is skipped rather than rejected, so one typo costs one variable.
 - The value is everything after the first `=`, trimmed — **quotes included**. Quote a path
   with spaces, because the shell you paste into will need them. Running takes a pair that
   wraps the whole value back off: arguments are passed as arguments and .NET supplies

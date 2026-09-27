@@ -29,4 +29,6 @@
   <StreamGeometry x:Key="IconAlert">M 21,12 A 9,9 0 1 0 3,12 A 9,9 0 1 0 21,12 M 12,7 L 12,13 M 12,16.5 L 12,16.6</StreamGeometry>
   <!-- copy glyph with a plus in the front sheet (duplicate) -->
   <StreamGeometry x:Key="IconDuplicate">M 11,9 L 18,9 A 2,2 0 0 1 20,11 L 20,18 A 2,2 0 0 1 18,20 L 11,20 A 2,2 0 0 1 9,18 L 9,11 A 2,2 0 0 1 11,9 Z M 5,15 L 5,5 A 2,2 0 0 1 7,3 L 17,3 M 14.5,11.5 L 14.5,17.5 M 11.5,14.5 L 17.5,14.5</StreamGeometry>
+  <!-- tabbed folder: show what a row names in Explorer or Finder -->
+  <StreamGeometry x:Key="IconFolder">M 4,20 L 20,20 A 2,2 0 0 0 22,18 L 22,9 A 2,2 0 0 0 20,7 L 12,7 L 10,4 L 4,4 A 2,2 0 0 0 2,6 L 2,18 A 2,2 0 0 0 4,20 Z</StreamGeometry>
 </ResourceDictionary>

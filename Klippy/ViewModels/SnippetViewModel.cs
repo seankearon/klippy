@@ -35,6 +35,17 @@ public partial class SnippetViewModel : RowViewModel
     /// <summary>Whether triggering the row runs the snippet instead of copying it.</summary>
     public override bool IsExecutable => Model.IsExecutable;
 
+    /// <summary>
+    /// The variables file first, as a copy applies it, so a flavour like
+    /// <c>%app:folder%</c> is read the way the file means it and not as a machine name.
+    /// </summary>
+    protected override bool ReadsAsAPath()
+    {
+        var variables = KlippyVariables.Current;
+        return ExecutionPolicy.NamesAPath(
+            variables.Expand(Content), environment: variables.Ahead(EnvironmentProbe.Real));
+    }
+
     public string Tag => Model.Tag;
     public string QuickCode => Model.QuickCode;
     public bool HasQuickCode => Model.QuickCode.Length > 0;

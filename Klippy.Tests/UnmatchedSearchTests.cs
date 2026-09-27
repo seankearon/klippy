@@ -69,12 +69,46 @@ public class UnmatchedSearchTests
     }
 
     [Fact]
-    public void ADocumentIsNotOfferedEvenWhenItIsThere()
+    public void AFileThatIsThere_IsShownInItsFolder_NeverOpened()
     {
-        // The allow-list is the point, and it is the app's, not this feature's: a path
-        // that is neither script nor application is text, however real the file is.
-        Assert.Equal(ExecutionKind.None,
-            Plan(@"C:\work\notes.txt", probe: Probe(files: [@"C:\work\notes.txt"])).Kind);
+        // A typed path to a file is more often one being hunted for than one to open, so
+        // it is never opened from here. Showing it runs nothing, though, whatever it is.
+        var notes = Plan(@"C:\work\notes.txt", probe: Probe(files: [@"C:\work\notes.txt"]));
+        Assert.Equal(ExecutionKind.Reveal, notes.Kind);
+        Assert.Equal(@"C:\work\notes.txt", notes.Target);
+
+        Assert.Equal(ExecutionKind.Reveal,
+            Plan(@"C:\work\invoice.hta", probe: Probe(files: [@"C:\work\invoice.hta"])).Kind);
+    }
+
+    [Fact]
+    public void AFileThatIsNotThere_IsNotOffered_EvenWithCheckingOff()
+    {
+        // Only a trailing separator says anything without the disk, and it says "folder".
+        Assert.Equal(ExecutionKind.None, Plan(@"C:\work\notes.txt").Kind);
+        Assert.Equal(ExecutionKind.None, Plan(@"C:\work\notes.txt", verifyPaths: false).Kind);
+    }
+
+    [Fact]
+    public void AMacPackageIsShownInFinder_NotOpened()
+    {
+        // A folder to the disk, a program or an installer to `open`.
+        var plan = Plan("/Library/PreferencePanes/Thing.prefPane", platform: Mac,
+            probe: Probe(folders: ["/Library/PreferencePanes/Thing.prefPane"]));
+
+        Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+    }
+
+    [Fact]
+    public void APathExplorerWouldMisread_IsNotOffered()
+    {
+        // The rules for what Explorer may be handed are the marked item's, not this route's.
+        var odd = @"C:\work\a,b.txt";
+        Assert.Equal(ExecutionKind.None, Plan(odd, probe: Probe(files: [odd])).Kind);
+        Assert.Equal(ExecutionKind.None, Plan(@"C:\work\a,b", probe: Probe(folders: [@"C:\work\a,b"])).Kind);
+
+        var elsewhere = "/home/sam/a,b.txt";
+        Assert.Equal(ExecutionKind.Reveal, Plan(elsewhere, platform: Linux, probe: Probe(files: [elsewhere])).Kind);
     }
 
     // ---- machine controls ----

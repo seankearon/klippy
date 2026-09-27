@@ -308,7 +308,7 @@ public class ExecuteTests
         Assert.Null(f.Copied); // marked means run; it does not fall back to copying
         Assert.True(f.Vm.IsToastVisible);
         Assert.True(f.Vm.IsToastError);
-        Assert.Contains("not a URL, a document, an application or a script", f.Vm.ToastText);
+        Assert.Contains("not a URL, a full path, an application or a script", f.Vm.ToastText);
     }
 
     [AvaloniaFact]
@@ -431,7 +431,7 @@ public class ExecuteTests
         // Marked, but there is nothing here to run: better said now than as a toast later.
         editor.IsExecutable = true;
         Assert.True(editor.ExecuteHintIsWarning);
-        Assert.Contains("not a link, a document, an application or a script", editor.ExecuteHint);
+        Assert.Contains("not a link, a full path, an application or a script", editor.ExecuteHint);
 
         editor.Content = "https://www.google.com/search?q=%P%";
         Assert.False(editor.ExecuteHintIsWarning);
@@ -439,6 +439,13 @@ public class ExecuteTests
 
         editor.Content = @"C:\Docs\release-notes.html";
         Assert.False(editor.ExecuteHintIsWarning);
+
+        // A path Klippy will show rather than open says so, and says which, since that is
+        // not what someone marking a log file to run might expect.
+        var log = Path.Combine(Path.GetTempPath(), "app.log");
+        editor.Content = log;
+        Assert.False(editor.ExecuteHintIsWarning);
+        Assert.StartsWith($"Shows {log} in ", editor.ExecuteHint);
     }
 
     [AvaloniaFact]

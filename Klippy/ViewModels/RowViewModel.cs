@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Klippy.Services;
 
 namespace Klippy.ViewModels;
 
@@ -48,6 +49,23 @@ public abstract partial class RowViewModel : ViewModelBase
     /// </summary>
     public virtual bool IsExecutable => false;
 
+    private bool? _namesAPath;
+
+    /// <summary>
+    /// Whether the row's text names a file or folder, so the hover action that shows it in
+    /// Explorer or Finder is offered only where it could mean something. Read off the text
+    /// and never the disk, and kept until the text changes: a list redrawn on every
+    /// keystroke has no business asking whether a file is still there.
+    /// </summary>
+    public bool NamesAPath => _namesAPath ??= ReadsAsAPath();
+
+    /// <summary>
+    /// The question behind <see cref="NamesAPath"/>. Text is resolved against the same
+    /// environment the gesture itself uses, variables file and all.
+    /// </summary>
+    protected virtual bool ReadsAsAPath() =>
+        ExecutionPolicy.NamesAPath(Content, environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real));
+
     private static readonly string RunHint =
         OperatingSystem.IsMacOS() ? "↵ run · ⌘↵ copy" : "↵ run · Ctrl+↵ copy";
 
@@ -72,5 +90,9 @@ public abstract partial class RowViewModel : ViewModelBase
     private void ToggleExpand() => IsExpanded = !IsExpanded;
 
     /// <summary>Re-raises change notifications after the underlying model was edited.</summary>
-    public void NotifyModelChanged() => OnPropertyChanged(string.Empty);
+    public void NotifyModelChanged()
+    {
+        _namesAPath = null;
+        OnPropertyChanged(string.Empty);
+    }
 }

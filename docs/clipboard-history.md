@@ -31,7 +31,11 @@ A clip is one of three kinds, and each pastes back as what it was:
 
 File clips store paths, not contents, so copying a 4 GB folder costs a few hundred
 bytes — and pasting one later fails the same way Explorer would if the files have since
-moved. Image clips store the bytes the source app offered, unconverted: PNG when it is
+moved. `Ctrl/⌘+R`, or the folder button on the row, answers the other question a file
+clip raises — where was that? — by showing its first file selected in Explorer; a text clip
+holding a path is shown the same way. See
+[Showing where a file is](running-things.md#showing-where-a-file-is). Image clips store the
+bytes the source app offered, unconverted: PNG when it is
 on the clipboard, otherwise the raw DIB with a BMP file header on the front. That is
 why Klippy needs no image codec at all.
 

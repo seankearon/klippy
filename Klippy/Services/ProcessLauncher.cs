@@ -202,6 +202,12 @@ public static class ProcessLauncher
         ExecutionKind.Folder when !Directory.Exists(plan.Target) =>
             $"Folder not found: {plan.Target}",
 
+        // Explorer asked to select what is not there opens a folder of its own choosing and
+        // says nothing; `open -R` says so on a console nobody is reading. A macOS package is
+        // a folder, so either answers for what is being shown.
+        ExecutionKind.Reveal when !File.Exists(plan.Target) && !Directory.Exists(plan.Target) =>
+            $"Not found: {plan.Target}",
+
         _ => null,
     };
 
