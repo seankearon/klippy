@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
@@ -79,6 +80,22 @@ public class VariablesTests
 
         Assert.Equal("C:\\tools\\webstorm64.exe", vars.Get("ws"));
         Assert.Equal(1, vars.Count);
+    }
+
+    [Fact]
+    public void AName_MayBeWrittenTheWayItIsUsed()
+    {
+        // Reported: %protondrive%=E:\ProtonDrive\My files. A name cannot carry a percent
+        // sign, so a pair around it can only mean the name inside — and skipping the line
+        // left every snippet that used it holding %protondrive% as written.
+        var vars = Vars(@"%protondrive%=E:\ProtonDrive\My files");
+
+        Assert.Equal(@"E:\ProtonDrive\My files", vars.Get("protondrive"));
+        Assert.Equal(1, vars.Count);
+
+        // A pair, and only a pair: half of one is still a typo, and a pair round nothing
+        // names nothing.
+        Assert.Equal(0, Vars("%half=x\nhalf%=x\n%%=x").Count);
     }
 
     [Fact]
@@ -918,6 +935,76 @@ public class VariablesTests
             clipboardText: clipboardText,
             platform: ExecutionPlatform.Windows,
             environment: vars.Ahead(machine ?? new EnvironmentProbe(_ => null, () => "C:\\Users\\sam")));
+
+    /// <summary>
+    /// The reported file and snippet, over a real folder: <c>%protondrive%=…\My files</c>,
+    /// and a marked item naming <c>%protondrive%\Shine Forms\Shine\Graphics</c>. Both halves
+    /// of the path carry a space, one inside the define and one written out.
+    /// </summary>
+    private sealed class ProtonDrive : IDisposable
+    {
+        private readonly string _top = Path.Combine(Path.GetTempPath(), $"klippy-pd-{Guid.NewGuid():N}");
+        private readonly VariablesFileScope _scope;
+
+        public string Graphics { get; }
+        public string Snippet { get; } = Path.Combine("%protondrive%", "Shine Forms", "Shine", "Graphics");
+
+        public ProtonDrive()
+        {
+            var root = Path.Combine(_top, "My files");
+            Graphics = Path.Combine(root, "Shine Forms", "Shine", "Graphics");
+            Directory.CreateDirectory(Graphics);
+            _scope = new VariablesFileScope($"%protondrive%={root}");
+        }
+
+        public void Dispose()
+        {
+            _scope.Dispose();
+            try { Directory.Delete(_top, recursive: true); }
+            catch (IOException) { /* a temp folder left behind is not a failed test */ }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Execute_OpensAFolderNamedThroughADefine_SpacesAndAll()
+    {
+        using var drive = new ProtonDrive();
+        var store = new SnippetStore(
+            Path.Combine(Path.GetTempPath(), $"klippy-vars-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+        store.Add(new Snippet { Label = "graphics", Content = drive.Snippet, IsExecutable = true });
+
+        var ran = new List<ExecutionPlan>();
+        var vm = new MainViewModel(store)
+        {
+            Executor = plan =>
+            {
+                ran.Add(plan);
+                return Task.FromResult(new ExecutionResult(true, plan.Description));
+            },
+        };
+
+        await vm.ActivateCommand.ExecuteAsync(vm.Filtered[0]);
+
+        var opened = Assert.Single(ran);
+        Assert.Equal(ExecutionKind.Folder, opened.Kind);
+        Assert.Equal(drive.Graphics, opened.Target);
+    }
+
+    [AvaloniaFact]
+    public void TheEditor_ReadsTheVariablesFile_AsEnterDoes()
+    {
+        // The hint beside the marker has to agree with Enter, and Enter reads the file: a
+        // warning that %protondrive% is nothing would be a warning about a working item.
+        using var drive = new ProtonDrive();
+        var editor = new EditorViewModel(null, (_, _) => { }, () => { })
+        {
+            Content = drive.Snippet,
+            IsExecutable = true,
+        };
+
+        Assert.False(editor.ExecuteHintIsWarning);
+        Assert.StartsWith($"Shows {drive.Graphics} in ", editor.ExecuteHint);
+    }
 
     [Fact]
     public void Execute_ResolvesAVariableInTheFirstWord()

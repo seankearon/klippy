@@ -332,9 +332,10 @@ public sealed class KlippyVariables
     private static Dictionary<string, string[]> NewMap() => new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// <c>name=value</c> per line; <c>#</c> and <c>;</c> start a whole-line comment. The
-    /// value is taken literally after trimming — quotes included, because a Windows path
-    /// with spaces needs its quotes to survive into the shell you paste it at.
+    /// <c>name=value</c> per line, or <c>%name%=value</c>; <c>#</c> and <c>;</c> start a
+    /// whole-line comment. The value is taken literally after trimming — quotes included,
+    /// because a Windows path with spaces needs its quotes to survive into the shell you
+    /// paste it at.
     /// A line that isn't a definition is skipped rather than rejected: one typo must not
     /// cost the rest of the file.
     ///
@@ -353,7 +354,12 @@ public sealed class KlippyVariables
             int eq = line.IndexOf('=');
             if (eq <= 0) continue;
 
+            // %name%=value is the name written the way it is used, and can mean nothing
+            // else: a name cannot carry a percent sign, so the pair comes off, as it does
+            // from a typed argument in ValueOf. Skipping the line instead left every item
+            // that used the name holding it as written, with nothing to say why.
             var name = line[..eq].TrimEnd();
+            if (name.Length >= 2 && name[0] == '%' && name[^1] == '%') name = name[1..^1];
             if (!IsUsableName(name)) continue;
 
             if (!raw.TryGetValue(name, out var values)) raw[name] = values = new List<string>(1);

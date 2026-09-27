@@ -51,6 +51,8 @@ public class ExecutionTests
         @"C:\work\invoices",
         @"C:\Users\sam\AppData\Local\Klippy",
         @"C:\Users\sam\OneDrive - Acme, Inc",
+        @"E:\ProtonDrive\My files\Shine Forms\Shine\Graphics",
+        @"D:\src\My App",
         "/Users/sam/Projects",
         "/Library/PreferencePanes/Klippy.prefPane",
     };
@@ -60,6 +62,8 @@ public class ExecutionTests
         @"C:\logs\app.log",
         @"C:\Users\John Smith\notes.txt",
         @"C:\apps\code.exe",
+        @"C:\Program Files\Klippy\Klippy.Desktop.exe",
+        @"C:\My Docs\report.html",
         "/home/sam/notes.txt",
     };
 
@@ -86,10 +90,17 @@ public class ExecutionTests
         string? text,
         ExecutionPlatform platform = ExecutionPlatform.Windows,
         EnvironmentProbe? environment = null) =>
-        ExecutionPolicy.LooksExecutable(text, platform, environment ?? Env);
+        ExecutionPolicy.LooksExecutable(text, platform, environment ?? Env, Disk);
 
-    private static string? PathToReveal(string? text, ExecutionPlatform platform = ExecutionPlatform.Windows) =>
-        ExecutionPolicy.PathToReveal(text, platform, Env);
+    private static string? PathToReveal(
+        string? text,
+        ExecutionPlatform platform = ExecutionPlatform.Windows,
+        EnvironmentProbe? environment = null) =>
+        ExecutionPolicy.PathToReveal(text, platform, environment ?? Env, Disk);
+
+    /// <summary>The reported define, in front of the described machine.</summary>
+    private static readonly EnvironmentProbe ProtonDrive =
+        KlippyVariables.Parse(@"%protondrive%=E:\ProtonDrive\My files").Ahead(Env);
 
     private static bool NamesAPath(string? text, ExecutionPlatform platform = ExecutionPlatform.Windows) =>
         ExecutionPolicy.NamesAPath(text, platform, Env);
@@ -804,6 +815,65 @@ public class ExecutionTests
         var bare = Plan("app.log");
         Assert.Equal(ExecutionKind.None, bare.Kind);
         Assert.Contains("full path", bare.Problem);
+    }
+
+    [Fact]
+    public void ALineThatIsNothingButAPath_IsThatPath_SpacesAndAll()
+    {
+        // Reported: a folder under a define, whose own name has a space in it. A folder
+        // takes no arguments, so there is nothing for the space before "Forms" to keep
+        // apart — cutting the line there looked for E:\ProtonDrive\My files\Shine.
+        var plan = Plan(@"%protondrive%\Shine Forms\Shine\Graphics", environment: ProtonDrive);
+        Assert.Equal(ExecutionKind.Folder, plan.Kind);
+        Assert.Equal(@"E:\ProtonDrive\My files\Shine Forms\Shine\Graphics", plan.Target);
+
+        // A file is shown whole the same way, and a note on the next line is prose.
+        Assert.Equal(@"C:\Users\John Smith\notes.txt",
+            Plan("C:\\Users\\John Smith\\notes.txt\nRead before the call").Target);
+
+        // The whole line meets the rules a first word would: a document opens, and an
+        // application with nothing after it starts, quotes or no quotes.
+        Assert.Equal(ExecutionKind.Document, Plan(@"C:\My Docs\report.html").Kind);
+        var app = Plan(@"C:\Program Files\Klippy\Klippy.Desktop.exe");
+        Assert.Equal(ExecutionKind.Application, app.Kind);
+        Assert.Equal(@"C:\Program Files\Klippy\Klippy.Desktop.exe", app.Target);
+        Assert.Empty(app.Arguments);
+        Assert.Equal(ExecutionKind.None,
+            Plan(@"C:\Program Files\Klippy\Klippy.Desktop.exe", platform: ExecutionPlatform.MacOS).Kind);
+    }
+
+    [Fact]
+    public void ALineThatIsNotThere_LeavesTheFirstWord_AndTheQuotingRule()
+    {
+        // With arguments after it the line is no path, so the rule is what it always was:
+        // unquoted, the first word stops at the space, and that is what is looked for.
+        var plan = Plan(@"C:\Program Files\Klippy\Klippy.Desktop.exe --minimised");
+        Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+        Assert.Equal(@"C:\Program", plan.Target);
+    }
+
+    [Fact]
+    public void AnArgumentWithASpaceInIt_NamesAFolderWhole()
+    {
+        // "p My App" against %src%\%P%: the argument is one value, and the folder it
+        // completes is one path.
+        var env = KlippyVariables.Parse(@"src=D:\src").Ahead(Env);
+        var plan = Plan(@"%src%\%P%", new[] { "My", "App" }, environment: env);
+
+        Assert.Equal(ExecutionKind.Folder, plan.Kind);
+        Assert.Equal(@"D:\src\My App", plan.Target);
+    }
+
+    [Fact]
+    public void TheEditorAsksTheDiskAboutTheWholeLineToo_SoItAgreesWithEnter()
+    {
+        Assert.Equal(@"E:\ProtonDrive\My files\Shine Forms\Shine\Graphics",
+            PathToReveal(@"%protondrive%\Shine Forms\Shine\Graphics", environment: ProtonDrive));
+
+        // A whole line that is an application runs, so there is nothing to show.
+        Assert.Null(PathToReveal(@"C:\Program Files\Klippy\Klippy.Desktop.exe"));
+        Assert.True(LooksExecutable(@"C:\Program Files\Klippy\Klippy.Desktop.exe"));
+        Assert.False(LooksExecutable(@"C:\Program Files\Klippy\Klippy.Desktop.exe", ExecutionPlatform.MacOS));
     }
 
     [Fact]

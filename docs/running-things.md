@@ -48,7 +48,15 @@ two arguments, not three. That is also how a path with a space in it stays one p
 
 — and without the quotes the first word is `C:\Program`, which names nothing. The editor
 shows you that as you tick the marker: *Shows C:\Program in Explorer when triggered* is
-the cue that a path has stopped at its first space. A variable
+the cue that a path has stopped at its first space.
+
+The quotes are only needed where there are arguments to keep apart. A line that is nothing
+but a path — a folder, a file, or a program with nothing after it — is also tried whole,
+spaces and all, whenever its first word names nothing Klippy runs, and if the disk has
+something there, that is what the line means. So `%protondrive%\Shine Forms\Graphics`
+opens that folder, and `C:\Program Files\Klippy\Klippy.Desktop.exe` on its own starts
+Klippy, quotes or no quotes; add `--minimised` and the line is no longer a path, so the
+quotes are back to being what keeps the program in one piece. A variable
 whose value contains a space needs no quotes at all, because it resolves *after* the line
 has been split into words: `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe` is one
 path however many spaces your user name has in it. Scripts and applications alike run from
@@ -249,7 +257,8 @@ There are three ways to get there:
 - **A snippet marked Execute** whose first word is the full path of anything that is not a
   link, document, script or application — the second-to-last row of the table above.
   `%LOCALAPPDATA%\Klippy` or `D:\work\invoices` opens the folder, and `C:\logs\app.log` is
-  shown selected in `C:\logs`. The rest of the line is left behind, as it is for a document.
+  shown selected in `C:\logs`. A path with a space in it needs no quotes when it is the
+  whole line; otherwise the rest of the line is left behind, as it is for a document.
 - **Typing the path** into the search box when nothing else matches — see
   [Running an unmatched search](unmatched-search.md).
 

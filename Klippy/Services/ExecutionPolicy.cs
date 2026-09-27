@@ -315,6 +315,21 @@ public static class ExecutionPolicy
         var command = Unquote(parts[0]);
         var rest = parts.GetRange(1, parts.Count - 1).ConvertAll(Unquote).ToArray();
 
+        return Judge(command, rest, os, paths ?? PathProbe.Real,
+            () => WholeLine(text, machine, arguments, clipboardText));
+    }
+
+    /// <summary>
+    /// What <paramref name="command"/> is, and so what running it means — the rules every
+    /// word <see cref="Plan"/> hands on is held to, once its variables and macros are in.
+    /// </summary>
+    /// <param name="wholeLine">
+    /// The item's first line read as one path, asked for only when the first word turns out
+    /// to be a path Klippy would merely show; null when that line is what is being judged.
+    /// </param>
+    private static ExecutionPlan Judge(
+        string command, string[] rest, ExecutionPlatform os, PathProbe disk, Func<string?>? wholeLine)
+    {
         // The one scheme let past the refusal below, and only as far as a document: a
         // file:/// link is how a browser's address bar names a page on disk, and it is the
         // same page as the path it spells. What is judged and what is opened is that path,
@@ -408,12 +423,50 @@ public static class ExecutionPolicy
         // document, it takes no arguments: the rest of the line is left behind.
         if (UnmatchedSearch.IsRooted(command))
         {
-            var disk = paths ?? PathProbe.Real;
+            // Unless the rest of the line is part of the path. A first word that names
+            // nothing Klippy runs has no arguments to keep apart from it, so a space there
+            // is only a space: %protondrive%\Shine Forms\Graphics is one folder, and cutting
+            // it at "Forms" looked for one that is not there. The disk says which reading is
+            // real, and the whole line then meets every rule above as a first word would —
+            // an unquoted C:\Program Files\…\app.exe with nothing after it starts, and a
+            // line that is not on the disk leaves the first word, and the quoting rule, as
+            // they were.
+            if (wholeLine?.Invoke() is { } line && line != command && Exists(line, disk))
+                return Judge(line, [], os, disk, wholeLine: null);
+
             return Reveal(command, EndsWithSeparator(command) || disk.DirectoryExists(command), os);
         }
 
         return Nothing($"\"{Ellipsis(command)}\" is not a URL, a full path, an application or a script Klippy can run.");
     }
+
+    /// <summary>
+    /// The first line of an item read as one path, spaces and all: the variables file's
+    /// names and then the machine's resolved, its macros filled, and a pair of quotes round
+    /// the whole of it taken off. The macros come last, as they do for a first word, so a
+    /// clipboard value is never read for a name.
+    /// </summary>
+    private static string? WholeLine(
+        string? text, EnvironmentProbe machine, IReadOnlyList<string>? arguments, string? clipboardText)
+    {
+        var line = FirstLine(text);
+        if (line.Length == 0) return null;
+
+        var resolved = Macros.Expand(machine.Expand(machine.ExpandDefines(line)), arguments, clipboardText);
+        return Unquote(resolved.Trim());
+    }
+
+    /// <summary>The first line with anything on it, where the first word comes from too.</summary>
+    private static string FirstLine(string? text)
+    {
+        var span = (text ?? "").AsSpan().TrimStart();
+        int end = span.IndexOfAny('\r', '\n');
+        return (end < 0 ? span : span[..end]).Trim().ToString();
+    }
+
+    /// <summary>A full path the disk has something at, folder or file.</summary>
+    private static bool Exists(string path, PathProbe disk) =>
+        UnmatchedSearch.IsRooted(path) && (disk.DirectoryExists(path) || disk.FileExists(path));
 
     /// <summary>
     /// What showing a path in the platform's file manager comes to: a folder opened, and
@@ -588,11 +641,16 @@ public static class ExecutionPolicy
     /// an item <em>should</em> run — only the marker does — and it deliberately does not
     /// read the clipboard: a <c>%C%</c> is taken on trust until the item is actually run.
     /// </summary>
+    /// <param name="paths">
+    /// The disk, asked about the first line as a whole only when its first word would
+    /// merely be shown — the one case where <see cref="Plan"/> asks it too. Null is the real one.
+    /// </param>
     public static bool LooksExecutable(
         string? text,
         ExecutionPlatform? platform = null,
-        EnvironmentProbe? environment = null) =>
-        Read(text, platform, environment).Promise != FirstWord.Nothing;
+        EnvironmentProbe? environment = null,
+        PathProbe? paths = null) =>
+        Read(text, platform, environment, paths).Promise != FirstWord.Nothing;
 
     /// <summary>
     /// The path triggering text would <see cref="Reveal(string, bool, ExecutionPlatform)">show</see>
@@ -605,8 +663,9 @@ public static class ExecutionPolicy
     public static string? PathToReveal(
         string? text,
         ExecutionPlatform? platform = null,
-        EnvironmentProbe? environment = null) =>
-        Read(text, platform, environment) is (FirstWord.Shown, var path) ? path : null;
+        EnvironmentProbe? environment = null,
+        PathProbe? paths = null) =>
+        Read(text, platform, environment, paths) is (FirstWord.Shown, var path) ? path : null;
 
     /// <summary>What the first word of an item promises, as far as it can be told without running it.</summary>
     private enum FirstWord
@@ -618,7 +677,7 @@ public static class ExecutionPolicy
 
     /// <returns>The promise, and the first word it was read from once its variables resolved.</returns>
     private static (FirstWord Promise, string Word) Read(
-        string? text, ExecutionPlatform? platform, EnvironmentProbe? environment)
+        string? text, ExecutionPlatform? platform, EnvironmentProbe? environment, PathProbe? paths)
     {
         // Only the first word, never the whole item: the editor asks this on every
         // keystroke in a content box that may be pages long.
@@ -634,29 +693,44 @@ public static class ExecutionPolicy
         // ever looks at the first word, so a .bat whose *arguments* Plan will refuse
         // reaches Enter looking fine — that gap is older than the variables and unchanged
         // by them.
-        first = (environment ?? EnvironmentProbe.Real).Expand(first);
-        return (Promise(), first);
+        var machine = environment ?? EnvironmentProbe.Real;
+        var os = platform ?? CurrentPlatform;
+        first = machine.Expand(first);
 
-        FirstWord Promise()
-        {
-            if (AsUrl(first) is not null) return FirstWord.Runs;
+        var promise = Promise(first, os);
+        if (promise != FirstWord.Shown) return (promise, first);
 
-            var os = platform ?? CurrentPlatform;
-            if (FileUrlPath(first, os) is { } local) return Runs(DocumentExtension(local) is not null);
-            if (HasScheme(first)) return FirstWord.Nothing; // a scheme the allow-list above turned down
+        // A first word that would only be shown gives way to the whole line where the disk
+        // has it, as it does in Judge — one line, so the cost is a look or two at the disk
+        // and never a read of the whole item. A macro in the line is taken on trust as it
+        // is in a first word: what it holds is not known until it is run.
+        var line = FirstLine(text);
+        if (Macros.IsPresent(line)) return (FirstWord.Runs, first);
 
-            if (DocumentExtension(first) is not null) return Runs(UnmatchedSearch.IsRooted(first));
-            if (ScriptExtension(first) is { } script) return Runs(Supports(script, os));
-            if (BundleOf(first) is not null) return Runs(os == ExecutionPlatform.MacOS);
-            if (ApplicationExtension(first) is { } application) return Runs(Supports(application, os));
+        return WholeLine(line, machine, null, null) is { } whole && whole != first && Exists(whole, paths ?? PathProbe.Real)
+            ? (Promise(whole, os), whole)
+            : (promise, first);
+    }
 
-            // Anything else with a full path is shown where it lies, on Explorer's terms
-            // where Explorer is what shows it. A folder and a file both count: which one it
-            // is waits for the disk.
-            return UnmatchedSearch.IsRooted(first) && Reveal(first, isFolder: false, os).Kind != ExecutionKind.None
-                ? FirstWord.Shown
-                : FirstWord.Nothing;
-        }
+    /// <summary>What a word promises once its variables have resolved.</summary>
+    private static FirstWord Promise(string word, ExecutionPlatform os)
+    {
+        if (AsUrl(word) is not null) return FirstWord.Runs;
+
+        if (FileUrlPath(word, os) is { } local) return Runs(DocumentExtension(local) is not null);
+        if (HasScheme(word)) return FirstWord.Nothing; // a scheme the allow-list above turned down
+
+        if (DocumentExtension(word) is not null) return Runs(UnmatchedSearch.IsRooted(word));
+        if (ScriptExtension(word) is { } script) return Runs(Supports(script, os));
+        if (BundleOf(word) is not null) return Runs(os == ExecutionPlatform.MacOS);
+        if (ApplicationExtension(word) is { } application) return Runs(Supports(application, os));
+
+        // Anything else with a full path is shown where it lies, on Explorer's terms
+        // where Explorer is what shows it. A folder and a file both count: which one it
+        // is waits for the disk.
+        return UnmatchedSearch.IsRooted(word) && Reveal(word, isFolder: false, os).Kind != ExecutionKind.None
+            ? FirstWord.Shown
+            : FirstWord.Nothing;
 
         static FirstWord Runs(bool can) => can ? FirstWord.Runs : FirstWord.Nothing;
     }
