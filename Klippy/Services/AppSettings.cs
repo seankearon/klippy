@@ -258,7 +258,7 @@ public sealed class AppSettings
         var tmp = path + ".tmp";
         using (var stream = File.Create(tmp))
             JsonSerializer.Serialize(stream, this, SettingsJsonContext.Default.AppSettings);
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.Replace(tmp, path);
     }
 }
 
