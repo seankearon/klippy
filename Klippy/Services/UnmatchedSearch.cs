@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Klippy.Services;
@@ -73,6 +74,49 @@ public static class UnmatchedSearch
 
         return AsPath(text, verifyPaths, os, probe ?? PathProbe.Real, environment ?? EnvironmentProbe.Real);
     }
+
+    /// <summary>
+    /// What a line that names one of Klippy's own defines is offered as: each value the name
+    /// stands for, read as though that value had been typed instead. <c>klippy</c>, given
+    /// once as a folder and once as the solution in it, offers to open the one and to show
+    /// the other; a <c>jira</c> holding a link offers to open it.
+    ///
+    /// Which values a line names is <see cref="KlippyVariables.ValuesOf"/>'s answer, and
+    /// what each one may become is <see cref="Plan"/>'s, unchanged — so a value is held to
+    /// every rule a typed line is: a rooted path, a file shown rather than opened, the web
+    /// schemes and nothing else. Being written into a file makes it no more runnable than
+    /// typing it would. A value that comes to nothing is left out, and so is one that comes
+    /// to the same thing as a value before it.
+    /// </summary>
+    /// <param name="variables">The defines to read the line against — the file in force, for the app.</param>
+    public static IReadOnlyList<ExecutionPlan> PlanDefine(
+        string? query,
+        KlippyVariables variables,
+        bool verifyPaths = true,
+        ExecutionPlatform? platform = null,
+        PathProbe? probe = null,
+        EnvironmentProbe? environment = null)
+    {
+        var plans = new List<ExecutionPlan>();
+        foreach (var value in variables.ValuesOf((query ?? "").Trim()))
+        {
+            var plan = Plan(value, verifyPaths, platform, probe, environment);
+            if (plan.Kind != ExecutionKind.None && !plans.Exists(p => IsSame(p, plan)))
+                plans.Add(plan);
+        }
+        return plans;
+    }
+
+    /// <summary>
+    /// Whether two offers would do the same thing, so that one line is never offered the
+    /// same folder twice — once because it resolved there, and again because a define
+    /// named it. A path is compared without regard to case, as Windows and macOS read one.
+    /// </summary>
+    public static bool IsSame(ExecutionPlan a, ExecutionPlan b) =>
+        a.Kind == b.Kind
+        && a.Action == b.Action
+        && string.Equals(a.Target, b.Target, StringComparison.OrdinalIgnoreCase)
+        && a.Arguments.AsSpan().SequenceEqual(b.Arguments);
 
     /// <summary>
     /// Whether what the line names could also have been meant as a search for an item.
@@ -167,7 +211,10 @@ public static class UnmatchedSearch
     private static ExecutionPlan AsPath(
         string text, bool verifyPaths, ExecutionPlatform os, PathProbe probe, EnvironmentProbe machine)
     {
-        var path = machine.Expand(text);
+        // Quotes again once the variables are in, since a value may be written the way a
+        // shell wants it — klippy="D:\main\Klippy" — and running takes that pair back off,
+        // as a marked item's line always has. %klippy% typed here is the same request.
+        var path = Unquote(machine.Expand(text));
         if (!IsRooted(path)) return Nothing;
 
         // The extension is asked before the disk is, because a macOS .app bundle *is* a

@@ -37,12 +37,23 @@ public sealed class KlippyVariables
     public const string DefaultFileName = "variables.txt";
 
     private readonly Dictionary<string, string[]> _defines;
+
+    /// <summary>
+    /// Every name the file defines, in the order each first appears. The dictionary above
+    /// answers a lookup; this is for the one question that has to walk the names, and walk
+    /// them in the order a person reading the file would.
+    /// </summary>
+    private readonly IReadOnlyList<string> _names;
+
     private readonly DateTime _stamp;
     private readonly long _length;
 
-    private KlippyVariables(Dictionary<string, string[]> defines, string filePath, bool exists, DateTime stamp, long length)
+    private KlippyVariables(
+        Dictionary<string, string[]> defines, IReadOnlyList<string> names,
+        string filePath, bool exists, DateTime stamp, long length)
     {
         _defines = defines;
+        _names = names;
         FilePath = filePath;
         Exists = exists;
         _stamp = stamp;
@@ -125,16 +136,8 @@ public sealed class KlippyVariables
         // per placeholder, and the two agree wherever both are used.
         if (Macros.IsExact(qualifier)) return null;
 
-        // A pair around the whole word, and only there. "100%off%x" is a word with
-        // percent signs in it, not a name, and Get would turn it down anyway — a name
-        // that contains one could never have been written as %name%.
-        if (word.Length >= 2 && word[0] == '%' && word[^1] == '%')
-        {
-            // %C% and %P% are the item's placeholders. A file that defines c or p does
-            // not get to swallow them here any more than it does in Expand.
-            if (Macros.IsPresent(word)) return null;
-            word = word[1..^1];
-        }
+        if (NameIn(word) is not { } name) return null;
+        word = name;
 
         // A flavour named in the word itself is taken at its word: what the item would
         // have asked for does not overrule what somebody typed, and there is no falling
@@ -149,6 +152,67 @@ public sealed class KlippyVariables
         // The flavour asked for, then the bare name: putting a %P:file% on an item must
         // not stop it working with the defines that have no flavours at all.
         return Get(word + ':' + qualifier) ?? OfFlavour(word, qualifier) ?? Get(word);
+    }
+
+    /// <summary>
+    /// Every value a whole word could stand for, where <see cref="ValueOf"/> gives the one
+    /// it stands for on its own: what typing a name into the search box offers, so that
+    /// <c>klippy</c>, given once as a folder and once as the solution in it, offers both.
+    ///
+    /// The value the name means on its own comes first — the last of its lines, as
+    /// <see cref="Get"/> has always read it — and then the rest in the order the file
+    /// gives them: the name's other lines, and then each flavour written out in full, as
+    /// <c>klippy:docs=…</c>. Those are the name's too; spelling the flavour into the name is
+    /// how the file says which is which where the value cannot, and a line written that way
+    /// is no less one of the name's values for it. A value given twice is offered once.
+    ///
+    /// The word is read exactly as an argument is: bare or as <c>%name%</c>, the file's
+    /// names and never the machine's — typing <c>path</c> is not asking for
+    /// <c>%PATH%</c> — and a flavour named in the word is taken at its word, so
+    /// <c>klippy:file</c> offers that line and no other. Quotes around it make it the word
+    /// itself, as they do after a quick-code: <c>"klippy"</c> names nothing.
+    /// </summary>
+    public IReadOnlyList<string> ValuesOf(string? word)
+    {
+        if (string.IsNullOrEmpty(word) || NameIn(word) is not { Length: > 0 } name) return [];
+
+        if (name.Contains(':')) return ValueOf(name) is { } flavoured ? [flavoured] : [];
+
+        var values = new List<string>();
+        if (_defines.TryGetValue(name, out var own))
+        {
+            values.Add(own[^1]);
+            for (int i = 0; i < own.Length - 1; i++) Add(own[i]);
+        }
+
+        var flavour = name + ':';
+        foreach (var defined in _names)
+            if (defined.StartsWith(flavour, StringComparison.OrdinalIgnoreCase))
+                foreach (var value in _defines[defined])
+                    Add(value);
+
+        return values;
+
+        void Add(string value)
+        {
+            if (!values.Contains(value)) values.Add(value);
+        }
+    }
+
+    /// <summary>
+    /// The name a whole word spells: the word itself, or what is inside a pair of percent
+    /// signs around the whole of it. Null for <c>%C%</c> and <c>%P%</c>, which are an
+    /// item's placeholders — a file that defines c or p does not get to swallow them here
+    /// any more than it does in <see cref="Expand(string?)"/>.
+    ///
+    /// A pair around the whole word, and only there. "100%off%x" is a word with percent
+    /// signs in it, not a name, and <see cref="Get"/> would turn it down anyway — a name
+    /// that contains one could never have been written as <c>%name%</c>.
+    /// </summary>
+    private static string? NameIn(string word)
+    {
+        if (word.Length < 2 || word[0] != '%' || word[^1] != '%') return word;
+        return Macros.IsPresent(word) ? null : word[1..^1];
     }
 
     /// <summary>
@@ -300,19 +364,25 @@ public sealed class KlippyVariables
         try
         {
             if (exists)
-                return new KlippyVariables(Resolve(ParseLines(File.ReadAllText(path))), path, true, stamp, length);
+                return FromText(File.ReadAllText(path), path, stamp, length);
         }
         catch (Exception)
         {
             // Unreadable — locked, or not text. Still report it as there, since "no file
             // yet" would send someone off to create the one they already have.
         }
-        return new KlippyVariables(NewMap(), path, exists, stamp, length);
+        return new KlippyVariables(NewMap(), [], path, exists, stamp, length);
     }
 
     /// <summary>Parses file contents directly, for tests and for callers holding the text.</summary>
     public static KlippyVariables Parse(string text, string filePath = "") =>
-        new(Resolve(ParseLines(text)), filePath, true, default, 0);
+        FromText(text, filePath, default, 0);
+
+    private static KlippyVariables FromText(string text, string filePath, DateTime stamp, long length)
+    {
+        var (raw, names) = ParseLines(text);
+        return new KlippyVariables(Resolve(raw), names, filePath, true, stamp, length);
+    }
 
     private static (DateTime Stamp, long Length) Fingerprint(string path)
     {
@@ -341,11 +411,13 @@ public sealed class KlippyVariables
     ///
     /// A name given more than once keeps every line, in the order they were written. The
     /// last of them is what the name means on its own; the others are reached by flavour —
-    /// see <see cref="ValueOf"/>.
+    /// see <see cref="ValueOf"/>. The names come back in the order each first appears, as
+    /// well, since a dictionary promises no order of its own.
     /// </summary>
-    private static Dictionary<string, List<string>> ParseLines(string text)
+    private static (Dictionary<string, List<string>> Raw, List<string> Names) ParseLines(string text)
     {
         var raw = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var names = new List<string>();
         foreach (var rawLine in text.Split('\n'))
         {
             var line = rawLine.Trim();
@@ -362,10 +434,14 @@ public sealed class KlippyVariables
             if (name.Length >= 2 && name[0] == '%' && name[^1] == '%') name = name[1..^1];
             if (!IsUsableName(name)) continue;
 
-            if (!raw.TryGetValue(name, out var values)) raw[name] = values = new List<string>(1);
+            if (!raw.TryGetValue(name, out var values))
+            {
+                raw[name] = values = new List<string>(1);
+                names.Add(name);
+            }
             values.Add(line[(eq + 1)..].TrimStart());
         }
-        return raw;
+        return (raw, names);
     }
 
     /// <summary>

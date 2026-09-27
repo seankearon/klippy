@@ -25,7 +25,7 @@ public class VariablesTests
     /// reads <see cref="KlippyVariables.Current"/>, so a test that wants variables in force
     /// has to give the app a file rather than an object.
     /// </summary>
-    private sealed class VariablesFileScope : IDisposable
+    internal sealed class VariablesFileScope : IDisposable
     {
         private readonly string _previous = AppSettings.Current.VariablesFile;
         private readonly string _path =
@@ -596,6 +596,79 @@ public class VariablesTests
             PlanFor("%r% %P:file%", "r klippy", vars).Arguments);
         Assert.Equal(new[] { "D:\\main\\Klippy" },
             PlanFor("%r% %P:folder%", "r klippy", vars).Arguments);
+    }
+
+    // ---- every value a typed name stands for ----
+    //
+    // What typing a name into the search box offers: all of them, not just the one the
+    // name means on its own.
+
+    [Fact]
+    public void ValuesOf_AName_IsEveryLine_TheOneItMeansOnItsOwnFirst()
+    {
+        var vars = Vars("klippy=D:\\main\\Klippy\nklippy=D:\\main\\Klippy\\Klippy.slnx");
+
+        Assert.Equal(new[] { "D:\\main\\Klippy\\Klippy.slnx", "D:\\main\\Klippy" }, vars.ValuesOf("klippy"));
+        Assert.Equal(vars.Get("klippy"), vars.ValuesOf("klippy")[0]);
+    }
+
+    [Fact]
+    public void ValuesOf_AFlavourWrittenIntoTheName_IsOneOfTheNamesValues()
+    {
+        // The file spells the flavour out where the value cannot say which it is; the line
+        // is no less one of klippy's for being written that way. In the file's own order.
+        Assert.Equal(new[] { "D:\\dev\\klippy", "D:\\dev\\klippy\\klippy.slnx" },
+            Vars(TwoFlavours).ValuesOf("klippy"));
+
+        var mixed = Vars(
+            "app:docs=D:\\src\\app\\docs\\README.md\n" +
+            "app=D:\\src\\app\n" +
+            "app:folder=D:\\src\\app.old");
+        Assert.Equal(new[] { "D:\\src\\app", "D:\\src\\app\\docs\\README.md", "D:\\src\\app.old" },
+            mixed.ValuesOf("app"));
+    }
+
+    [Fact]
+    public void ValuesOf_PercentSignsAroundTheName_AreTheSameRequest()
+    {
+        var vars = Vars(TwoFlavours);
+        Assert.Equal(vars.ValuesOf("klippy"), vars.ValuesOf("%klippy%"));
+        Assert.Equal(vars.ValuesOf("klippy"), vars.ValuesOf("KLIPPY"));
+    }
+
+    [Fact]
+    public void ValuesOf_AFlavourNamedInTheWord_IsThatLineAlone()
+    {
+        // Taken at its word, as it is after a quick-code — worked out from the values or
+        // written out in the file, and nothing where nothing answers.
+        var worked = Vars("klippy=D:\\main\\Klippy\nklippy=D:\\main\\Klippy\\Klippy.slnx");
+        Assert.Equal(new[] { "D:\\main\\Klippy" }, worked.ValuesOf("klippy:folder"));
+        Assert.Equal(new[] { "D:\\main\\Klippy\\Klippy.slnx" }, worked.ValuesOf("%klippy:file%"));
+        Assert.Empty(worked.ValuesOf("klippy:docs"));
+        Assert.Empty(worked.ValuesOf("klippy:")); // still being typed
+
+        Assert.Equal(new[] { "D:\\dev\\klippy" }, Vars(TwoFlavours).ValuesOf("klippy:folder"));
+    }
+
+    [Fact]
+    public void ValuesOf_AValueGivenTwice_IsOfferedOnce()
+    {
+        var vars = Vars("app=D:\\src\\app\napp:folder=D:\\src\\app\napp=D:\\src\\app");
+        Assert.Equal(new[] { "D:\\src\\app" }, vars.ValuesOf("app"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("nothing")]
+    [InlineData("\"klippy\"")]   // quoted, it is the word itself
+    [InlineData("klippy files")] // a name holds no whitespace, so this is a search
+    [InlineData("%C%")]          // placeholders, however the file reads
+    [InlineData("%P%")]
+    [InlineData("TEMP")]         // the machine's names are not the file's
+    public void ValuesOf_AnythingButANameTheFileDefines_IsNothing(string word)
+    {
+        var vars = Vars(TwoFlavours + "\nc=D:\\c\np=D:\\p");
+        Assert.Empty(vars.ValuesOf(word));
     }
 
     // ---- an item may name the flavour too ----

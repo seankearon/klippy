@@ -67,7 +67,6 @@ public partial class MainViewModel : ViewModelBase
     private string _filterText = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOfferSelected))]
     private RowViewModel? _selectedSnippet;
 
     [ObservableProperty]
@@ -83,19 +82,34 @@ public partial class MainViewModel : ViewModelBase
     private SettingsViewModel? _settings;
 
     /// <summary>
-    /// What Enter would run instead of copying, when the search matched nothing but named
-    /// something runnable. Null the rest of the time, which is nearly always.
+    /// What the line is offered as instead of being copied, top to bottom above the list:
+    /// what the line itself names, when it names something runnable, and then each value of
+    /// a define it names — two, for a name given twice. Empty the rest of the time, which is
+    /// nearly always.
     /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOfferSelected))]
-    private OfferViewModel? _offer;
+    public ObservableCollection<OfferViewModel> Offers { get; } = new();
+
+    /// <summary>The offer at the top, or null when there is none. Nearly always the only one.</summary>
+    public OfferViewModel? Offer => Offers.Count > 0 ? Offers[0] : null;
+
+    public bool HasOffers => Offers.Count > 0;
 
     /// <summary>
-    /// Whether the offer, rather than a row, is the thing Enter will act on. Exactly one of
-    /// the two may say so — the view shows its accent bar and its ↵ badge from this, as the
-    /// list shows a row's from being selected.
+    /// Which of <see cref="Offers"/> holds the selection while no row does. An index rather
+    /// than the offer itself, so a row taking the selection needs nothing put back.
     /// </summary>
-    public bool IsOfferSelected => Offer is not null && SelectedSnippet is null;
+    private int _offerIndex;
+
+    /// <summary>
+    /// The offer Enter will act on: null while a row holds the selection, or while nothing
+    /// is on offer. Exactly one of the two may hold it — the view shows the accent bar and
+    /// the ↵ badge from this, as the list shows a row's from being selected.
+    /// </summary>
+    public OfferViewModel? SelectedOffer =>
+        SelectedSnippet is null && Offers.Count > 0 ? Offers[Math.Min(_offerIndex, Offers.Count - 1)] : null;
+
+    /// <summary>Whether an offer, rather than a row, is the thing Enter will act on.</summary>
+    public bool IsOfferSelected => SelectedOffer is not null;
 
     /// <summary>A machine control waiting to be confirmed. Drives the confirmation overlay.</summary>
     [ObservableProperty]
@@ -357,6 +371,11 @@ public partial class MainViewModel : ViewModelBase
     /// themselves are mostly paths and links: there a line that looks like one is far more
     /// likely to be someone hunting for the clip they copied than an instruction, so a
     /// matching clip wins whatever was typed.
+    ///
+    /// A line that names a define in the variables file is offered as each of its values
+    /// as well, below whatever the line itself was offered as — see
+    /// <see cref="UnmatchedSearch.PlanDefine"/>. Those stand the way quit does: a matching
+    /// row does not take them away, and does keep the selection.
     /// </summary>
     private void UpdateOffer()
     {
@@ -370,47 +389,96 @@ public partial class MainViewModel : ViewModelBase
         // only the offer's own standing that stops depending on the list being empty.
         if (CanQuit && Names(FilterText, QuitWord))
         {
-            Offer = OfferViewModel.Quit();
+            ShowOffers([OfferViewModel.Quit()], takeSelection: false);
             return;
         }
 
         if (!_prefs.ExecuteUnmatched || !CanExecuteUnmatched)
         {
-            Offer = null;
+            ShowOffers([], takeSelection: false);
             return;
         }
 
         // Only a rooted path ever reaches the file system here, so an ordinary search word
-        // costs the same as it did when this ran on an empty list alone.
+        // costs the same as it did when this ran on an empty list alone — unless it is the
+        // name of a define, which is what asks for the values it stands for to be looked at.
         //
         // The same environment a marked item is resolved against, variables file included:
         // two routes to the same launcher must not disagree about what %ws% means any more
         // than about what %LOCALAPPDATA% does.
-        var plan = UnmatchedSearch.Plan(
-            FilterText,
-            _prefs.ExecuteVerifyPaths,
-            environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real));
-        if (plan.Kind == ExecutionKind.None)
+        var variables = KlippyVariables.Current;
+        var environment = variables.Ahead(EnvironmentProbe.Real);
+        var plans = new List<ExecutionPlan>();
+
+        var plan = UnmatchedSearch.Plan(FilterText, _prefs.ExecuteVerifyPaths, environment: environment);
+        if (plan.Kind != ExecutionKind.None)
         {
-            Offer = null;
-            return;
+            bool beatenByAMatch = Filtered.Count > 0
+                                  && (IsHistoryMode || UnmatchedSearch.CouldBeASearch(plan) || AnItemIsTheLine(plan));
+            if (!beatenByAMatch) plans.Add(plan);
         }
 
-        bool beatenByAMatch = Filtered.Count > 0
-                              && (IsHistoryMode || UnmatchedSearch.CouldBeASearch(plan) || AnItemIsTheLine(plan));
-        if (beatenByAMatch)
+        // Standing beside a list that still has rows in it, what the line itself names is
+        // what Enter acts on — so the selection comes off the list, since a row that is not
+        // getting the keystroke must not sit there wearing the badge that says it is. ↓
+        // moves back in, and from there Enter activates the row as it always did.
+        bool takeSelection = plans.Count > 0;
+
+        // A line that is the name of a define, offered as each value it stands for. After
+        // the line's own offer, so adding a define never changes what Enter did to a line
+        // before it; and not a reason to take the selection from a row, the way quit is
+        // not, because a bare name is an ordinary word — "app" is a search as often as it is
+        // anything — and every snippet written with %app% in it answers to it. Being shown
+        // is the whole of what a name is owed here: ↑ from the top row reaches it.
+        //
+        // Snippets only. In the history a line is someone hunting for a clip, and a name is
+        // no less likely to be that than a path is.
+        if (!IsHistoryMode)
         {
-            Offer = null;
-            return;
+            var defines = UnmatchedSearch.PlanDefine(
+                FilterText, variables, _prefs.ExecuteVerifyPaths, environment: environment);
+            foreach (var value in defines)
+                if (!plans.Exists(p => UnmatchedSearch.IsSame(p, value)))
+                    plans.Add(value);
         }
 
-        Offer = new OfferViewModel(plan);
+        ShowOffers(plans.ConvertAll(p => new OfferViewModel(p)), takeSelection);
+    }
 
-        // Standing beside a list that still has rows in it, the offer is what Enter acts
-        // on — so the selection comes off the list, since a row that is not getting the
-        // keystroke must not sit there wearing the badge that says it is. ↓ moves back in,
-        // and from there Enter activates the row as it always did.
-        if (Filtered.Count > 0) SelectedSnippet = null;
+    /// <summary>
+    /// Puts up what the line is offered as, in place of whatever was before. The top offer
+    /// holds the selection whenever no row does — which, with nothing matching, is always —
+    /// and <paramref name="takeSelection"/> says whether it takes the selection from a row.
+    /// </summary>
+    private void ShowOffers(IReadOnlyList<OfferViewModel> offers, bool takeSelection)
+    {
+        // Every keystroke comes through here, and nearly every one with nothing on offer
+        // either side of it: nothing to tell the view.
+        if (Offers.Count > 0 || offers.Count > 0)
+        {
+            Offers.Clear();
+            foreach (var offer in offers) Offers.Add(offer);
+            OnPropertyChanged(nameof(Offer));
+            OnPropertyChanged(nameof(HasOffers));
+        }
+
+        _offerIndex = 0;
+        if (takeSelection && Offers.Count > 0) SelectedSnippet = null;
+        SyncOfferSelection();
+    }
+
+    partial void OnSelectedSnippetChanged(RowViewModel? value) => SyncOfferSelection();
+
+    /// <summary>
+    /// Tells each offer whether it is the one holding the selection, after anything that
+    /// could have moved it: a row taking it, the offers changing, or the arrows.
+    /// </summary>
+    private void SyncOfferSelection()
+    {
+        var selected = SelectedOffer;
+        foreach (var offer in Offers) offer.IsSelected = ReferenceEquals(offer, selected);
+        OnPropertyChanged(nameof(SelectedOffer));
+        OnPropertyChanged(nameof(IsOfferSelected));
     }
 
     private void RefreshSnippets()
@@ -827,19 +895,21 @@ public partial class MainViewModel : ViewModelBase
         wanted.Length > 0 && string.Equals(text?.Trim(), wanted, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Runs the offer, or puts a machine control up for confirmation first.
+    /// Runs an offer, or puts a machine control up for confirmation first: the one clicked,
+    /// or — from Enter, which names none — the one holding the selection, and failing that
+    /// the one at the top.
     ///
-    /// Only ever reachable while <see cref="Offer"/> is set, which is only while the search
-    /// matched nothing — so this can never fire instead of a copy.
+    /// Only ever reachable while something is on offer, and Enter only comes here while no
+    /// row holds the selection — so this can never fire instead of a copy.
     /// </summary>
     [RelayCommand]
-    private Task RunOffer()
+    private Task RunOffer(OfferViewModel? offer)
     {
-        if (Offer is not { } offer) return Task.CompletedTask;
+        if ((offer ?? SelectedOffer ?? Offer) is not { } chosen) return Task.CompletedTask;
 
-        if (!offer.NeedsConfirmation(_prefs)) return Run(offer);
+        if (!chosen.NeedsConfirmation(_prefs)) return Run(chosen);
 
-        PendingOffer = offer;
+        PendingOffer = chosen;
         return Task.CompletedTask;
     }
 
@@ -955,19 +1025,30 @@ public partial class MainViewModel : ViewModelBase
     private Task CopySelected() => Copy(SelectedSnippet);
 
     /// <summary>
-    /// Moves the selection through the list — and, where there is an offer standing above
-    /// it, on and off that too. The offer is index -1: the up arrow has to be able to get
-    /// back to it, or looking at what else matched would put the only thing Enter was going
-    /// to run permanently out of reach.
+    /// Moves the selection through the list — and, where there are offers standing above
+    /// it, on and off those too. They are one column: the rows from 0 down, and the offers
+    /// at -1, -2 and on up the window from the list. The up arrow has to be able to get back
+    /// to them, or looking at what else matched would put what Enter was going to run
+    /// permanently out of reach.
     /// </summary>
     public void MoveSelection(int delta)
     {
-        if (Filtered.Count == 0) return;
+        if (Filtered.Count == 0 && Offers.Count == 0) return;
 
-        int floor = Offer is null ? 0 : -1;
-        int index = SelectedSnippet is null ? -1 : Filtered.IndexOf(SelectedSnippet);
-        index = Math.Clamp(index + delta, floor, Filtered.Count - 1);
-        SelectedSnippet = index < 0 ? null : Filtered[index];
+        int position = SelectedSnippet is { } row ? Filtered.IndexOf(row)
+            : Offers.Count > 0 ? _offerIndex - Offers.Count
+            : -1;
+        position = Math.Clamp(position + delta, -Offers.Count, Filtered.Count - 1);
+
+        if (position >= 0)
+        {
+            SelectedSnippet = Filtered[position];
+            return;
+        }
+
+        _offerIndex = position + Offers.Count;
+        SelectedSnippet = null;
+        SyncOfferSelection(); // the selection may have moved between two offers, which no row noticed
     }
 
     // ---- the command MRU ----

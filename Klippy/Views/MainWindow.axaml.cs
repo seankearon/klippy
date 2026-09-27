@@ -246,9 +246,9 @@ public partial class MainWindow : Window
                     vm.ActivateSelectedCommand.Execute(null);
                     e.Handled = true;
                 }
-                else if (vm.Offer is not null)
+                else if (vm.SelectedOffer is { } offer)
                 {
-                    vm.RunOfferCommand.Execute(null);
+                    vm.RunOfferCommand.Execute(offer);
                     e.Handled = true;
                 }
                 break;

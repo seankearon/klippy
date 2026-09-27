@@ -43,7 +43,7 @@ rather than copies, which is why all three default to the cautious answer.
 
 | Toggle | On (default) | Off |
 |---|---|---|
-| **Run it** | A search that matched nothing and names something runnable is offered, and `Enter` runs it | `Enter` does nothing, as it always did on an empty list |
+| **Run it** | A search that matched nothing and names something runnable is offered, and `Enter` runs it — as is each value of a [define](variables.md#typing-a-name) typed by name | `Enter` does nothing, as it always did on an empty list |
 | **Verify paths** | Only a path that is really there is offered | Any rooted path is offered and the OS reports the failure — for a share that is slow to answer, or a path that does not exist yet |
 | **Confirm OS actions** | Lock, sleep, hibernate and restart ask first; `Enter` again confirms | They run on the `Enter` that offered them |
 

@@ -46,6 +46,7 @@ path first, variables and all: a folder opens, and a file is selected in its fol
 A `variables.txt` file holds local defines that resolve into snippets at trigger time and
 are **never exported** — so a snippet can carry your account number without the export
 carrying it too. One name can hold two flavours, and the item picks the one it needs.
+Type a name on its own and Klippy offers to open or run each value it stands for.
 
 → [Variables](https://seankearon.github.io/klippy/variables/)
 

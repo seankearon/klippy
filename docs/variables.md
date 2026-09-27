@@ -227,6 +227,51 @@ The rest of the rules:
   the one flavour name you cannot invent, though a define written as `x:exact` still answers
   to `%x:exact%` in a snippet like any other name.
 
+## Typing a name
+
+A define is somewhere to go as well as something to paste. Type its name into the search box
+on its own — `klippy`, or `%klippy%`, which is the same request — and Klippy offers each
+value it stands for, one band apiece above the list, as it offers any
+[line that names something runnable](unmatched-search.md). With the file from the section
+above:
+
+| Band | Reached by |
+|---|---|
+| **Show in Explorer** `D:\main\Klippy\Klippy.slnx` | `Enter` — this is what `klippy` means on its own |
+| **Open folder** `D:\main\Klippy` | `↓` and then `Enter`, or a click |
+
+- **The value the name means on its own comes first** and has `Enter`: the last of its
+  lines, which is what `%klippy%` in an item reads. Then its other lines, and then each
+  flavour spelled into a name — a `klippy:docs=…` line is one of klippy's values too — in
+  the order the file gives them. Two values that come to the same thing are offered once.
+- **Each value is read as though you had typed it**, so everything
+  [Running an unmatched search](unmatched-search.md) says about a typed line holds: a folder
+  opens, a file is [shown](running-things.md#showing-where-a-file-is) rather than opened, a
+  script or application runs, an `http:`, `https:` or `www.` link opens — and a value that
+  is none of those, an account number say, is not offered at all. Being written into this
+  file makes a value no more runnable than typing it would. The quotes a shell wants come
+  off, as they do when a marked item runs.
+- **The name is read the way an [argument](#variables-as-arguments) is.** `klippy:folder`
+  offers that one line; `"klippy"` in quotes is the word itself, and offers nothing; and
+  only the file's names count, so typing `path` is not asking for `%PATH%`.
+- **A snippet that matches keeps `Enter`.** The search reads words, so every snippet with
+  `%klippy%` in it answers to `klippy` — a match cannot be what takes the values away. But
+  a bare name is as often a search as it is anything else, so the values do not take the
+  keystroke from that row either: they stand above it, and `↑` from the top row climbs
+  into them, nearest first. With nothing matching, the top band has `Enter` from the start.
+  It is the standing [quit](quitting.md) has, for much the same reason — and it is why a
+  name that is also a quick-code, the `r` that is Rider and the code of the item that
+  opens things in it, still reaches that item on `Enter`.
+- **What the line already meant comes first, and keeps `Enter`.** Adding a define never
+  changes what a line did before it: a file that defines `restart` does not stop `restart`
+  from offering to restart the machine; it adds a band below it.
+- **Snippets only.** In the [clipboard history](clipboard-history.md) a line is someone
+  hunting for a clip they copied, and a name is as likely to be that as a path is.
+
+It goes with the rest of the offers: desktop only, and off when **Run it** is off in
+[Settings](settings.md). **Verify paths** applies as it does to a typed path, so a value
+naming a folder that is not on this machine is left out rather than offered to fail.
+
 ## Getting at the file
 
 The **FILES** block in Settings does the whole job, because hunting down `%APPDATA%` to
