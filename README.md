@@ -34,6 +34,9 @@ open, a script you want run, or an application you want started. A snippet can b
 the marker nothing runs: Klippy never decides on its own that a snippet looks like a link
 and should therefore be launched.
 
+Which kinds of file open, beyond pages, PDFs, pictures and macro-free Office files, is yours
+to add to in Settings — `.slnx`, say, so a solution opens in your IDE.
+
 A snippet or a clip that names a file or folder can also be **shown in Explorer or Finder**
 with `Ctrl/⌘+R` — marked or not, since showing something runs nothing. Klippy resolves the
 path first, variables and all: a folder opens, and a file is selected in its folder.
@@ -67,11 +70,11 @@ Everything above, in full:
 | | |
 | --- | --- |
 | [Finding snippets](https://seankearon.github.io/klippy/finding-snippets/) | Quick-codes, search, ranking, the keyboard |
-| [Running things](https://seankearon.github.io/klippy/running-things/) | Links, documents, scripts, applications, macros, environment variables, showing files in Explorer / Finder |
+| [Running things](https://seankearon.github.io/klippy/running-things/) | Links, documents, scripts, applications, macros, environment variables, opening other kinds of file, showing files in Explorer / Finder |
 | [Running an unmatched search](https://seankearon.github.io/klippy/unmatched-search/) | Typing a line nothing matches, and running it |
 | [Recent commands](https://seankearon.github.io/klippy/recent-commands/) | The MRU, and what stays out of it |
 | [Markdown snippets](https://seankearon.github.io/klippy/markdown-snippets/) | Pasting rich text into editors that accept it |
-| [Variables](https://seankearon.github.io/klippy/variables/) | Local defines, resolution order, arguments, flavours |
+| [Variables](https://seankearon.github.io/klippy/variables/) | Local defines, resolution order, arguments, flavours, typing a name to open what it stands for |
 | [Clipboard history](https://seankearon.github.io/klippy/clipboard-history/) | Text, files and images on Windows |
 | [Global hotkeys](https://seankearon.github.io/klippy/global-hotkeys/) | Summoning Klippy from anywhere |
 | [Settings](https://seankearon.github.io/klippy/settings/) | Every setting and what it changes |

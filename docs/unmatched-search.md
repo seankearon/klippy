@@ -87,6 +87,11 @@ run on this platform, and nothing besides. Folders and files are the additions �
 executed — so a typed `C:\work\notes.txt` offers *Show in Explorer*, and `C:\work\setup.hta`
 is pointed at in its folder rather than run.
 
+The one line these narrowings do not reach is the name of a variable. Typing `klippy` is
+not a path landing in a filter box but a name you defined, standing for values you wrote —
+so those values are read as an item marked Execute reads its text, and a file among them
+can open. See [Typing a name](variables.md#typing-a-name).
+
 **Quotes come off.** Explorer's Shift+right-click → *Copy as path* wraps what it gives you
 in double quotes, whether or not the path has a space in it, so a pasted path would
 otherwise be a string starting with a quote and match nothing at all. A line wrapped in a

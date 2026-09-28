@@ -170,7 +170,7 @@
                     <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
                                TextWrapping="Wrap"
                                Foreground="{StaticResource MutedBrush}"
-                               Text="When nothing matches, Enter opens a link or folder, shows a file, runs a program, or does lock / sleep / hibernate / restart." />
+                               Text="When nothing matches, Enter opens a link or folder, shows a file, runs a program, or does lock / sleep / hibernate / restart. A variable's name offers what it stands for." />
                   </Grid>
 
                   <!-- Both only mean anything while there is something to run. -->
