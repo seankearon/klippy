@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Klippy.Services;
@@ -73,6 +74,114 @@ public static class UnmatchedSearch
 
         return AsPath(text, verifyPaths, os, probe ?? PathProbe.Real, environment ?? EnvironmentProbe.Real);
     }
+
+    /// <summary>
+    /// What a line that names one of Klippy's own defines is offered as: each value the name
+    /// stands for, read the way an item marked Execute reads its text. <c>klippy</c>, given
+    /// once as a folder and once as the solution in it, offers to open the folder and to
+    /// show the solution — or to open the solution, where <c>.slnx</c> is one of the kinds
+    /// the settings say to open.
+    ///
+    /// A marked item's rules rather than a typed line's, because a value is not something
+    /// that landed in a filter box: it was written into a file of the user's own, as an
+    /// item's text is, and the name that reached it was typed on purpose. So a document
+    /// opens, a <c>mailto:</c> is a link, and a program keeps the arguments the value gives
+    /// it — all of it still the allow-list <see cref="ExecutionPolicy.Plan"/> applies to
+    /// every item, and nothing past it.
+    ///
+    /// Three things are narrower than for an item, since this is an offer made on a
+    /// keystroke rather than a line someone chose to run:
+    /// <list type="bullet">
+    /// <item>A value carrying <c>%P%</c> or <c>%C%</c> is a template for an item rather
+    /// than somewhere to go, and is left out: an offer has no arguments to fill it, and
+    /// never reads the clipboard to draw itself.</item>
+    /// <item>A path is only offered where it is there, as a typed one is — unless
+    /// <paramref name="verifyPaths"/> says otherwise, and a file to be shown is looked for
+    /// either way, since nothing else says what is being pointed at.</item>
+    /// <item>A file that would be opened is also offered to be shown, straight after it:
+    /// being able to open a file is no reason to lose the way to where it is.</item>
+    /// </list>
+    ///
+    /// A value that comes to nothing is left out, and so is one that comes to the same
+    /// thing as a value before it.
+    /// </summary>
+    /// <param name="variables">The defines to read the line against — the file in force, for the app.</param>
+    /// <param name="alsoOpens">Extra kinds of file to open, as <see cref="ExecutionPolicy.Plan"/> takes them.</param>
+    public static IReadOnlyList<ExecutionPlan> PlanDefine(
+        string? query,
+        KlippyVariables variables,
+        bool verifyPaths = true,
+        ExecutionPlatform? platform = null,
+        PathProbe? probe = null,
+        EnvironmentProbe? environment = null,
+        IReadOnlyCollection<string>? alsoOpens = null)
+    {
+        var os = platform ?? ExecutionPolicy.CurrentPlatform;
+        var disk = probe ?? PathProbe.Real;
+
+        var plans = new List<ExecutionPlan>();
+        foreach (var value in variables.ValuesOf((query ?? "").Trim()))
+        {
+            if (Macros.IsPresent(value)) continue;
+
+            var plan = ExecutionPolicy.Plan(
+                value, platform: os, environment: environment, paths: disk, alsoOpens: alsoOpens);
+            if (!IsThere(plan, verifyPaths, disk)) continue;
+
+            Add(plan);
+            if (plan.Kind == ExecutionKind.Document
+                && ExecutionPolicy.Reveal(plan.Target, isFolder: false, os) is var shown
+                && IsThere(shown, verifyPaths, disk))
+                Add(shown);
+        }
+        return plans;
+
+        void Add(ExecutionPlan plan)
+        {
+            if (plan.Kind != ExecutionKind.None && !plans.Exists(p => IsSame(p, plan))) plans.Add(plan);
+        }
+    }
+
+    /// <summary>
+    /// Whether what a plan points at is there to be offered: always for a link, which has
+    /// no disk to ask, and for a path as <see cref="Plan"/> decides it for a typed one.
+    ///
+    /// A path has to be rooted, as a typed one does, with one exception: a bare program
+    /// name, <c>notepad.exe</c>, which the OS finds on <c>PATH</c> as Run would when an item
+    /// names one. There is nowhere on the disk to look for that, so it is taken on trust.
+    /// Anything else relative would resolve against wherever Klippy was started from.
+    /// </summary>
+    private static bool IsThere(ExecutionPlan plan, bool verifyPaths, PathProbe disk)
+    {
+        switch (plan.Kind)
+        {
+            case ExecutionKind.None:
+                return false;
+            case ExecutionKind.Url or ExecutionKind.System:
+                return true;
+            case ExecutionKind.Reveal:
+                return disk.FileExists(plan.Target) || disk.DirectoryExists(plan.Target);
+        }
+
+        if (!IsRooted(plan.Target))
+            return plan.Kind == ExecutionKind.Application && plan.Target.IndexOfAny(['\\', '/']) < 0;
+
+        if (!verifyPaths) return true;
+        return plan.Kind == ExecutionKind.Folder
+            ? disk.DirectoryExists(plan.Target)
+            : disk.FileExists(plan.Target) || disk.DirectoryExists(plan.Target); // a .app is a folder
+    }
+
+    /// <summary>
+    /// Whether two offers would do the same thing, so that one line is never offered the
+    /// same folder twice — once because it resolved there, and again because a define
+    /// named it. A path is compared without regard to case, as Windows and macOS read one.
+    /// </summary>
+    public static bool IsSame(ExecutionPlan a, ExecutionPlan b) =>
+        a.Kind == b.Kind
+        && a.Action == b.Action
+        && string.Equals(a.Target, b.Target, StringComparison.OrdinalIgnoreCase)
+        && a.Arguments.AsSpan().SequenceEqual(b.Arguments);
 
     /// <summary>
     /// Whether what the line names could also have been meant as a search for an item.
@@ -167,7 +276,10 @@ public static class UnmatchedSearch
     private static ExecutionPlan AsPath(
         string text, bool verifyPaths, ExecutionPlatform os, PathProbe probe, EnvironmentProbe machine)
     {
-        var path = machine.Expand(text);
+        // Quotes again once the variables are in, since a value may be written the way a
+        // shell wants it — klippy="D:\main\Klippy" — and running takes that pair back off,
+        // as a marked item's line always has. %klippy% typed here is the same request.
+        var path = Unquote(machine.Expand(text));
         if (!IsRooted(path)) return Nothing;
 
         // The extension is asked before the disk is, because a macOS .app bundle *is* a

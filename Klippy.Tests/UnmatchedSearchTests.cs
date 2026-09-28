@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Klippy.Services;
 using Xunit;
 
@@ -462,4 +463,215 @@ public class UnmatchedSearchTests
             Plan("sleep", platform: Linux, probe: Probe(files: ["sleep"])).Kind);
     }
 
+    // ---- a line that names a define ----
+    //
+    // Typing a name the variables file defines offers each value it stands for, each read
+    // as though it had been typed instead.
+
+    /// <summary>The file in front of the described machine, as the app puts the real one in front of the real one.</summary>
+    private static IReadOnlyList<ExecutionPlan> PlanDefine(string query, string file,
+        PathProbe? probe = null, bool verifyPaths = true, ExecutionPlatform platform = Windows,
+        string[]? alsoOpens = null)
+    {
+        var vars = KlippyVariables.Parse(file);
+        return UnmatchedSearch.PlanDefine(
+            query, vars, verifyPaths, platform, probe ?? Empty, vars.Ahead(Machine), alsoOpens);
+    }
+
+    /// <summary>The reported file: one name, a folder and the solution in it — quoted, as it was written.</summary>
+    private const string Klippy =
+        "klippy=\"D:\\main\\Klippy\"\n" +
+        "klippy=\"D:\\main\\Klippy\\Klippy.slnx\"";
+
+    private static readonly PathProbe KlippyOnDisk =
+        Probe(folders: [@"D:\main\Klippy"], files: [@"D:\main\Klippy\Klippy.slnx"]);
+
+    [Fact]
+    public void AName_IsOfferedAsEachOfItsValues_TheOneItMeansOnItsOwnFirst()
+    {
+        var plans = PlanDefine("klippy", Klippy, KlippyOnDisk);
+
+        Assert.Collection(plans,
+            solution =>
+            {
+                Assert.Equal(ExecutionKind.Reveal, solution.Kind);
+                Assert.Equal(@"D:\main\Klippy\Klippy.slnx", solution.Target);
+            },
+            folder =>
+            {
+                Assert.Equal(ExecutionKind.Folder, folder.Kind);
+                Assert.Equal(@"D:\main\Klippy", folder.Target);
+            });
+    }
+
+    [Fact]
+    public void AName_ReadsTheSameWrittenAsItIsInAnItem()
+    {
+        Assert.Equal(2, PlanDefine("%klippy%", Klippy, KlippyOnDisk).Count);
+        Assert.Equal(@"D:\main\Klippy", Assert.Single(PlanDefine("klippy:folder", Klippy, KlippyOnDisk)).Target);
+    }
+
+    [Fact]
+    public void AValueThatIsNotThere_IsLeftOut_AsATypedPathWouldBe()
+    {
+        var plan = Assert.Single(PlanDefine("klippy", Klippy, Probe(folders: [@"D:\main\Klippy"])));
+        Assert.Equal(@"D:\main\Klippy", plan.Target);
+
+        // Unless paths are not being checked — when, as for a typed line, a trailing
+        // separator is the one thing left that still says "folder".
+        Assert.Empty(PlanDefine("klippy", Klippy, verifyPaths: false));
+        Assert.Equal(ExecutionKind.Folder,
+            Assert.Single(PlanDefine("k", "k=D:\\main\\Klippy\\", verifyPaths: false)).Kind);
+    }
+
+    [Fact]
+    public void ALink_Opens()
+    {
+        var plan = Assert.Single(PlanDefine("wiki", "wiki=https://wiki.example.com/team"));
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal("https://wiki.example.com/team", plan.Target);
+    }
+
+    [Fact]
+    public void AScriptOrApplication_Runs()
+    {
+        var plans = PlanDefine("tools",
+            "tools=C:\\tools\\deploy.ps1\ntools=C:\\tools\\rider64.exe",
+            Probe(files: [@"C:\tools\deploy.ps1", @"C:\tools\rider64.exe"]));
+
+        Assert.Equal(new[] { ExecutionKind.Application, ExecutionKind.Script }, plans.Select(p => p.Kind));
+    }
+
+    [Fact]
+    public void AValue_IsReadAsAMarkedItemReadsIt()
+    {
+        // Written into a file of your own, as an item's text is, so an item's rules: a
+        // document opens, a mailto: is a link, and a program keeps its arguments.
+        var notes = PlanDefine("notes", "notes=C:\\docs\\notes.pdf", Probe(files: [@"C:\docs\notes.pdf"]));
+        Assert.Equal(ExecutionKind.Document, notes[0].Kind);
+
+        Assert.Equal(ExecutionKind.Url, Assert.Single(PlanDefine("mail", "mail=mailto:ops@example.com")).Kind);
+
+        var rider = Assert.Single(PlanDefine("rider",
+            "rider=\"C:\\Program Files\\Rider\\rider64.exe\" --wait",
+            Probe(files: [@"C:\Program Files\Rider\rider64.exe"])));
+        Assert.Equal(ExecutionKind.Application, rider.Kind);
+        Assert.Equal(new[] { "--wait" }, rider.Arguments);
+    }
+
+    [Fact]
+    public void AValue_IsStillHeldToTheAllowList()
+    {
+        // An item's rules are the allow-list, and nothing past it: a relative path says
+        // nowhere, an application only runs on its own platform, and a value that is none
+        // of the kinds is not a place to go.
+        Assert.Empty(PlanDefine("rel", "rel=tools\\deploy.ps1", Probe(files: ["tools\\deploy.ps1"])));
+        Assert.Empty(PlanDefine("mac", "mac=/Applications/Safari.app", Probe(folders: ["/Applications/Safari.app"])));
+        Assert.Empty(PlanDefine("js", "js=javascript:alert(1)"));
+        Assert.Empty(PlanDefine("ctl", "ctl=lock")); // a machine control is a typed word, not a value
+    }
+
+    [Fact]
+    public void AFileThatOpens_IsAlsoOfferedToBeShown_RightAfterIt()
+    {
+        var plans = PlanDefine("notes", "notes=C:\\docs\\notes.pdf", Probe(files: [@"C:\docs\notes.pdf"]));
+
+        Assert.Equal(new[] { ExecutionKind.Document, ExecutionKind.Reveal }, plans.Select(p => p.Kind));
+        Assert.All(plans, p => Assert.Equal(@"C:\docs\notes.pdf", p.Target));
+    }
+
+    [Fact]
+    public void TheSettingsList_OpensASolution_AndStillOffersToShowIt()
+    {
+        // The reported file with .slnx on the list: open it, show it, or open its folder.
+        var plans = PlanDefine("klippy", Klippy, KlippyOnDisk, alsoOpens: [".slnx"]);
+
+        Assert.Equal(
+            new[]
+            {
+                (ExecutionKind.Document, @"D:\main\Klippy\Klippy.slnx"),
+                (ExecutionKind.Reveal, @"D:\main\Klippy\Klippy.slnx"),
+                (ExecutionKind.Folder, @"D:\main\Klippy"),
+            },
+            plans.Select(p => (p.Kind, p.Target)));
+    }
+
+    [Fact]
+    public void AFileThatIsNotThere_IsNotOfferedToOpen()
+    {
+        Assert.Empty(PlanDefine("notes", "notes=C:\\docs\\notes.pdf"));
+
+        // Unless paths are not being checked; there is still nothing to show, though.
+        var plan = Assert.Single(PlanDefine("notes", "notes=C:\\docs\\notes.pdf", verifyPaths: false));
+        Assert.Equal(ExecutionKind.Document, plan.Kind);
+    }
+
+    [Fact]
+    public void ABareProgramName_IsLeftToThePath()
+    {
+        // notepad.exe is found the way Run finds it, and there is nowhere on the disk to look.
+        var plan = Assert.Single(PlanDefine("np", "np=notepad.exe"));
+        Assert.Equal(ExecutionKind.Application, plan.Kind);
+        Assert.Equal("notepad.exe", plan.Target);
+    }
+
+    [Fact]
+    public void AValueWithAPlaceholder_IsATemplateNotAPlace()
+    {
+        // An offer has no arguments to fill it with, and never reads the clipboard to draw.
+        Assert.Empty(PlanDefine("g", "g=https://www.google.com/search?q=%P%"));
+        Assert.Empty(PlanDefine("c", "c=%C%"));
+    }
+
+    [Fact]
+    public void AValueThatNamesNothingRunnable_OffersNothing()
+    {
+        // An account number is a thing to paste, not a place to go.
+        Assert.Empty(PlanDefine("acct", "acct=12345678"));
+    }
+
+    [Fact]
+    public void TheSameThing_IsOfferedOnce()
+    {
+        var plan = Assert.Single(PlanDefine("app",
+            "app=D:\\Src\\App\napp:folder=d:\\src\\app",
+            Probe(folders: [@"D:\src\app"])));
+        Assert.Equal(@"D:\Src\App", plan.Target);
+    }
+
+    [Fact]
+    public void OnlyTheFilesNames_NeverTheMachines()
+    {
+        // KLIPPY_TEST_DIR is a folder in the environment above. Typed bare, it is a word.
+        Assert.Empty(PlanDefine("KLIPPY_TEST_DIR", "", Probe(folders: [@"C:\Users\sean\AppData\Roaming"])));
+    }
+
+    [Fact]
+    public void AValue_MayItselfNameTheMachines()
+    {
+        // As a typed %KLIPPY_TEST_DIR% would, and as the file lets any value.
+        var plan = Assert.Single(PlanDefine("roaming", "roaming=%KLIPPY_TEST_DIR%\\Klippy",
+            Probe(folders: [@"C:\Users\sean\AppData\Roaming\Klippy"])));
+        Assert.Equal(@"C:\Users\sean\AppData\Roaming\Klippy", plan.Target);
+    }
+
+    [Fact]
+    public void TypedWithItsPercentSigns_AQuotedValue_LosesItsQuotesToo()
+    {
+        // The value is written the way a shell wants it, and running takes the pair back off
+        // — on this route as on a marked item's, or %klippy% would name nothing at all.
+        var vars = KlippyVariables.Parse(Klippy);
+        var plan = UnmatchedSearch.Plan("%klippy%", platform: Windows, probe: KlippyOnDisk,
+            environment: vars.Ahead(Machine));
+
+        Assert.Equal(ExecutionKind.Reveal, plan.Kind);
+        Assert.Equal(@"D:\main\Klippy\Klippy.slnx", plan.Target);
+    }
+
+    [Fact]
+    public void QuotedOrAsPartOfALine_ANameIsJustAWord()
+    {
+        Assert.Empty(PlanDefine("\"klippy\"", Klippy, KlippyOnDisk));
+        Assert.Empty(PlanDefine("klippy src", Klippy, KlippyOnDisk));
+    }
 }

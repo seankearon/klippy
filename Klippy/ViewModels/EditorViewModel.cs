@@ -56,22 +56,28 @@ public partial class EditorViewModel : ViewModelBase
         // A path to a log file marked to run is shown rather than opened, and finding that
         // out here beats finding it out from Explorer. Naming the path is what shows a
         // path with a space and no quotes stopping at the space.
-        : ExecutionPolicy.PathToReveal(Content, environment: RunEnvironment) is { } shown
+        : ExecutionPolicy.PathToReveal(Content, environment: RunEnvironment, alsoOpens: AlsoOpens) is { } shown
             ? $"Shows {shown} in {FileManager} when triggered — {CopyKeyHint} still copies it"
-        : ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment)
+        : ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment, alsoOpens: AlsoOpens)
             ? $"Opened or run when triggered — {CopyKeyHint} still copies it"
             : "This is not a link, a full path, an application or a script Klippy can run, so triggering it will say so";
 
     private static readonly string FileManager = ExecutionPolicy.FileManager(ExecutionPolicy.CurrentPlatform);
 
     public bool ExecuteHintIsWarning =>
-        IsExecutable && !ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment);
+        IsExecutable && !ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment, alsoOpens: AlsoOpens);
 
     /// <summary>
     /// What Enter resolves a path against, the variables file in front of the machine. The
     /// hint has to read the same names or it warns about a <c>%ws%</c> that runs.
     /// </summary>
     private static EnvironmentProbe RunEnvironment => KlippyVariables.Current.Ahead(EnvironmentProbe.Real);
+
+    /// <summary>
+    /// The kinds of file the settings add to what Enter opens, for the same reason: a hint
+    /// that says a <c>.slnx</c> will be shown in Explorer when Enter opens it is wrong.
+    /// </summary>
+    private static string[] AlsoOpens => AppSettings.Current.ExecuteOpenExtensions;
 
     /// <summary>
     /// The tags already in use, offered as chips under the TAG field so a snippet joins

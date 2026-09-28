@@ -70,6 +70,15 @@ public class OfferTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>Where the offers stand: one band each, above the list.</summary>
+    private static ItemsControl OfferList(Window window) =>
+        window.GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "OfferList");
+
+    /// <summary>The bands on show, top to bottom.</summary>
+    private static List<Border> Bands(Window window) =>
+        OfferList(window).GetVisualDescendants().OfType<Border>()
+            .Where(b => b.Classes.Contains("offer")).ToList();
+
     // ---- an item match always wins ----
 
     [Fact]
@@ -291,11 +300,10 @@ public class OfferTests
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        var band = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "OfferBand");
-
-        // After the band is up: a collapsed Border has no children in the visual tree yet.
+        // After the band is up: an offer that is not there has no band in the tree yet.
         f.Vm.FilterText = folder.Trailing;
         Dispatcher.UIThread.RunJobs();
+        var band = Assert.Single(Bands(window));
         var badge = band.GetVisualDescendants().OfType<Border>()
             .First(b => b.Classes.Contains("enterBadge"));
 
@@ -643,8 +651,8 @@ public class OfferTests
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        var band = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "OfferBand");
-        Assert.False(band.IsVisible);
+        var list = OfferList(window);
+        Assert.False(list.IsVisible);
 
         f.Vm.FilterText = @"C:\work\invoices";
         Dispatcher.UIThread.RunJobs();
@@ -653,15 +661,17 @@ public class OfferTests
         f.Vm.FilterText = "www.qwe.com";
         Dispatcher.UIThread.RunJobs();
 
-        Assert.True(band.IsVisible);
-        var shown = band.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToList();
+        Assert.True(list.IsVisible);
+        var shown = Assert.Single(Bands(window)).GetVisualDescendants().OfType<TextBlock>()
+            .Select(t => t.Text).ToList();
         Assert.Contains("Open link", shown);
         Assert.Contains("https://www.qwe.com", shown);
 
         // A snippet match takes the band away again.
         f.Vm.FilterText = "log";
         Dispatcher.UIThread.RunJobs();
-        Assert.False(band.IsVisible);
+        Assert.False(list.IsVisible);
+        Assert.Empty(Bands(window));
     }
 
     [AvaloniaFact]
@@ -676,8 +686,7 @@ public class OfferTests
         f.Vm.FilterText = "www.qwe.com";
         Dispatcher.UIThread.RunJobs();
 
-        var band = window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "OfferBand");
-        var button = band.GetVisualDescendants().OfType<Button>().First();
+        var button = Assert.Single(Bands(window)).GetVisualDescendants().OfType<Button>().First();
         button.Command!.Execute(button.CommandParameter);
         Dispatcher.UIThread.RunJobs();
 

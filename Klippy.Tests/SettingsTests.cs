@@ -1,11 +1,17 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Klippy.Models;
 using Klippy.Services;
 using Klippy.ViewModels;
+using Klippy.Views;
 using Xunit;
 
 namespace Klippy.Tests;
@@ -37,6 +43,25 @@ public class SettingsTests
             Assert.False(loaded.MarkdownToHtml);
             Assert.False(loaded.MarkdownDoubleSpaced);
             Assert.True(loaded.MarkdownSanitiseLinks);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ExtraKindsToOpen_AreNoneUntilSomeoneWritesSome()
+    {
+        // Opening a kind of file is running it, for some kinds, so the list starts empty and
+        // is written by hand — which is how it has to read back.
+        Assert.Empty(new AppSettings().ExecuteOpenExtensions);
+
+        var path = TempSettingsPath();
+        try
+        {
+            File.WriteAllText(path, """{ "ExecuteOpenExtensions": [".slnx", "sln"] }""");
+            Assert.Equal(new[] { ".slnx", "sln" }, AppSettings.Load(path).ExecuteOpenExtensions);
         }
         finally
         {
@@ -361,6 +386,143 @@ public class SettingsTests
             var reloaded = AppSettings.Load(path);
             Assert.False(reloaded.ExecuteVerifyPaths);
             Assert.False(reloaded.ExecuteConfirmSystemActions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    // ---- kinds of file to open ----
+
+    [Fact]
+    public void OpenExtensions_ShowWhatTheFileHolds_AsTheListKeepsThem()
+    {
+        var settings = new AppSettings { ExecuteOpenExtensions = ["sln", "*.SLNX", ".sln", ""] };
+        var vm = new SettingsViewModel(settings, close: () => { });
+
+        Assert.Equal(new[] { ".sln", ".slnx" }, vm.OpenExtensions);
+        Assert.True(vm.HasOpenExtensions);
+    }
+
+    [Fact]
+    public void AddingAKind_SavesIt_AndEmptiesTheBox()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var settings = AppSettings.Load(path);
+            var vm = new SettingsViewModel(settings, close: () => { });
+
+            vm.NewOpenExtension = "*.SLNX";
+            vm.AddOpenExtensionCommand.Execute(null);
+
+            Assert.Equal(new[] { ".slnx" }, vm.OpenExtensions);
+            Assert.Equal("", vm.NewOpenExtension);
+            Assert.Equal(new[] { ".slnx" }, settings.ExecuteOpenExtensions); // what Enter reads
+            Assert.Equal(new[] { ".slnx" }, AppSettings.Load(path).ExecuteOpenExtensions);
+
+            // The same kind again is nothing new, however it is written.
+            vm.NewOpenExtension = "slnx";
+            vm.AddOpenExtensionCommand.Execute(null);
+            Assert.Single(vm.OpenExtensions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void RemovingAKind_SavesThat()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var settings = AppSettings.Load(path);
+            settings.ExecuteOpenExtensions = [".slnx", ".sln"];
+            var vm = new SettingsViewModel(settings, close: () => { });
+
+            vm.RemoveOpenExtensionCommand.Execute(".sln");
+
+            Assert.Equal(new[] { ".slnx" }, vm.OpenExtensions);
+            Assert.Equal(new[] { ".slnx" }, AppSettings.Load(path).ExecuteOpenExtensions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(".ps1", "rules of their own")]  // a script already runs
+    [InlineData("exe", "rules of their own")]   // and so does an application
+    [InlineData(".pdf", "open already")]        // built in
+    [InlineData("tar.gz", "not an extension")]  // a file's extension is its last one
+    [InlineData(@"C:\x.slnx", "not an extension")]
+    public void WhatTheListCannotHold_IsSaid_AndLeftInTheBoxToCorrect(string typed, string said)
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var vm = new SettingsViewModel(AppSettings.Load(path), close: () => { });
+
+            vm.NewOpenExtension = typed;
+            vm.AddOpenExtensionCommand.Execute(null);
+
+            Assert.Empty(vm.OpenExtensions);
+            Assert.Contains(said, vm.StatusText);
+            Assert.Equal(typed, vm.NewOpenExtension);
+            Assert.False(File.Exists(path)); // nothing was saved
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AddWaitsForSomethingToAdd()
+    {
+        var vm = new SettingsViewModel(new AppSettings(), close: () => { });
+        Assert.False(vm.AddOpenExtensionCommand.CanExecute(null));
+
+        vm.NewOpenExtension = ".slnx";
+        Assert.True(vm.AddOpenExtensionCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void TheSettingsScreen_AddsAKindOnEnter_AndAChipClickTakesItOff()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var settings = AppSettings.Load(path);
+            var vm = new MainViewModel(
+                new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}.json")),
+                settings: settings);
+            var window = new MainWindow { DataContext = vm };
+            window.Show();
+            vm.OpenSettingsCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+
+            var box = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "NewOpenExtensionBox");
+            box.Focus();
+            box.Text = ".slnx";
+            window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\n");
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.NotNull(vm.Settings); // Enter added; it did not close the screen
+            Assert.Equal(new[] { ".slnx" }, settings.ExecuteOpenExtensions);
+
+            var chip = window.GetVisualDescendants().OfType<Button>()
+                .Single(b => Equals(b.CommandParameter, ".slnx"));
+            chip.Command!.Execute(chip.CommandParameter);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Empty(settings.ExecuteOpenExtensions);
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(),
+                b => Equals(b.CommandParameter, ".slnx"));
         }
         finally
         {

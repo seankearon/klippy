@@ -29,7 +29,9 @@ search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `↓` on an empty search box opens
 [recent commands](recent-commands.md), `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it, the
-same as `Enter`. Typing `quit` offers to [close Klippy](quitting.md).
+same as `Enter`. Typing `quit` offers to [close Klippy](quitting.md), and typing a
+[variable's name](variables.md#typing-a-name) offers each value it stands for — above the
+list, where `↑` from the top row reaches them.
 
 A **confirmation** — deleting a snippet, a [machine control](unmatched-search.md), quitting —
 opens with the keyboard on Cancel, so `Enter` straight away goes back. `Tab` or the arrow

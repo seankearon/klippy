@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Klippy.Services;
 
 namespace Klippy.ViewModels;
@@ -12,10 +15,21 @@ namespace Klippy.ViewModels;
 /// always wins" structural rather than a rule to remember. It carries an
 /// <see cref="ExecutionPlan"/>, so running it is the same gesture, through the same
 /// engine, as running an item marked Execute.
+///
+/// A line may be offered as more than one thing — a name defined twice in the variables
+/// file is two places to go — so there may be several of these standing above the list at
+/// once, one band each.
 /// </summary>
-public sealed class OfferViewModel : ViewModelBase
+public sealed partial class OfferViewModel : ViewModelBase
 {
     public ExecutionPlan Plan { get; }
+
+    /// <summary>
+    /// Whether this is the one Enter would act on. At most one offer says so, and none while
+    /// a row holds the selection instead; <c>MainViewModel</c> keeps that true.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelected;
 
     /// <summary>
     /// Klippy's own quit, which stands where a runnable offer stands and deliberately is
@@ -56,10 +70,19 @@ public sealed class OfferViewModel : ViewModelBase
     /// </summary>
     public string KeyBadge => IsQuit ? "↵ quit" : "↵ run";
 
-    /// <summary>What it will be done to: the link, the path, the machine, or Klippy itself.</summary>
+    /// <summary>
+    /// What it will be done to: the link, the path, the machine, or Klippy itself. A program
+    /// named with arguments — which a variable's value may be — shows them too, quoted
+    /// where they hold a space, since they are half of what is about to run.
+    /// </summary>
     public string Detail => IsQuit
         ? "stop listening and leave the tray"
-        : Plan.Kind == ExecutionKind.System ? "this computer" : Plan.Target;
+        : Plan.Kind == ExecutionKind.System ? "this computer"
+        : Plan.Arguments.Length == 0 ? Plan.Target
+        : Plan.Target + " " + string.Join(" ", Array.ConvertAll(Plan.Arguments, Shown));
+
+    private static string Shown(string argument) =>
+        argument.Length == 0 || argument.Any(char.IsWhiteSpace) ? $"\"{argument}\"" : argument;
 
     /// <summary>
     /// The confirmation's headline, e.g. "Restart this computer?". Only a machine control

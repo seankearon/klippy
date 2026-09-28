@@ -39,7 +39,8 @@ hide:
 
     A `variables.txt` file holds local defines that resolve into snippets at trigger
     time and are **never exported**. One name can carry two flavours, so an item
-    picks the form it needs.
+    picks the form it needs — and typing a name on its own offers to open or run
+    each thing it stands for.
 
     [:octicons-arrow-right-24: Variables](variables.md)
 

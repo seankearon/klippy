@@ -37,6 +37,11 @@ into the list, where `Enter` activates the row exactly as it always did, and `�
 first row comes back to the offer. It is a position in the same column of things, not a
 banner above them.
 
+A line can be offered as more than one thing. A name that `variables.txt` gives twice is
+two places to go, and [typing it](variables.md#typing-a-name) offers both: the bands stack
+above the list, the top one first, and `↑`/`↓` move through them exactly as through the
+rows — one column, one selection, one badge.
+
 In the clipboard history none of that applies and a matching clip always wins: clips are
 mostly paths and links themselves, so a line that looks like one is far more likely to be
 someone hunting for the clip they copied than an instruction.
@@ -49,6 +54,7 @@ someone hunting for the clip they copied than an instruction.
 | `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `/Applications/Safari.app` | The script or application runs, exactly as a marked snippet naming it would |
 | `http://…`, `https://…`, `www.…` | The page opens |
 | `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
+| `klippy`, `%klippy%` — a name [`variables.txt`](variables.md) defines | Each value it stands for, read as a marked item reads its text — see [Typing a name](variables.md#typing-a-name) |
 
 Three things are deliberately narrower here than for a snippet you marked yourself, because
 a marked item was written on purpose and this is whatever landed in a filter box:
@@ -80,6 +86,11 @@ Everything else is the allow-list you already know: a script or an application K
 run on this platform, and nothing besides. Folders and files are the additions — shown, not
 executed — so a typed `C:\work\notes.txt` offers *Show in Explorer*, and `C:\work\setup.hta`
 is pointed at in its folder rather than run.
+
+The one line these narrowings do not reach is the name of a variable. Typing `klippy` is
+not a path landing in a filter box but a name you defined, standing for values you wrote —
+so those values are read as an item marked Execute reads its text, and a file among them
+can open. See [Typing a name](variables.md#typing-a-name).
 
 **Quotes come off.** Explorer's Shift+right-click → *Copy as path* wraps what it gives you
 in double quotes, whether or not the path has a space in it, so a pasted path would
