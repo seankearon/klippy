@@ -1067,12 +1067,43 @@ public static class ExecutionPolicy
                 return true;
 
         return false;
+    }
 
-        static string AsExtension(string? listed)
-        {
-            var written = (listed ?? "").Trim().TrimStart('*');
-            return written.Length == 0 || written[0] == '.' ? written : "." + written;
-        }
+    /// <summary>
+    /// An extension as the list keeps it — <c>.slnx</c> — from however a person wrote it:
+    /// <c>slnx</c>, <c>*.slnx</c>, <c>.SLNX</c>. Empty for nothing written. It says nothing
+    /// about whether the result is one the list may hold; <see cref="WhyNotOpenable"/> does.
+    /// </summary>
+    public static string AsExtension(string? written)
+    {
+        var extension = (written ?? "").Trim().TrimStart('*').ToLowerInvariant();
+        return extension.Length == 0 || extension[0] == '.' ? extension : "." + extension;
+    }
+
+    /// <summary>
+    /// Why <paramref name="extension"/> cannot join the kinds of file to open, or null
+    /// when it can — what Settings asks before adding one, so the list shown there never
+    /// holds a kind <see cref="Opens"/> would pass over. Read through
+    /// <see cref="AsExtension"/> first, so any spelling of one is judged the same.
+    /// </summary>
+    public static string? WhyNotOpenable(string? extension)
+    {
+        var written = AsExtension(extension);
+
+        // One extension, and nothing that could make it more: a second dot would never
+        // match, since a file's extension is read from the last one, and a separator or a
+        // space would make it a path.
+        if (written.Length < 2) return "Write an extension, like .slnx.";
+        foreach (var c in written.AsSpan(1))
+            if (!char.IsLetterOrDigit(c) && c is not ('-' or '_' or '+'))
+                return $"{written} is not an extension — one at a time, like .slnx.";
+
+        var sample = "file" + written;
+        if (DocumentExtension(sample) is not null) return $"{written} files open already.";
+        if (!Opens(sample, [written]))
+            return $"{written} files run by rules of their own, which this list does not change.";
+
+        return null;
     }
 
     /// <summary>The document types a marked item opens, or null for anything else.</summary>

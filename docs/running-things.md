@@ -104,8 +104,10 @@ and stays refused.
 A solution you want open in your IDE is not on that list, and should not be by default:
 opening a `.sln` or `.slnx` in Visual Studio or Rider runs the build's own targets as it
 loads, which is closer to running something than to reading it. But it is *your* solution,
-and whether it opens with a keystroke is your call to make. So the list can be added to, by
-hand, in `settings.json`:
+and whether it opens with a keystroke is your call to make. So the list can be added to,
+under **ALSO OPEN** in [Settings](settings.md): type `.slnx` and press `Enter` or **Add**,
+and click a kind's chip to take it back off. Each change is saved as it is made. The same
+list by hand, in `settings.json`:
 
 ```json
 {
@@ -119,7 +121,8 @@ a [variable typed by name](variables.md#typing-a-name). A path typed into the se
 still only [shown](unmatched-search.md), whatever the list says. Write an extension as
 `.slnx`, `slnx` or `*.slnx`; case is no matter.
 
-It only ever adds. A script or an application is never opened this way, listed or not:
+It only ever adds. A script or an application is never opened this way, listed or not —
+Settings will not take one, and says why:
 each of those already runs, on its own platform and with its arguments judged, and handing
 one to the shell instead would be a way round both — a `.bat` opened is a `.bat` run with
 nobody having looked at its path. Everything else is yours to decide, which is also the

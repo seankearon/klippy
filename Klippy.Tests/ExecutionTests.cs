@@ -552,6 +552,33 @@ public class ExecutionTests
         Assert.Equal(@"C:\src\Klippy.slnx", link.Target);
     }
 
+    [Theory]
+    [InlineData(".slnx", ".slnx")]
+    [InlineData("slnx", ".slnx")]
+    [InlineData("*.SLNX", ".slnx")]
+    [InlineData("  .Sln  ", ".sln")]
+    [InlineData("", "")]
+    public void AnExtension_IsKeptOneWay_HoweverItIsWritten(string written, string kept)
+    {
+        Assert.Equal(kept, ExecutionPolicy.AsExtension(written));
+    }
+
+    [Fact]
+    public void WhatTheListMayHold_IsAnExtensionNothingElseHasARuleFor()
+    {
+        Assert.Null(ExecutionPolicy.WhyNotOpenable(".slnx"));
+        Assert.Null(ExecutionPolicy.WhyNotOpenable("c++"));
+        Assert.Null(ExecutionPolicy.WhyNotOpenable("*.drawio"));
+
+        foreach (var kind in new[] { ".exe", ".bat", ".cmd", ".ps1", ".sh", ".app", ".AppImage" })
+            Assert.Contains("rules of their own", ExecutionPolicy.WhyNotOpenable(kind));
+
+        Assert.Contains("open already", ExecutionPolicy.WhyNotOpenable(".PDF"));
+
+        foreach (var junk in new[] { "", ".", "*", ".tar.gz", "sl nx", @"C:\x.slnx", "a/b" })
+            Assert.NotNull(ExecutionPolicy.WhyNotOpenable(junk));
+    }
+
     [Fact]
     public void TheEditorHint_ReadsTheSameList()
     {

@@ -7,8 +7,8 @@ description: "Every setting and what it changes."
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
 say whether a copy dismisses the window, one brings a script's folder up to date before it
-runs, three govern running an unmatched search, and one says where the window lands when
-you summon it. Open with the **settings** footer link
+runs, a list adds kinds of file to open, three govern running an unmatched search, and one
+says where the window lands when you summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
 
@@ -37,9 +37,12 @@ what keeps it current.
 |---|---|---|
 | **Pull first** | `git pull` runs in the script or application's own folder, and is waited for, before it starts | It starts as it is on disk |
 
-One more has no toggle, being a list you write: `ExecuteOpenExtensions`, the kinds of file
-opened [as documents are](running-things.md#opening-other-kinds-of-file) beyond the built-in
-ones — `[".slnx"]` for solutions that should open in their IDE. Empty by default.
+Under it, **ALSO OPEN** is a list rather than a toggle: the kinds of file opened
+[as documents are](running-things.md#opening-other-kinds-of-file) beyond the built-in ones —
+`.slnx` for solutions that should open in their IDE. Type one and press `Enter` or **Add**;
+click its chip to take it off. A script or an application is refused, since those run by
+rules of their own, and so is a kind that opens already. Empty by default; in
+`settings.json` it is `ExecuteOpenExtensions`.
 
 Three more, desktop only, govern
 [running an unmatched search](unmatched-search.md) — the one feature that executes

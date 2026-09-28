@@ -29,6 +29,15 @@ public partial class SettingsOverlay : UserControl
             settings.CloseCommand.Execute(null);
     }
 
+    /// <summary>Enter in the box that adds a kind of file to open adds it, as the button beside it does.</summary>
+    private void NewOpenExtensionKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || DataContext is not MainViewModel { Settings: { } settings }) return;
+
+        settings.AddOpenExtensionCommand.Execute(null);
+        e.Handled = true;
+    }
+
     private bool IsInsideThePanel(Visual source)
     {
         for (Visual? visual = source; visual is not null; visual = visual.GetVisualParent())

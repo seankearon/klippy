@@ -110,6 +110,50 @@
                                Foreground="{StaticResource MutedBrush}"
                                Text="Run git pull in a script or application's own folder before starting it, so what runs is what is in the repository. Skipped where it is not a checkout." />
                   </Grid>
+
+                  <!-- The kinds of file opened beyond the built-in documents. A chip per
+                       kind, which a click takes off; the box below adds one. Opening a
+                       kind of file can be running it, so each is added on purpose. -->
+                  <StackPanel x:Name="OpenExtensionsRow" Spacing="6" Margin="0,4,0,0">
+                    <TextBlock Classes="mono" Text="ALSO OPEN" FontSize="10" LetterSpacing="0.8"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Kinds of file opened in whatever your machine opens them with — .slnx in your IDE, say — from an item marked Execute or a variable typed by name. Opening some kinds is running them, so add only what you mean. Scripts and applications keep their own rules." />
+
+                    <ItemsControl ItemsSource="{Binding OpenExtensions}"
+                                  IsVisible="{Binding HasOpenExtensions}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <Button Classes="chip" Margin="0,0,6,6"
+                                  ToolTip.Tip="Stop opening these"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveOpenExtensionCommand}"
+                                  CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                              <TextBlock Text="×" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid ColumnDefinitions="*,8,Auto">
+                      <!-- Enter adds, as the button does: the window leaves a bare Enter
+                           to whatever has the keyboard while an overlay is up. -->
+                      <TextBox x:Name="NewOpenExtensionBox" Grid.Column="0" Classes="mono" FontSize="11"
+                               Watermark=".slnx"
+                               Text="{Binding NewOpenExtension}"
+                               KeyDown="NewOpenExtensionKeyDown" />
+                      <Button Grid.Column="2" Classes="chip" Content="Add"
+                              Command="{Binding AddOpenExtensionCommand}" />
+                    </Grid>
+                  </StackPanel>
                 </StackPanel>
 
                 <Border Height="1" Background="{StaticResource HairlineBrush}"

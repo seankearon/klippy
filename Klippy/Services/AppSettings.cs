@@ -143,6 +143,7 @@ public sealed class AppSettings
     /// Empty by default, and a list to add to rather than a switch, because opening a file
     /// is the same verb as running one to the shell: a <c>.js</c> or a <c>.lnk</c> opened
     /// is a program started, so which kinds are opened is a choice made one kind at a time.
+    /// Settings keeps it under ALSO OPEN; a hand-written one is read as written.
     /// Scripts and applications are not affected by it either way — see
     /// <see cref="ExecutionPolicy.Opens"/>.
     /// </summary>

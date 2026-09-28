@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -170,6 +171,21 @@ public partial class SettingsViewModel : ViewModelBase
     public bool ShowExecutePullFirst => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
     /// <summary>
+    /// The kinds of file opened as documents beyond the built-in list — the
+    /// <c>ExecuteOpenExtensions</c> setting, kept here as chips so it need not be kept by
+    /// hand in settings.json. Each as the list keeps it, <c>.slnx</c>, however it was
+    /// written in the file. Desktop only, beside Pull first: only a desktop opens a file.
+    /// </summary>
+    public ObservableCollection<string> OpenExtensions { get; } = new();
+
+    public bool HasOpenExtensions => OpenExtensions.Count > 0;
+
+    /// <summary>What is being typed into the box that adds one.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddOpenExtensionCommand))]
+    private string _newOpenExtension = "";
+
+    /// <summary>
     /// Whether to offer the run-unmatched choices. The same answer that decides whether
     /// the offer itself ever appears: it is a keyboard gesture in a launcher, and mobile
     /// has neither a shell for a path nor a machine of its own to lock.
@@ -224,6 +240,13 @@ public partial class SettingsViewModel : ViewModelBase
         _executeUnmatched = settings.ExecuteUnmatched;
         _executeVerifyPaths = settings.ExecuteVerifyPaths;
         _executeConfirmSystemActions = settings.ExecuteConfirmSystemActions;
+
+        // As the list keeps them, so a hand-written "sln" and a chip reading ".sln" are not
+        // two different things on screen. One that could never open is shown all the same:
+        // it is in the file, and this is where it can be taken back out.
+        foreach (var written in settings.ExecuteOpenExtensions ?? [])
+            if (ExecutionPolicy.AsExtension(written) is { Length: > 1 } extension && !OpenExtensions.Contains(extension))
+                OpenExtensions.Add(extension);
 
         _dataFolder = settings.DataDirectory;
         RereadDataFolder();
@@ -449,6 +472,44 @@ public partial class SettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void PickPlacement(LauncherPlacement placement) => SummonPlacement = placement;
+
+    /// <summary>
+    /// Adds what the box holds to the kinds of file to open, and saves. One the list may not
+    /// hold — a script, an application, one that opens already, or not an extension at all —
+    /// is said so in the status line and left in the box to be corrected.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAddOpenExtension))]
+    private void AddOpenExtension()
+    {
+        if (ExecutionPolicy.WhyNotOpenable(NewOpenExtension) is { } problem)
+        {
+            StatusText = problem;
+            return;
+        }
+
+        var extension = ExecutionPolicy.AsExtension(NewOpenExtension);
+        NewOpenExtension = "";
+        if (OpenExtensions.Contains(extension)) return; // there already: nothing to save
+
+        OpenExtensions.Add(extension);
+        SaveOpenExtensions();
+    }
+
+    private bool CanAddOpenExtension() => !string.IsNullOrWhiteSpace(NewOpenExtension);
+
+    /// <summary>Takes a kind back off the list, and saves.</summary>
+    [RelayCommand]
+    private void RemoveOpenExtension(string? extension)
+    {
+        if (extension is not null && OpenExtensions.Remove(extension)) SaveOpenExtensions();
+    }
+
+    private void SaveOpenExtensions()
+    {
+        _settings.ExecuteOpenExtensions = [.. OpenExtensions];
+        OnPropertyChanged(nameof(HasOpenExtensions));
+        Save();
+    }
 
     /// <summary>
     /// A preference that cannot be written still applies for this session — the in-memory
