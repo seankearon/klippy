@@ -45,6 +45,25 @@ public class SettingsTests
     }
 
     [Fact]
+    public void ExtraKindsToOpen_AreNoneUntilSomeoneWritesSome()
+    {
+        // Opening a kind of file is running it, for some kinds, so the list starts empty and
+        // is written by hand — which is how it has to read back.
+        Assert.Empty(new AppSettings().ExecuteOpenExtensions);
+
+        var path = TempSettingsPath();
+        try
+        {
+            File.WriteAllText(path, """{ "ExecuteOpenExtensions": [".slnx", "sln"] }""");
+            Assert.Equal(new[] { ".slnx", "sln" }, AppSettings.Load(path).ExecuteOpenExtensions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void SettingsViewModel_TogglingWritesThroughToTheSharedSettings()
     {
         // Loaded from a temp path, not constructed: Save() follows SourcePath, and a bare

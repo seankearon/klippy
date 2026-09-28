@@ -480,6 +480,89 @@ public class ExecutionTests
         }
     }
 
+    // ---- kinds the settings add to what opens ----
+    //
+    // ExecuteOpenExtensions: a list someone writes by hand, for solutions that should open
+    // in the IDE their extension belongs to. It adds kinds to open, and nothing else.
+
+    private static readonly string[] Solutions = [".slnx", "sln", "*.CSPROJ"];
+
+    private static ExecutionPlan PlanOpening(string text, string[] alsoOpens) =>
+        ExecutionPolicy.Plan(text, platform: ExecutionPlatform.Windows, environment: Env, paths: Disk,
+            alsoOpens: alsoOpens);
+
+    [Fact]
+    public void AKindTheSettingsAdd_IsOpenedLikeADocument()
+    {
+        Assert.Equal(ExecutionKind.Reveal, Plan(@"C:\src\Klippy.slnx").Kind); // not built in: shown
+
+        var plan = PlanOpening(@"C:\src\Klippy.slnx", Solutions);
+
+        Assert.Equal(ExecutionKind.Document, plan.Kind);
+        Assert.True(ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows)!.UseShellExecute);
+    }
+
+    [Theory]
+    [InlineData(@"C:\src\Klippy.slnx")]  // written ".slnx"
+    [InlineData(@"C:\src\Old.SLN")]      // written "sln", and case is no matter
+    [InlineData(@"C:\src\App\App.csproj")] // written "*.CSPROJ"
+    public void TheListIsReadAsAPersonWritesIt(string path)
+    {
+        Assert.True(ExecutionPolicy.Opens(path, Solutions));
+    }
+
+    [Fact]
+    public void NothingListed_IsTheBuiltInListAlone()
+    {
+        Assert.True(ExecutionPolicy.Opens(@"C:\docs\notes.pdf"));
+        Assert.False(ExecutionPolicy.Opens(@"C:\src\Klippy.slnx"));
+        Assert.False(ExecutionPolicy.Opens(@"C:\src\Klippy.slnx", ["", ".", "*"]));
+        Assert.False(ExecutionPolicy.Opens(@"C:\src\.slnx", Solutions)); // a hidden file, as ".txt" is
+    }
+
+    [Fact]
+    public void TheListNeverReachesAScriptOrAnApplication()
+    {
+        // Each of these already runs, on its own platform and with its arguments judged.
+        // Opening one through the shell instead would be a way round both.
+        string[] everything = [".exe", ".bat", ".cmd", ".ps1", ".sh", ".app", ".AppImage"];
+
+        foreach (var path in new[]
+                 {
+                     @"C:\t\a.exe", @"C:\t\a.bat", @"C:\t\a.cmd", @"C:\t\a.ps1", @"C:\t\a.sh",
+                     "/Applications/A.app", "/opt/A.AppImage",
+                 })
+            Assert.False(ExecutionPolicy.Opens(path, everything));
+
+        // So a .bat keeps the rule about its own path, and an .exe its arguments and its home.
+        Assert.Equal(ExecutionKind.None, PlanOpening(@"C:\R&D\build.bat", everything).Kind);
+        Assert.Equal(new[] { "--wait" }, PlanOpening(@"C:\apps\code.exe --wait", everything).Arguments);
+        Assert.Equal(ExecutionKind.None,
+            ExecutionPolicy.Plan("/Applications/A.app", platform: ExecutionPlatform.Windows, environment: Env,
+                paths: Disk, alsoOpens: everything).Kind);
+    }
+
+    [Fact]
+    public void AListedKind_StillNeedsItsFullPath_AndAFileLinkReachesItToo()
+    {
+        Assert.Equal(ExecutionKind.None, PlanOpening("Klippy.slnx", Solutions).Kind);
+
+        var link = PlanOpening("file:///C:/src/Klippy.slnx", Solutions);
+        Assert.Equal(ExecutionKind.Document, link.Kind);
+        Assert.Equal(@"C:\src\Klippy.slnx", link.Target);
+    }
+
+    [Fact]
+    public void TheEditorHint_ReadsTheSameList()
+    {
+        // Beside the marker, a .slnx on the list is opened rather than shown, as Enter has it.
+        Assert.Equal(@"C:\src\Klippy.slnx", PathToReveal(@"C:\src\Klippy.slnx"));
+        Assert.Null(ExecutionPolicy.PathToReveal(
+            @"C:\src\Klippy.slnx", ExecutionPlatform.Windows, Env, Disk, Solutions));
+        Assert.True(ExecutionPolicy.LooksExecutable(
+            @"C:\src\Klippy.slnx", ExecutionPlatform.Windows, Env, Disk, Solutions));
+    }
+
     // ---- environment variables ----
 
     [Fact]

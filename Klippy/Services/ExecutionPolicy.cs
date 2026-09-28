@@ -143,7 +143,8 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 /// the rest of the line as arguments, as a shortcut on the desktop would.</item>
 /// <item><b>Documents</b> — a web page, a PDF, an image and the like, named by its full
 /// path or by a <c>file:///</c> link. Handed to whatever the platform opens its kind with,
-/// as double-clicking it would. See <see cref="DocumentExtension"/> for the list.</item>
+/// as double-clicking it would. See <see cref="DocumentExtension"/> for the list, and
+/// <see cref="Opens"/> for the kinds a user may add to it.</item>
 /// </list>
 ///
 /// The allow-list is still the point, even now that it has applications on it: a
@@ -225,13 +226,19 @@ public static class ExecutionPolicy
     /// — the one thing about a path its spelling cannot say. Null is the real disk, for the
     /// reason null is the real environment above.
     /// </param>
+    /// <param name="alsoOpens">
+    /// Kinds of file to open as documents beyond the built-in list — the
+    /// <c>ExecuteOpenExtensions</c> setting. See <see cref="Opens"/> for what it can and
+    /// cannot reach.
+    /// </param>
     public static ExecutionPlan Plan(
         string? text,
         IReadOnlyList<string>? arguments = null,
         string? clipboardText = null,
         ExecutionPlatform? platform = null,
         EnvironmentProbe? environment = null,
-        PathProbe? paths = null)
+        PathProbe? paths = null,
+        IReadOnlyCollection<string>? alsoOpens = null)
     {
         var os = platform ?? CurrentPlatform;
         var machine = environment ?? EnvironmentProbe.Real;
@@ -315,7 +322,7 @@ public static class ExecutionPolicy
         var command = Unquote(parts[0]);
         var rest = parts.GetRange(1, parts.Count - 1).ConvertAll(Unquote).ToArray();
 
-        return Judge(command, rest, os, paths ?? PathProbe.Real,
+        return Judge(command, rest, os, paths ?? PathProbe.Real, alsoOpens,
             () => WholeLine(text, machine, arguments, clipboardText));
     }
 
@@ -328,14 +335,15 @@ public static class ExecutionPolicy
     /// to be a path Klippy would merely show; null when that line is what is being judged.
     /// </param>
     private static ExecutionPlan Judge(
-        string command, string[] rest, ExecutionPlatform os, PathProbe disk, Func<string?>? wholeLine)
+        string command, string[] rest, ExecutionPlatform os, PathProbe disk,
+        IReadOnlyCollection<string>? alsoOpens, Func<string?>? wholeLine)
     {
         // The one scheme let past the refusal below, and only as far as a document: a
         // file:/// link is how a browser's address bar names a page on disk, and it is the
         // same page as the path it spells. What is judged and what is opened is that path,
         // decoded, so a %2E cannot hide an extension and the link itself never reaches the
         // shell — file:///C:/Windows/System32/cmd.exe is still refused, being no document.
-        if (FileUrlPath(command, os) is { } local && DocumentExtension(local) is not null)
+        if (FileUrlPath(command, os) is { } local && Opens(local, alsoOpens))
             return DocumentPlan(local);
 
         // Something carrying a scheme is not a path, whatever it happens to end in:
@@ -354,7 +362,7 @@ public static class ExecutionPolicy
         if (command.Contains('"'))
             return Nothing($"\"{Ellipsis(command)}\" is not a path Klippy can run: paths carry no quotes.");
 
-        if (DocumentExtension(command) is not null)
+        if (Opens(command, alsoOpens))
             return DocumentPlan(command);
 
         if (ScriptExtension(command) is { } script)
@@ -432,7 +440,7 @@ public static class ExecutionPolicy
             // line that is not on the disk leaves the first word, and the quoting rule, as
             // they were.
             if (wholeLine?.Invoke() is { } line && line != command && Exists(line, disk))
-                return Judge(line, [], os, disk, wholeLine: null);
+                return Judge(line, [], os, disk, alsoOpens, wholeLine: null);
 
             return Reveal(command, EndsWithSeparator(command) || disk.DirectoryExists(command), os);
         }
@@ -645,12 +653,14 @@ public static class ExecutionPolicy
     /// The disk, asked about the first line as a whole only when its first word would
     /// merely be shown — the one case where <see cref="Plan"/> asks it too. Null is the real one.
     /// </param>
+    /// <param name="alsoOpens">The same extra kinds to open that <see cref="Plan"/> is given.</param>
     public static bool LooksExecutable(
         string? text,
         ExecutionPlatform? platform = null,
         EnvironmentProbe? environment = null,
-        PathProbe? paths = null) =>
-        Read(text, platform, environment, paths).Promise != FirstWord.Nothing;
+        PathProbe? paths = null,
+        IReadOnlyCollection<string>? alsoOpens = null) =>
+        Read(text, platform, environment, paths, alsoOpens).Promise != FirstWord.Nothing;
 
     /// <summary>
     /// The path triggering text would <see cref="Reveal(string, bool, ExecutionPlatform)">show</see>
@@ -664,8 +674,9 @@ public static class ExecutionPolicy
         string? text,
         ExecutionPlatform? platform = null,
         EnvironmentProbe? environment = null,
-        PathProbe? paths = null) =>
-        Read(text, platform, environment, paths) is (FirstWord.Shown, var path) ? path : null;
+        PathProbe? paths = null,
+        IReadOnlyCollection<string>? alsoOpens = null) =>
+        Read(text, platform, environment, paths, alsoOpens) is (FirstWord.Shown, var path) ? path : null;
 
     /// <summary>What the first word of an item promises, as far as it can be told without running it.</summary>
     private enum FirstWord
@@ -677,7 +688,8 @@ public static class ExecutionPolicy
 
     /// <returns>The promise, and the first word it was read from once its variables resolved.</returns>
     private static (FirstWord Promise, string Word) Read(
-        string? text, ExecutionPlatform? platform, EnvironmentProbe? environment, PathProbe? paths)
+        string? text, ExecutionPlatform? platform, EnvironmentProbe? environment, PathProbe? paths,
+        IReadOnlyCollection<string>? alsoOpens)
     {
         // Only the first word, never the whole item: the editor asks this on every
         // keystroke in a content box that may be pages long.
@@ -697,7 +709,7 @@ public static class ExecutionPolicy
         var os = platform ?? CurrentPlatform;
         first = machine.Expand(first);
 
-        var promise = Promise(first, os);
+        var promise = Promise(first, os, alsoOpens);
         if (promise != FirstWord.Shown) return (promise, first);
 
         // A first word that would only be shown gives way to the whole line where the disk
@@ -708,19 +720,19 @@ public static class ExecutionPolicy
         if (Macros.IsPresent(line)) return (FirstWord.Runs, first);
 
         return WholeLine(line, machine, null, null) is { } whole && whole != first && Exists(whole, paths ?? PathProbe.Real)
-            ? (Promise(whole, os), whole)
+            ? (Promise(whole, os, alsoOpens), whole)
             : (promise, first);
     }
 
     /// <summary>What a word promises once its variables have resolved.</summary>
-    private static FirstWord Promise(string word, ExecutionPlatform os)
+    private static FirstWord Promise(string word, ExecutionPlatform os, IReadOnlyCollection<string>? alsoOpens)
     {
         if (AsUrl(word) is not null) return FirstWord.Runs;
 
-        if (FileUrlPath(word, os) is { } local) return Runs(DocumentExtension(local) is not null);
+        if (FileUrlPath(word, os) is { } local) return Runs(Opens(local, alsoOpens));
         if (HasScheme(word)) return FirstWord.Nothing; // a scheme the allow-list above turned down
 
-        if (DocumentExtension(word) is not null) return Runs(UnmatchedSearch.IsRooted(word));
+        if (Opens(word, alsoOpens)) return Runs(UnmatchedSearch.IsRooted(word));
         if (ScriptExtension(word) is { } script) return Runs(Supports(script, os));
         if (BundleOf(word) is not null) return Runs(os == ExecutionPlatform.MacOS);
         if (ApplicationExtension(word) is { } application) return Runs(Supports(application, os));
@@ -1018,6 +1030,50 @@ public static class ExecutionPolicy
         ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
         ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp",
     };
+
+    /// <summary>
+    /// Whether a path is opened with whatever the platform opens its kind with: one of the
+    /// <see cref="Documents"/>, or a kind named in <paramref name="alsoOpens"/> — the
+    /// <c>ExecuteOpenExtensions</c> setting, where someone whose solutions should open in
+    /// their IDE puts <c>.slnx</c>.
+    ///
+    /// The setting only ever adds to the list, and only kinds nothing else here has a rule
+    /// for. A script or an application is never opened this way whatever the setting says:
+    /// each of those already runs, on its own platform and with its arguments judged, and
+    /// handing one to the shell instead would be a way round both — a <c>.bat</c> opened
+    /// is a <c>.bat</c> run with nobody having looked at its path. What is left is the
+    /// user's own call about what their machine does with a kind of file, which is what
+    /// double-clicking one already is.
+    /// </summary>
+    /// <param name="alsoOpens">
+    /// Extensions as a person writes them — <c>.slnx</c>, <c>slnx</c> or <c>*.slnx</c> —
+    /// without regard to case. Null or empty is the built-in list alone.
+    /// </param>
+    public static bool Opens(string? token, IReadOnlyCollection<string>? alsoOpens = null)
+    {
+        if (DocumentExtension(token) is not null) return true;
+        if (alsoOpens is not { Count: > 0 } || string.IsNullOrEmpty(token)) return false;
+
+        if (ScriptExtension(token) is not null || ApplicationExtension(token) is not null || BundleOf(token) is not null)
+            return false;
+
+        var name = FileNameOf(token);
+        int dot = name.LastIndexOf('.');
+        if (dot <= 0) return false; // ".slnx" on its own is a hidden file, as ".txt" is
+
+        var extension = name[dot..];
+        foreach (var listed in alsoOpens)
+            if (string.Equals(AsExtension(listed), extension, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+        return false;
+
+        static string AsExtension(string? listed)
+        {
+            var written = (listed ?? "").Trim().TrimStart('*');
+            return written.Length == 0 || written[0] == '.' ? written : "." + written;
+        }
+    }
 
     /// <summary>The document types a marked item opens, or null for anything else.</summary>
     public static string? DocumentExtension(string? token)

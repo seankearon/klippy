@@ -37,6 +37,10 @@ what keeps it current.
 |---|---|---|
 | **Pull first** | `git pull` runs in the script or application's own folder, and is waited for, before it starts | It starts as it is on disk |
 
+One more has no toggle, being a list you write: `ExecuteOpenExtensions`, the kinds of file
+opened [as documents are](running-things.md#opening-other-kinds-of-file) beyond the built-in
+ones — `[".slnx"]` for solutions that should open in their IDE. Empty by default.
+
 Three more, desktop only, govern
 [running an unmatched search](unmatched-search.md) — the one feature that executes
 rather than copies, which is why all three default to the cautious answer.
@@ -54,7 +58,8 @@ In `settings.json`:
   "ExecutePullFirst": false,
   "ExecuteUnmatched": true,
   "ExecuteVerifyPaths": true,
-  "ExecuteConfirmSystemActions": true
+  "ExecuteConfirmSystemActions": true,
+  "ExecuteOpenExtensions": []
 }
 ```
 

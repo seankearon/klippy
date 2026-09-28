@@ -54,7 +54,7 @@ someone hunting for the clip they copied than an instruction.
 | `C:\tools\deploy.ps1`, `D:\apps\thing.exe`, `/Applications/Safari.app` | The script or application runs, exactly as a marked snippet naming it would |
 | `http://…`, `https://…`, `www.…` | The page opens |
 | `lock`, `sleep`, `hibernate`, `restart` | The machine control, after a confirmation |
-| `klippy`, `%klippy%` — a name [`variables.txt`](variables.md) defines | Each value it stands for, read as though it had been typed — see [Typing a name](variables.md#typing-a-name) |
+| `klippy`, `%klippy%` — a name [`variables.txt`](variables.md) defines | Each value it stands for, read as a marked item reads its text — see [Typing a name](variables.md#typing-a-name) |
 
 Three things are deliberately narrower here than for a snippet you marked yourself, because
 a marked item was written on purpose and this is whatever landed in a filter box:

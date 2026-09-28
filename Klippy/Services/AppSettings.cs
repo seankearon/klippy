@@ -135,6 +135,20 @@ public sealed class AppSettings
     public bool ExecuteConfirmSystemActions { get; set; } = true;
 
     /// <summary>
+    /// Kinds of file opened as documents, beyond the built-in pages, PDFs, pictures and
+    /// macro-free Office files — <c>[".slnx", ".sln"]</c> for solutions that should open in
+    /// the IDE their extension belongs to. Applies to an item marked Execute and to a
+    /// variable typed by name, never to a path typed into the search box.
+    ///
+    /// Empty by default, and a list to add to rather than a switch, because opening a file
+    /// is the same verb as running one to the shell: a <c>.js</c> or a <c>.lnk</c> opened
+    /// is a program started, so which kinds are opened is a choice made one kind at a time.
+    /// Scripts and applications are not affected by it either way — see
+    /// <see cref="ExecutionPolicy.Opens"/>.
+    /// </summary>
+    public string[] ExecuteOpenExtensions { get; set; } = Array.Empty<string>();
+
+    /// <summary>
     /// Where the window lands when a hotkey summons it: "Remembered", "Centre" or
     /// "Pointer". Remembered by default, and not only because an upgrade should change
     /// nothing: a resident launcher that always comes back to the same corner becomes

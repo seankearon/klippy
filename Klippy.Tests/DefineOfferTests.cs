@@ -286,8 +286,8 @@ public class DefineOfferTests
     [Fact]
     public void WhatTheLineItselfNamed_StillTakesEnter_AheadOfTheDefine()
     {
-        // Adding a define never changes what Enter did to a line before it: %klippy% beside a
-        // row was always the path it named, and it still is.
+        // %klippy% beside a row always took Enter from it, being a path rather than a word,
+        // and still does — with klippy's own first value on it, so the two spellings agree.
         using var checkout = new Checkout();
         var f = NewVm(("Open Klippy in Rider", "%r% %klippy:file%"));
 
@@ -296,6 +296,112 @@ public class DefineOfferTests
         Assert.Null(f.Vm.SelectedSnippet);
         Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
         Assert.Equal(checkout.Solution, f.Vm.SelectedOffer!.Detail);
+    }
+
+    // ---- kinds the settings say to open ----
+
+    [Fact]
+    public void WithSolutionsOnTheList_ANameOffersToOpenIt_ShowIt_OrOpenItsFolder()
+    {
+        using var checkout = new Checkout();
+        var f = NewVm();
+        f.Settings.ExecuteOpenExtensions = [".slnx"];
+
+        f.Vm.FilterText = "klippy";
+
+        Assert.Collection(f.Vm.Offers,
+            open =>
+            {
+                Assert.Equal(ExecutionKind.Document, open.Plan.Kind);
+                Assert.Equal(checkout.Solution, open.Detail);
+            },
+            show =>
+            {
+                // Right after it: being able to open it is no reason to lose where it is.
+                Assert.StartsWith("Show in ", show.Verb);
+                Assert.Equal(checkout.Solution, show.Detail);
+            },
+            folder => Assert.Equal(checkout.Folder, folder.Detail));
+
+        Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
+    }
+
+    [Fact]
+    public async Task Enter_OpensTheSolution()
+    {
+        using var checkout = new Checkout();
+        var f = NewVm();
+        f.Settings.ExecuteOpenExtensions = [".slnx"];
+
+        f.Vm.FilterText = "klippy";
+        await f.Vm.RunOfferCommand.ExecuteAsync(null);
+
+        var ran = Assert.Single(f.Ran);
+        Assert.Equal(ExecutionKind.Document, ran.Kind);
+        Assert.Equal(checkout.Solution, ran.Target);
+    }
+
+    [Fact]
+    public void PercentSigns_PutTheSameThingOnEnter()
+    {
+        // Typed as %klippy%, the line resolves to the solution and would only show it; as
+        // the name of a define it is klippy, and klippy opens it.
+        using var checkout = new Checkout();
+        var f = NewVm(("Open Klippy in Rider", "%r% %klippy:file%"));
+        f.Settings.ExecuteOpenExtensions = [".slnx"];
+
+        f.Vm.FilterText = "%klippy%";
+
+        Assert.Equal(3, f.Vm.Offers.Count);
+        Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
+        Assert.Equal(ExecutionKind.Document, f.Vm.SelectedOffer!.Plan.Kind);
+    }
+
+    [Fact]
+    public async Task AMarkedItem_OpensAListedKindToo()
+    {
+        using var checkout = new Checkout();
+        var store = new SnippetStore(
+            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+        store.Add(new Snippet { Label = "Klippy solution", Content = checkout.Solution, IsExecutable = true });
+
+        var ran = new List<ExecutionPlan>();
+        var vm = new MainViewModel(store, settings: new AppSettings { ExecuteOpenExtensions = [".slnx"] })
+        {
+            Executor = plan =>
+            {
+                ran.Add(plan);
+                return Task.FromResult(new ExecutionResult(true, plan.Description));
+            },
+        };
+
+        await vm.ActivateCommand.ExecuteAsync(vm.Filtered[0]);
+
+        Assert.Equal(ExecutionKind.Document, Assert.Single(ran).Kind);
+    }
+
+    [Fact]
+    public void TheEditorHint_ReadsTheSameList()
+    {
+        using var checkout = new Checkout();
+        var previous = AppSettings.Current.ExecuteOpenExtensions;
+        try
+        {
+            var editor = new EditorViewModel(null, (_, _) => { }, () => { })
+            {
+                Content = checkout.Solution,
+                IsExecutable = true,
+            };
+            Assert.StartsWith("Shows ", editor.ExecuteHint);
+
+            AppSettings.Current.ExecuteOpenExtensions = [".slnx"];
+            editor.Content += " "; // the hint is read as the content changes
+            Assert.StartsWith("Opened or run", editor.ExecuteHint);
+        }
+        finally
+        {
+            AppSettings.Current.ExecuteOpenExtensions = previous;
+        }
     }
 
     // ---- the keyboard and the pointer ----
@@ -377,10 +483,12 @@ public class DefineOfferTests
     [AvaloniaFact]
     public void TheBandsAreDrawn()
     {
-        // A frame for looking at: two bands over the one row that uses the name, with ↑
-        // having climbed from that row into the band nearest it — and the list letting go.
+        // A frame for looking at: with solutions on the list to open, three bands over the
+        // one row that uses the name, and ↑ having climbed from that row into the band
+        // nearest it — the list letting go of the selection as it does.
         using var checkout = new Checkout();
         var (window, f) = NewWindow(("Open Klippy in Rider", "%r% %klippy:file%"));
+        f.Settings.ExecuteOpenExtensions = [".slnx"];
 
         f.Vm.FilterText = "klippy";
         Dispatcher.UIThread.RunJobs();
@@ -389,7 +497,8 @@ public class DefineOfferTests
 
         var list = window.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "SnippetList");
         Assert.Null(list.SelectedItem);
-        Assert.True(Bands(window)[1].Classes.Contains("selected"));
+        Assert.Equal(3, Bands(window).Count);
+        Assert.True(Bands(window)[2].Classes.Contains("selected"));
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);

@@ -99,6 +99,33 @@ only as far as a document, judged on the path it decodes to — so an encoded `%
 extension — and only for this machine's files: `file://server/…` is a request to a server,
 and stays refused.
 
+### Opening other kinds of file
+
+A solution you want open in your IDE is not on that list, and should not be by default:
+opening a `.sln` or `.slnx` in Visual Studio or Rider runs the build's own targets as it
+loads, which is closer to running something than to reading it. But it is *your* solution,
+and whether it opens with a keystroke is your call to make. So the list can be added to, by
+hand, in `settings.json`:
+
+```json
+{
+  "ExecuteOpenExtensions": [".slnx", ".sln"]
+}
+```
+
+A kind on it opens exactly as the documents above do — by its full path or a `file:///`
+link, with whatever your machine opens that kind with — from an item marked Execute and from
+a [variable typed by name](variables.md#typing-a-name). A path typed into the search box is
+still only [shown](unmatched-search.md), whatever the list says. Write an extension as
+`.slnx`, `slnx` or `*.slnx`; case is no matter.
+
+It only ever adds. A script or an application is never opened this way, listed or not:
+each of those already runs, on its own platform and with its arguments judged, and handing
+one to the shell instead would be a way round both — a `.bat` opened is a `.bat` run with
+nobody having looked at its path. Everything else is yours to decide, which is also the
+warning: put `.lnk` or `.js` on the list and opening one is starting what it points at, as
+double-clicking it would be.
+
 ## Environment variables
 
 The first word of a marked snippet may name itself the way a path does everywhere else on
@@ -207,7 +234,9 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   scheme is not a path whatever it ends in, either:
   `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
   refused along with `javascript:` — a `file:` link reaches a [document](#documents)
-  and nothing else.
+  and nothing else. The one way to widen what opens is to
+  [name a kind yourself](#opening-other-kinds-of-file), and even that never reaches a
+  script or an application.
 - **An application is a program, and starting one is starting a program.** That is the
   point of the feature and also its edge: a snippet of `%C%` marked Execute will start
   whatever application path is on the clipboard, `cmd.exe` and its switches included. The

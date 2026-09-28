@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Klippy.Services;
 
@@ -68,10 +70,19 @@ public sealed partial class OfferViewModel : ViewModelBase
     /// </summary>
     public string KeyBadge => IsQuit ? "↵ quit" : "↵ run";
 
-    /// <summary>What it will be done to: the link, the path, the machine, or Klippy itself.</summary>
+    /// <summary>
+    /// What it will be done to: the link, the path, the machine, or Klippy itself. A program
+    /// named with arguments — which a variable's value may be — shows them too, quoted
+    /// where they hold a space, since they are half of what is about to run.
+    /// </summary>
     public string Detail => IsQuit
         ? "stop listening and leave the tray"
-        : Plan.Kind == ExecutionKind.System ? "this computer" : Plan.Target;
+        : Plan.Kind == ExecutionKind.System ? "this computer"
+        : Plan.Arguments.Length == 0 ? Plan.Target
+        : Plan.Target + " " + string.Join(" ", Array.ConvertAll(Plan.Arguments, Shown));
+
+    private static string Shown(string argument) =>
+        argument.Length == 0 || argument.Any(char.IsWhiteSpace) ? $"\"{argument}\"" : argument;
 
     /// <summary>
     /// The confirmation's headline, e.g. "Restart this computer?". Only a machine control

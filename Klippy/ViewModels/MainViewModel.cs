@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -410,37 +411,40 @@ public partial class MainViewModel : ViewModelBase
         var environment = variables.Ahead(EnvironmentProbe.Real);
         var plans = new List<ExecutionPlan>();
 
-        var plan = UnmatchedSearch.Plan(FilterText, _prefs.ExecuteVerifyPaths, environment: environment);
-        if (plan.Kind != ExecutionKind.None)
-        {
-            bool beatenByAMatch = Filtered.Count > 0
-                                  && (IsHistoryMode || UnmatchedSearch.CouldBeASearch(plan) || AnItemIsTheLine(plan));
-            if (!beatenByAMatch) plans.Add(plan);
-        }
+        // A line that is the name of a define, offered as each value it stands for.
+        // Snippets only: in the history a line is someone hunting for a clip, and a name is
+        // no less likely to be that than a path is.
+        var defines = IsHistoryMode
+            ? []
+            : UnmatchedSearch.PlanDefine(FilterText, variables, _prefs.ExecuteVerifyPaths,
+                environment: environment, alsoOpens: _prefs.ExecuteOpenExtensions);
 
         // Standing beside a list that still has rows in it, what the line itself names is
         // what Enter acts on — so the selection comes off the list, since a row that is not
         // getting the keystroke must not sit there wearing the badge that says it is. ↓
         // moves back in, and from there Enter activates the row as it always did.
-        bool takeSelection = plans.Count > 0;
-
-        // A line that is the name of a define, offered as each value it stands for. After
-        // the line's own offer, so adding a define never changes what Enter did to a line
-        // before it; and not a reason to take the selection from a row, the way quit is
-        // not, because a bare name is an ordinary word — "app" is a search as often as it is
-        // anything — and every snippet written with %app% in it answers to it. Being shown
-        // is the whole of what a name is owed here: ↑ from the top row reaches it.
         //
-        // Snippets only. In the history a line is someone hunting for a clip, and a name is
-        // no less likely to be that than a path is.
-        if (!IsHistoryMode)
+        // Where that is one of the define's own offers — %klippy% resolved to one of
+        // klippy's values — the define's order stands in for it, so %klippy% and klippy put
+        // the same thing on Enter. Anything else it named keeps its place at the top:
+        // adding a define never changes what Enter did to a line before it.
+        bool takeSelection = false;
+        var plan = UnmatchedSearch.Plan(FilterText, _prefs.ExecuteVerifyPaths, environment: environment);
+        if (plan.Kind != ExecutionKind.None)
         {
-            var defines = UnmatchedSearch.PlanDefine(
-                FilterText, variables, _prefs.ExecuteVerifyPaths, environment: environment);
-            foreach (var value in defines)
-                if (!plans.Exists(p => UnmatchedSearch.IsSame(p, value)))
-                    plans.Add(value);
+            bool beatenByAMatch = Filtered.Count > 0
+                                  && (IsHistoryMode || UnmatchedSearch.CouldBeASearch(plan) || AnItemIsTheLine(plan));
+            takeSelection = !beatenByAMatch;
+            if (takeSelection && !defines.Any(d => UnmatchedSearch.IsSame(d, plan))) plans.Add(plan);
         }
+
+        // After the line's own offer, and not a reason to take the selection from a row, the
+        // way quit is not: a bare name is an ordinary word — "app" is a search as often as
+        // it is anything — and every snippet written with %app% in it answers to it. Being
+        // shown is the whole of what a name is owed here: ↑ from the top row reaches it.
+        foreach (var value in defines)
+            if (!plans.Exists(p => UnmatchedSearch.IsSame(p, value)))
+                plans.Add(value);
 
         ShowOffers(plans.ConvertAll(p => new OfferViewModel(p)), takeSelection);
     }
@@ -746,7 +750,8 @@ public partial class MainViewModel : ViewModelBase
             text,
             row.Arguments,
             await ReadClipboardForAsync(text),
-            environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real)));
+            environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real),
+            alsoOpens: _prefs.ExecuteOpenExtensions));
 
         if (plan.Kind == ExecutionKind.None)
         {
