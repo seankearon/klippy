@@ -417,7 +417,7 @@ public partial class MainViewModel : ViewModelBase
         var defines = IsHistoryMode
             ? []
             : UnmatchedSearch.PlanDefine(FilterText, variables, _prefs.ExecuteVerifyPaths,
-                environment: environment, alsoOpens: _prefs.ExecuteOpenExtensions);
+                environment: environment, alsoOpens: _prefs.AlsoOpens);
 
         // Standing beside a list that still has rows in it, what the line itself names is
         // what Enter acts on — so the selection comes off the list, since a row that is not
@@ -716,8 +716,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Runs the item: its link opens in the default browser, or the script or
-    /// application it names starts, with the same macros a copy would have resolved.
+    /// Runs the item: its link opens in whatever opens its kind, or the document,
+    /// script or application it names opens or starts, with the same macros a copy would
+    /// have resolved.
     /// Reached by triggering an item marked Execute.
     ///
     /// The item's stored text goes to the execution engine together with the typed
@@ -751,7 +752,7 @@ public partial class MainViewModel : ViewModelBase
             row.Arguments,
             await ReadClipboardForAsync(text),
             environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real),
-            alsoOpens: _prefs.ExecuteOpenExtensions));
+            alsoOpens: _prefs.AlsoOpens));
 
         if (plan.Kind == ExecutionKind.None)
         {

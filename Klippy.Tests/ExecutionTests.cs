@@ -53,6 +53,7 @@ public class ExecutionTests
         @"C:\Users\sam\OneDrive - Acme, Inc",
         @"E:\ProtonDrive\My files\Shine Forms\Shine\Graphics",
         @"D:\src\My App",
+        @"\\nas\media\Films",
         "/Users/sam/Projects",
         "/Library/PreferencePanes/Klippy.prefPane",
     };
@@ -144,17 +145,171 @@ public class ExecutionTests
     }
 
     [Fact]
-    public void MailtoCounts_ButOtherSchemesDoNot()
+    public void MailtoCounts_ButSchemesOffTheListDoNot()
     {
         Assert.Equal(ExecutionKind.Url, Plan("mailto:ops@klippy.app").Kind);
 
         // A scheme is not a path, however it ends: the .exe on the end of this one does
         // not make it the application rules' business, and javascript: names nothing.
-        Assert.Equal(ExecutionKind.None, Plan(@"file:///C:/Windows/System32/cmd.exe").Kind);
+        Assert.Equal(ExecutionKind.None, Plan(@"ms-msdt:/id x\cmd.exe").Kind);
         Assert.Equal(ExecutionKind.None, Plan("javascript:alert(1)").Kind);
 
         // A drive letter is the one colon a path may carry, and it stays a path.
         Assert.Equal(ExecutionKind.Application, Plan(@"C:\Windows\System32\cmd.exe").Kind);
+    }
+
+    // ---- links that are not the web's ----
+    //
+    // A page of something already on the machine opens without being listed: its settings,
+    // or a browser's own pages. Any other kind of link opens once the settings list it.
+
+    private static ExecutionPlan PlanLink(
+        string text, string[]? alsoOpens = null, ExecutionPlatform platform = ExecutionPlatform.Windows,
+        string[]? arguments = null, string? clipboardText = null) =>
+        ExecutionPolicy.Plan(text, arguments, clipboardText, platform, Env, Disk, alsoOpens);
+
+    [Theory]
+    [InlineData("ms-settings:display")]
+    [InlineData("ms-settings:")]                  // Settings' own home page
+    [InlineData("MS-Settings:windowsupdate")]     // a scheme is read without regard to case
+    [InlineData("edge://settings/privacy")]
+    [InlineData("chrome://flags")]
+    public void ASettingsOrBrowserPage_OpensWithoutBeingListed(string link)
+    {
+        var plan = PlanLink(link);
+
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal(link, plan.Target);
+    }
+
+    [Fact]
+    public void ASettingsPage_OpensOnItsOwnPlatformOnly()
+    {
+        var mac = PlanLink("ms-settings:display", platform: ExecutionPlatform.MacOS);
+        Assert.Equal(ExecutionKind.None, mac.Kind);
+        Assert.Equal("ms-settings: links only open on Windows.", mac.Problem);
+
+        const string camera = "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera";
+        Assert.Equal(ExecutionKind.Url, PlanLink(camera, platform: ExecutionPlatform.MacOS).Kind);
+        Assert.Equal(ExecutionKind.None, PlanLink(camera).Kind);
+
+        // A browser's pages are wherever the browser is.
+        Assert.Equal(ExecutionKind.Url, PlanLink("edge://settings", platform: ExecutionPlatform.Linux).Kind);
+    }
+
+    [Theory]
+    [InlineData("vscode:")]
+    [InlineData("vscode://")]
+    [InlineData("VSCode:")]
+    public void AnyOtherKindOfLink_OpensOnceTheSettingsListIt(string listed)
+    {
+        const string link = "vscode://file/C:/src/Klippy/App.axaml.cs:12";
+
+        var unlisted = PlanLink(link);
+        Assert.Equal(ExecutionKind.None, unlisted.Kind);
+        Assert.Equal("vscode: links only open once vscode: is added under ALSO OPEN in Settings.", unlisted.Problem);
+
+        var plan = PlanLink(link, [".slnx", listed]);
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal(link, plan.Target);
+
+        // A kind of link is no kind of file, nor the other way about.
+        Assert.False(ExecutionPolicy.Opens(@"C:\src\Klippy.slnx", [listed]));
+        Assert.Equal(ExecutionKind.None, PlanLink("slnx://open", [".slnx"]).Kind);
+    }
+
+    [Fact]
+    public void AListCannotMakeALinkOfWhatIsNeverOne()
+    {
+        // Settings refuses these, and a list written by hand gets no further with them: a
+        // file: link is still the path it spells, and javascript: still names nothing.
+        string[] everything = ["file:", "javascript:", "vbscript:", "data:"];
+
+        Assert.Equal(ExecutionKind.Reveal, PlanLink("file:///C:/logs/app.log", everything).Kind);
+        Assert.Equal(ExecutionKind.None, PlanLink("javascript:alert(1)", everything).Kind);
+        Assert.Equal(ExecutionKind.None, PlanLink("data:text/html,<script>x</script>", everything).Kind);
+    }
+
+    [Fact]
+    public void ALinksArgument_IsEncodedIntoIt_AsASearchesIs()
+    {
+        var plan = PlanLink("vscode://file/%P%", ["vscode:"], arguments: ["C:/My Docs/a.cs"]);
+
+        Assert.Equal("vscode://file/C%3A%2FMy%20Docs%2Fa.cs", plan.Target);
+    }
+
+    [Fact]
+    public void ALinkOffTheClipboard_CannotEndTheArgumentItIsHandedOverIn()
+    {
+        // An application registers "%1" in quotes, so a quote in the link would close that
+        // argument and open another of the link's choosing. Encoded, it is one argument.
+        var plan = PlanLink("%C%", ["vscode:"], clipboardText: "vscode://file/C:/My Docs/a\" --disable-extensions \"x");
+
+        Assert.Equal(ExecutionKind.Url, plan.Kind);
+        Assert.Equal("vscode://file/C:/My%20Docs/a%22%20--disable-extensions%20%22x", plan.Target);
+
+        // A web link keeps the space it came with, as it always has.
+        Assert.Equal("https://example.com/a b", PlanLink("%C%", clipboardText: "https://example.com/a b").Target);
+    }
+
+    [Theory]
+    [InlineData("vscode:", null)]
+    [InlineData("vscode://", null)]
+    [InlineData("shell:", null)]
+    [InlineData("x-man-page:", null)]
+    [InlineData("file:", "rules of their own")]
+    [InlineData("javascript:", "never opened")]
+    [InlineData("DATA:", "never opened")]
+    [InlineData("https:", "open already")]
+    [InlineData("ms-settings:", "open already")]
+    [InlineData("edge://", "open already")]
+    [InlineData("c:", "not a kind of link")]      // a drive
+    [InlineData("vs code:", "not a kind of link")]
+    [InlineData("1password:", "not a kind of link")] // a scheme starts with a letter
+    [InlineData(":", "not a kind of link")]
+    public void WhatTheListMayHold_IsAKindOfLinkNothingElseHasARuleFor(string written, string? said)
+    {
+        var problem = ExecutionPolicy.WhyNotOpenable(written);
+
+        if (said is null) Assert.Null(problem);
+        else Assert.Contains(said, problem);
+    }
+
+    [Theory]
+    [InlineData("vscode:", "vscode:")]
+    [InlineData("  VSCode://  ", "vscode:")]
+    [InlineData("slnx", null)]   // no colon: a kind of file
+    [InlineData(".slnx", null)]
+    [InlineData("", null)]
+    public void AKindOfLink_IsKeptOneWay_AndToldFromAKindOfFileByItsColon(string written, string? kept)
+    {
+        Assert.Equal(kept, ExecutionPolicy.AsLinkKind(written));
+    }
+
+    [Fact]
+    public void TheEditorSaysWhereToAddAKindOfLink()
+    {
+        Assert.Equal("vscode:", ExecutionPolicy.UnlistedLink("vscode://file/C:/x.cs"));
+        Assert.Null(ExecutionPolicy.UnlistedLink("vscode://file/C:/x.cs", ["vscode:"]));
+
+        // Nothing to add for a link that opens already, a path, or one that never will.
+        Assert.Null(ExecutionPolicy.UnlistedLink("ms-settings:display"));
+        Assert.Null(ExecutionPolicy.UnlistedLink("file:///C:/x.log"));
+        Assert.Null(ExecutionPolicy.UnlistedLink("javascript:alert(1)"));
+        Assert.Null(ExecutionPolicy.UnlistedLink(@"C:\x.log"));
+
+        // A word and a colon is not a link, and a server's port is not a kind of anything:
+        // neither is told to add what it happens to start with.
+        Assert.Null(ExecutionPolicy.UnlistedLink("Note: call Sam first"));
+        Assert.Null(ExecutionPolicy.UnlistedLink("localhost:8000/admin"));
+        Assert.Contains("not a URL", Plan("localhost:8000").Problem);
+        Assert.Equal("tel:", ExecutionPolicy.UnlistedLink("tel:+441632960000"));
+
+        Assert.True(ExecutionPolicy.LooksExecutable("vscode://x", ExecutionPlatform.Windows, Env, Disk, ["vscode:"]));
+        Assert.False(ExecutionPolicy.LooksExecutable("vscode://x", ExecutionPlatform.Windows, Env, Disk));
+        Assert.True(LooksExecutable("ms-settings:display"));
+        Assert.False(LooksExecutable("ms-settings:display", ExecutionPlatform.MacOS));
+        Assert.True(LooksExecutable("edge://settings", ExecutionPlatform.MacOS));
     }
 
     [Fact]
@@ -435,20 +590,77 @@ public class ExecutionTests
     }
 
     [Fact]
-    public void AFileLinkIsStillNoWayToRunAProgram()
+    public void AFileLinkIsThePathItSpells_InEveryRespect()
     {
-        // The documents are the only thing a file: link reaches, judged on the path it
-        // decodes to — an encoded dot hides no extension, and a quote misleads nothing.
-        Assert.Equal(ExecutionKind.None, Plan("file:///C:/Windows/System32/cmd.exe").Kind);
-        Assert.Equal(ExecutionKind.None, Plan("file:///C:/x/payload%2Ehta").Kind);
+        // Judged from the top as the path would be, had it been written instead: a folder
+        // opens, a file that is no document is shown, and a program starts as its path would.
+        Assert.Equal(ExecutionKind.Folder, Plan("file:///C:/work/invoices").Kind);
+        Assert.Equal(ExecutionKind.Reveal, Plan("file:///C:/logs/app.log").Kind);
+
+        var program = Plan("file:///C:/Windows/System32/cmd.exe");
+        Assert.Equal(ExecutionKind.Application, program.Kind);
+        Assert.Equal(@"C:\Windows\System32\cmd.exe", program.Target);
+
+        // The rest of the line is the script's arguments, as it is after a written path.
+        var script = Plan("file:///C:/tools/deploy.ps1 --env %P%", ["west"]);
+        Assert.Equal(ExecutionKind.Script, script.Kind);
+        Assert.Equal(@"C:\tools\deploy.ps1", script.Target);
+        Assert.Equal(new[] { "--env", "west" }, script.Arguments);
+
+        // A space is encoded in a link, so the path is one path with no quotes needed.
+        Assert.Equal(ExecutionKind.Folder, Plan("file:///D:/src/My%20App").Kind);
+    }
+
+    [Fact]
+    public void AFileLinkMeetsEveryRuleItsPathWould()
+    {
+        // Decoded before it is judged, so an encoded dot hides no extension: an .hta is
+        // still only ever shown, and a quote is still a link built to mislead.
+        Assert.Equal(ExecutionKind.Reveal, Plan("file:///C:/x/payload%2Ehta").Kind);
         Assert.Equal(ExecutionKind.None, Plan("file:///C:/x/report.html%22.exe").Kind);
 
-        // This machine's files only: a link to a server is a request made to it.
-        Assert.Equal(ExecutionKind.None, Plan("file://server/share/report.html").Kind);
+        // A .bat's own path faces the ampersand rule however it was spelled.
+        Assert.Contains("cmd.exe would read", Plan("file:///C:/R%26D/build.bat").Problem);
 
-        // On Windows a path has a drive, and drive-relative is no path at all.
-        Assert.Equal(ExecutionKind.None, Plan("file:///home/sam/report.html").Kind);
+        // An .exe is no more startable on a Mac by its link than by its path.
+        Assert.Equal(ExecutionKind.None,
+            Plan("file:///Applications/Tool.exe", platform: ExecutionPlatform.MacOS).Kind);
+
+        // On Windows a path has a drive or a share, and drive-relative is no path at all.
+        var unix = Plan("file:///home/sam/report.html");
+        Assert.Equal(ExecutionKind.None, unix.Kind);
+        Assert.Contains("does not name a path", unix.Problem);
         Assert.Equal(ExecutionKind.None, Plan("file:///C:report.html").Kind);
+    }
+
+    [Theory]
+    [InlineData("file://nas/share/report.html")]    // as Windows writes a share's link
+    [InlineData("file:////nas/share/report.html")]  // and as some programs do
+    [InlineData("file://///nas/share/report.html")]
+    public void AFileLinkToAShare_IsThatShare_OnWindows(string link)
+    {
+        // The same request to the same server as writing \\nas\share would be.
+        var plan = Plan(link);
+        Assert.Equal(ExecutionKind.Document, plan.Kind);
+        Assert.Equal(@"\\nas\share\report.html", plan.Target);
+    }
+
+    [Fact]
+    public void AFileLinkNamesAShareOnlyWhereAShareHasAPath()
+    {
+        Assert.Equal(ExecutionKind.Folder, Plan("file://nas/media/Films").Kind);
+
+        // Elsewhere a share is mounted before it has a path, and the link names nothing.
+        Assert.Equal(ExecutionKind.None,
+            Plan("file://nas/share/report.html", platform: ExecutionPlatform.MacOS).Kind);
+
+        // A server by a name a network could know it by, and a share on it.
+        Assert.Equal(ExecutionKind.None, Plan("file://nas/").Kind);
+        Assert.Equal(ExecutionKind.None, Plan("file://n%61s/share/report.html").Kind);
+        Assert.Equal(ExecutionKind.None, Plan("file://nas@evil/share/report.html").Kind);
+
+        // The drive written where the host goes is a drive, as Windows reads it too.
+        Assert.Equal(@"C:\Docs\report.html", Plan("file://C:/Docs/report.html").Target);
     }
 
     [Theory]
@@ -848,8 +1060,11 @@ public class ExecutionTests
         Assert.False(LooksExecutable("docker system prune -af --volumes"));
         Assert.False(LooksExecutable(""));
 
-        // A scheme the URL rules turned down stays turned down, .exe on the end or not.
-        Assert.False(LooksExecutable(@"file:///C:/Windows/System32/cmd.exe"));
+        // A scheme off the list stays off it, .exe on the end or not; a file: link is the
+        // path it spells, and is judged as that path would be.
+        Assert.False(LooksExecutable(@"ms-msdt:/id x\cmd.exe"));
+        Assert.True(LooksExecutable(@"file:///C:/Windows/System32/cmd.exe"));
+        Assert.False(LooksExecutable(@"file:///C:/Windows/System32/cmd.exe", ExecutionPlatform.MacOS));
 
         // .bat has nothing to run it on a Mac, so marking one there is worth a warning.
         Assert.False(LooksExecutable(@"C:\tools\build.bat", ExecutionPlatform.MacOS));
@@ -873,6 +1088,7 @@ public class ExecutionTests
     {
         Assert.Equal(@"C:\logs\app.log", PathToReveal(@"C:\logs\app.log"));
         Assert.Equal(@"C:\Users\sam\AppData\Local\Klippy", PathToReveal(@"%LOCALAPPDATA%\Klippy"));
+        Assert.Equal(@"C:\logs\app.log", PathToReveal("file:///C:/logs/app.log")); // the path, not the link
         Assert.NotNull(PathToReveal("/Users/sam/Projects", ExecutionPlatform.MacOS));
 
         // Named, so a path with a space and no quotes round it is seen to stop at the space
@@ -1099,9 +1315,10 @@ public class ExecutionTests
         Assert.Contains("full path", PlanReveal("app.log").Problem);
         Assert.Equal(ExecutionKind.None, PlanReveal(null).Kind);
 
-        // A scheme is not a path, and a link to a server is a request made to it.
+        // A scheme is not a path. A link to a share is, on Windows, and it has to be there.
         Assert.Equal(ExecutionKind.None, PlanReveal("https://klippy.app").Kind);
-        Assert.Equal(ExecutionKind.None, PlanReveal("file://server/share/notes.txt").Kind);
+        Assert.Equal(@"Not found: \\server\share\notes.txt", PlanReveal("file://server/share/notes.txt").Problem);
+        Assert.Contains("full path", PlanReveal("file://server/share/notes.txt", ExecutionPlatform.MacOS).Problem);
     }
 
     [Fact]
@@ -1233,6 +1450,48 @@ public class ExecutionTests
     }
 
     [Fact]
+    public void ASettingsPageIsHandedToTheShell_LikeAWebLink()
+    {
+        var windows = ExecutionPolicy.Resolve(Plan("ms-settings:display"), ExecutionPlatform.Windows)!;
+        Assert.Equal("ms-settings:display", windows.FileName);
+        Assert.Empty(windows.Arguments);
+        Assert.True(windows.UseShellExecute); // the shell is what knows the Settings app
+
+        const string camera = "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera";
+        var mac = ExecutionPolicy.Resolve(Plan(camera, platform: ExecutionPlatform.MacOS), ExecutionPlatform.MacOS)!;
+        Assert.Equal("open", mac.FileName);
+        Assert.Equal(new[] { camera }, mac.Arguments);
+
+        var listed = ExecutionPolicy.Resolve(PlanLink("vscode://file/C:/x.cs", ["vscode:"]), ExecutionPlatform.Windows)!;
+        Assert.Equal("vscode://file/C:/x.cs", listed.FileName);
+        Assert.True(listed.UseShellExecute);
+    }
+
+    [Fact]
+    public void ABrowsersOwnPageIsHandedToThatBrowser()
+    {
+        // No browser registers edge: or chrome: with the OS, so the shell would find
+        // nothing to open one with. The browser takes the page as its one argument.
+        var edge = ExecutionPolicy.Resolve(Plan("edge://settings/privacy"), ExecutionPlatform.Windows)!;
+        Assert.Equal("msedge.exe", edge.FileName);
+        Assert.Equal(new[] { "edge://settings/privacy" }, edge.Arguments);
+        Assert.True(edge.UseShellExecute); // found where it registered itself, as Run finds it
+
+        Assert.Equal("chrome.exe", ExecutionPolicy.Resolve(Plan("chrome://flags"), ExecutionPlatform.Windows)!.FileName);
+
+        var mac = ExecutionPolicy.Resolve(
+            Plan("edge://settings", platform: ExecutionPlatform.MacOS), ExecutionPlatform.MacOS)!;
+        Assert.Equal("open", mac.FileName);
+        Assert.Equal(new[] { "-a", "Microsoft Edge", "edge://settings" }, mac.Arguments);
+
+        var linux = ExecutionPolicy.Resolve(
+            Plan("chrome://flags", platform: ExecutionPlatform.Linux), ExecutionPlatform.Linux)!;
+        Assert.Equal("google-chrome", linux.FileName);
+        Assert.Equal(new[] { "chrome://flags" }, linux.Arguments);
+        Assert.False(linux.UseShellExecute);
+    }
+
+    [Fact]
     public void NothingToRunResolvesToNoProcess()
     {
         Assert.Null(ExecutionPolicy.Resolve(Plan("just some text"), ExecutionPlatform.Windows));
@@ -1252,6 +1511,12 @@ public class ExecutionTests
         Assert.Equal("Starting Klippy",
             Plan("/Applications/Klippy.app/", platform: ExecutionPlatform.MacOS).Description);
         Assert.Equal("Opening report.html", Plan("file:///C:/Docs/report.html").Description);
+
+        // A web page by its site, and any other link by itself: edge://settings is a page
+        // of Edge's, not a site called "settings".
+        Assert.Equal("Opening klippy.app", Plan("mailto:ops@klippy.app").Description);
+        Assert.Equal("Opening edge://settings", Plan("edge://settings").Description);
+        Assert.Equal("Opening ms-settings:display", Plan("ms-settings:display").Description);
         Assert.Equal("Opening invoices", Plan(@"C:\work\invoices").Description);
         Assert.Equal("Showing app.log", Plan(@"C:\logs\app.log").Description);
         Assert.Equal(Plan("nope").Problem, Plan("nope").Description);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace Klippy.Services;
 
@@ -9,7 +10,11 @@ public enum ExecutionKind
     /// <summary>Nothing runnable; <see cref="ExecutionPlan.Problem"/> says why.</summary>
     None,
 
-    /// <summary>A link, opened in the default browser.</summary>
+    /// <summary>
+    /// A link, opened by whatever opens its kind: the default browser for a web page, the
+    /// Settings app for <c>ms-settings:</c>, the browser a page like <c>edge://settings</c>
+    /// belongs to, and the application registered for a kind the settings add.
+    /// </summary>
     Url,
 
     /// <summary>A script file, run by its interpreter.</summary>
@@ -109,16 +114,25 @@ public sealed record ExecutionPlan
         _ => Problem,
     };
 
-    /// <summary>A URL as a person would name it: the host, or the whole thing if it has none.</summary>
+    /// <summary>
+    /// A URL as a person would name it: a web page's host, or the whole link where the host
+    /// is not what names it — <c>edge://settings</c> is a page of Edge's, not a site called
+    /// "settings", and <c>ms-settings:display</c> has no host at all.
+    /// </summary>
     private static string Shorten(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Host.Length > 0 ? uri.Host : url;
+        ExecutionPolicy.AsUrl(url) is not null && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Host.Length > 0
+            ? uri.Host
+            : url;
 }
 
 /// <summary>A process to start: what to run, and with which arguments.</summary>
 /// <param name="UseShellExecute">
-/// True for a URL on Windows, where handing it to the shell is what picks the default
-/// browser. Everything else is started directly, so a macro's value can never be
-/// re-read as part of a command line.
+/// True for a link on Windows, where handing it to the shell is what finds whatever opens
+/// its kind — the default browser, the Settings app. And for the browser a page like
+/// <c>edge://settings</c> belongs to, which the shell finds by name as Run does, where
+/// starting it directly would look only on <c>PATH</c>; the page is its one argument.
+/// Everything else is started directly, so a macro's value can never be re-read as part
+/// of a command line.
 /// </param>
 public sealed record LaunchCommand(string FileName, string[] Arguments, bool UseShellExecute = false);
 
@@ -134,8 +148,13 @@ public sealed record LaunchCommand(string FileName, string[] Arguments, bool Use
 /// Four things can be executed:
 ///
 /// <list type="bullet">
-/// <item><b>URLs</b> — http, https and mailto (and a bare <c>www.</c>, which gets an
-/// https in front of it, as a browser would). Opened in the default browser.</item>
+/// <item><b>Links</b> — http, https and mailto (and a bare <c>www.</c>, which gets an
+/// https in front of it, as a browser would), opened in the default browser. And a page of
+/// something already on the machine — Windows' <c>ms-settings:</c>, macOS's
+/// <c>x-apple.systempreferences:</c>, a browser's own <c>edge://</c> or
+/// <c>chrome://</c> — along with any kind the settings add; see <see cref="Pages"/> and
+/// <see cref="WhyNotOpenable"/>. A <c>file:</c> link is none of these: it is the path it
+/// spells, and meets every rule a path meets.</item>
 /// <item><b>Scripts</b> — <c>.bat</c>/<c>.cmd</c> on Windows only, <c>.ps1</c> and
 /// <c>.sh</c> everywhere, run with whatever is left on the line as arguments.</item>
 /// <item><b>Applications</b> — whatever the platform calls one: an <c>.exe</c> on
@@ -227,9 +246,11 @@ public static class ExecutionPolicy
     /// reason null is the real environment above.
     /// </param>
     /// <param name="alsoOpens">
-    /// Kinds of file to open as documents beyond the built-in list — the
-    /// <c>ExecuteOpenExtensions</c> setting. See <see cref="Opens"/> for what it can and
-    /// cannot reach.
+    /// Kinds of file and of link to open beyond the built-in ones — the ALSO OPEN list in
+    /// Settings, <see cref="AppSettings.AlsoOpens"/>. Told apart by how each is written: a
+    /// kind of link carries its colon, <c>vscode:</c>, and a kind of file does not,
+    /// <c>.slnx</c>. See <see cref="Opens"/> and <see cref="WhyNotOpenable"/> for what
+    /// either can and cannot reach.
     /// </param>
     public static ExecutionPlan Plan(
         string? text,
@@ -248,9 +269,10 @@ public static class ExecutionPolicy
         // A URL the item itself declares has its macro values percent-encoded, so a
         // multi-word argument lands in the query string instead of breaking the URL in
         // two. A URL that arrives *through* a macro is taken exactly as it stands —
-        // encoding that would turn its own slashes into %2F.
-        if (AsUrl(tokens[0]) is not null)
-            return UrlPlan(Macros.Expand(tokens[0], arguments, clipboardText, Uri.EscapeDataString));
+        // encoding that would turn its own slashes into %2F. The same for every kind of
+        // link: vscode://file/%P% wants its argument encoded as much as a search does.
+        if (IsLink(tokens[0], alsoOpens))
+            return LinkPlan(Macros.Expand(tokens[0], arguments, clipboardText, Uri.EscapeDataString), os);
 
         // A path names itself here the way it does everywhere else on the machine.
         // Windows will not do it for us: CreateProcess takes a file name rather than a
@@ -297,7 +319,7 @@ public static class ExecutionPolicy
 
         // A link is used whole, spaces and all: a URL that came off the clipboard with a
         // space in it is still one URL, and cutting it at the space opens the wrong page.
-        if (AsUrl(parts[0]) is not null) return UrlPlan(parts[0]);
+        if (IsLink(parts[0], alsoOpens)) return LinkPlan(parts[0], os);
 
         // A macro can otherwise hand back a whole command line — "%C%" with a script path
         // and its switches sitting on the clipboard. Split that apart again so its first
@@ -323,7 +345,7 @@ public static class ExecutionPolicy
         var rest = parts.GetRange(1, parts.Count - 1).ConvertAll(Unquote).ToArray();
 
         return Judge(command, rest, os, paths ?? PathProbe.Real, alsoOpens,
-            () => WholeLine(text, machine, arguments, clipboardText));
+            () => WholeLine(text, os, machine, arguments, clipboardText));
     }
 
     /// <summary>
@@ -338,20 +360,25 @@ public static class ExecutionPolicy
         string command, string[] rest, ExecutionPlatform os, PathProbe disk,
         IReadOnlyCollection<string>? alsoOpens, Func<string?>? wholeLine)
     {
-        // The one scheme let past the refusal below, and only as far as a document: a
-        // file:/// link is how a browser's address bar names a page on disk, and it is the
-        // same page as the path it spells. What is judged and what is opened is that path,
-        // decoded, so a %2E cannot hide an extension and the link itself never reaches the
-        // shell — file:///C:/Windows/System32/cmd.exe is still refused, being no document.
-        if (FileUrlPath(command, os) is { } local && Opens(local, alsoOpens))
-            return DocumentPlan(local);
+        // A file: link is how a browser's address bar, an email or a wiki names a place on
+        // disk, and it is that place in every respect: the path it spells is judged from the
+        // top, as if it had been written instead — a document or a folder opens, a script
+        // runs with the rest of the line, a log file is shown. The link itself never reaches
+        // the shell, so nothing about it can be read two ways. It is decoded first, so a
+        // %2E hides no extension, and a quote or a control character in it is refused.
+        if (SchemeOf(command) == "file")
+            return FileUrlPath(command, os) is { } local
+                ? Judge(local, rest, os, disk, alsoOpens, wholeLine)
+                : Nothing($"\"{Ellipsis(command)}\" does not name a path on this machine.");
 
-        // Something carrying a scheme is not a path, whatever it happens to end in:
-        // file:///C:/Windows/System32/cmd.exe names an .exe without being one, and
-        // javascript: names nothing at all. Neither survived the URL allow-list above,
-        // and neither may sneak back in through the extension rules below.
-        if (HasScheme(command))
-            return Nothing($"\"{Ellipsis(command)}\" is not a URL Klippy can open.");
+        // Anything else carrying a scheme is not a path, whatever it happens to end in:
+        // javascript: names nothing at all, and ms-msdt:…\x.exe is not an .exe. Neither was
+        // on the list of links above, and neither may sneak back in through the extension
+        // rules below. One that could be put on the list says where.
+        if (SchemeOf(command) is { } scheme)
+            return Nothing(Addable(command, scheme)
+                ? $"{scheme}: links only open once {scheme}: is added under ALSO OPEN in Settings."
+                : $"\"{Ellipsis(command)}\" is not a URL Klippy can open.");
 
         // A double quote inside the path would decide what starts, behind the allow-list's
         // back. The extension is read off the last segment, while Windows takes the whole
@@ -452,16 +479,18 @@ public static class ExecutionPolicy
     /// The first line of an item read as one path, spaces and all: the variables file's
     /// names and then the machine's resolved, its macros filled, and a pair of quotes round
     /// the whole of it taken off. The macros come last, as they do for a first word, so a
-    /// clipboard value is never read for a name.
+    /// clipboard value is never read for a name. A <c>file:</c> link is the path it spells,
+    /// as it is for a first word.
     /// </summary>
     private static string? WholeLine(
-        string? text, EnvironmentProbe machine, IReadOnlyList<string>? arguments, string? clipboardText)
+        string? text, ExecutionPlatform os, EnvironmentProbe machine,
+        IReadOnlyList<string>? arguments, string? clipboardText)
     {
         var line = FirstLine(text);
         if (line.Length == 0) return null;
 
-        var resolved = Macros.Expand(machine.Expand(machine.ExpandDefines(line)), arguments, clipboardText);
-        return Unquote(resolved.Trim());
+        var resolved = Unquote(Macros.Expand(machine.Expand(machine.ExpandDefines(line)), arguments, clipboardText).Trim());
+        return FileUrlPath(resolved, os) ?? resolved;
     }
 
     /// <summary>The first line with anything on it, where the first word comes from too.</summary>
@@ -696,18 +725,20 @@ public static class ExecutionPolicy
         var first = Macros.FirstArgument(text);
         if (first.Length == 0) return (FirstWord.Nothing, first);
 
+        var os = platform ?? CurrentPlatform;
         if (Macros.IsPresent(first)) return (FirstWord.Runs, first);
-        if (AsUrl(first) is not null) return (FirstWord.Runs, first);
+        if (IsLink(first, alsoOpens)) return (Runs(LinkPlan(first, os).Kind == ExecutionKind.Url), first);
 
         // The word Plan will actually judge, not the word before its variables resolve:
         // the warning beside the marker is there to be read while the marker is being
         // ticked, and a hint that disagrees with Enter is worse than none. It still only
         // ever looks at the first word, so a .bat whose *arguments* Plan will refuse
         // reaches Enter looking fine — that gap is older than the variables and unchanged
-        // by them.
+        // by them. A file: link is the path it spells here as there, so the path it would
+        // show is the one the hint names.
         var machine = environment ?? EnvironmentProbe.Real;
-        var os = platform ?? CurrentPlatform;
         first = machine.Expand(first);
+        first = FileUrlPath(first, os) ?? first;
 
         var promise = Promise(first, os, alsoOpens);
         if (promise != FirstWord.Shown) return (promise, first);
@@ -719,7 +750,7 @@ public static class ExecutionPolicy
         var line = FirstLine(text);
         if (Macros.IsPresent(line)) return (FirstWord.Runs, first);
 
-        return WholeLine(line, machine, null, null) is { } whole && whole != first && Exists(whole, paths ?? PathProbe.Real)
+        return WholeLine(line, os, machine, null, null) is { } whole && whole != first && Exists(whole, paths ?? PathProbe.Real)
             ? (Promise(whole, os, alsoOpens), whole)
             : (promise, first);
     }
@@ -727,10 +758,10 @@ public static class ExecutionPolicy
     /// <summary>What a word promises once its variables have resolved.</summary>
     private static FirstWord Promise(string word, ExecutionPlatform os, IReadOnlyCollection<string>? alsoOpens)
     {
-        if (AsUrl(word) is not null) return FirstWord.Runs;
+        if (IsLink(word, alsoOpens)) return Runs(LinkPlan(word, os).Kind == ExecutionKind.Url);
 
-        if (FileUrlPath(word, os) is { } local) return Runs(Opens(local, alsoOpens));
-        if (HasScheme(word)) return FirstWord.Nothing; // a scheme the allow-list above turned down
+        if (FileUrlPath(word, os) is { } local) return Promise(local, os, alsoOpens);
+        if (SchemeOf(word) is not null) return FirstWord.Nothing; // a scheme the list of links turned down
 
         if (Opens(word, alsoOpens)) return Runs(UnmatchedSearch.IsRooted(word));
         if (ScriptExtension(word) is { } script) return Runs(Supports(script, os));
@@ -743,8 +774,40 @@ public static class ExecutionPolicy
         return UnmatchedSearch.IsRooted(word) && Reveal(word, isFolder: false, os).Kind != ExecutionKind.None
             ? FirstWord.Shown
             : FirstWord.Nothing;
+    }
 
-        static FirstWord Runs(bool can) => can ? FirstWord.Runs : FirstWord.Nothing;
+    private static FirstWord Runs(bool can) => can ? FirstWord.Runs : FirstWord.Nothing;
+
+    /// <summary>
+    /// The kind of link <paramref name="text"/> opens with — <c>vscode:</c> — when it is one
+    /// Klippy would open had it been added under ALSO OPEN, and has not been; otherwise
+    /// null. What the editor names beside the marker, so that marking a link of a kind not on
+    /// the list says how to put it there rather than only that it will not open. The first
+    /// word only, as everything the editor asks is.
+    /// </summary>
+    public static string? UnlistedLink(string? text, IReadOnlyCollection<string>? alsoOpens = null)
+    {
+        var first = Macros.FirstArgument(text);
+        return SchemeOf(first) is { } scheme && !IsLink(first, alsoOpens) && Addable(first, scheme)
+            ? scheme + ":"
+            : null;
+    }
+
+    /// <summary>
+    /// Whether a word refused for its scheme is worth telling to add that scheme: its kind
+    /// is one the list may hold, and the word reads as a link rather than as a word and a
+    /// colon. <c>Note:</c> is prose with nothing after the colon, and <c>localhost:8000</c>
+    /// is a server and its port with the <c>http://</c> left off — neither is helped by
+    /// being told to add <c>note:</c> or <c>localhost:</c>.
+    /// </summary>
+    private static bool Addable(string word, string scheme)
+    {
+        var rest = word.AsSpan(scheme.Length + 1);
+        int digits = 0;
+        while (digits < rest.Length && char.IsAsciiDigit(rest[digits])) digits++;
+        bool port = digits > 0 && (digits == rest.Length || rest[digits] == '/');
+
+        return rest.Length > 0 && !port && WhyNotOpenable(scheme + ":") is null;
     }
 
     /// <summary>
@@ -762,8 +825,12 @@ public static class ExecutionPolicy
         Func<string, bool>? isExecutable = null) => plan.Kind switch
     {
         // A link and a document are the same gesture to the OS: hand it the thing and let
-        // the user's own default decide what opens it.
-        ExecutionKind.Url or ExecutionKind.Document => ShellOpen(plan.Target, platform),
+        // the user's own default decide what opens it. Except a browser's own page, which
+        // no OS knows how to open, and which goes to that browser instead.
+        ExecutionKind.Url => BrowserFor(plan.Target) is { } browser
+            ? BrowserCommand(browser, plan.Target, platform)
+            : ShellOpen(plan.Target, platform),
+        ExecutionKind.Document => ShellOpen(plan.Target, platform),
         ExecutionKind.Script => ScriptCommand(plan, platform, isExecutable),
         ExecutionKind.Application => ApplicationCommand(plan, platform),
         ExecutionKind.Folder => platform switch
@@ -821,6 +888,21 @@ public static class ExecutionPolicy
         ExecutionPlatform.MacOS => new LaunchCommand("open", new[] { target }),
         _ => new LaunchCommand("xdg-open", new[] { target }),
     };
+
+    /// <summary>
+    /// A browser's own page started in that browser, with the page as its one argument —
+    /// the way a desktop shortcut to <c>edge://settings</c> is written. On Windows by name
+    /// through the shell, which finds <c>msedge.exe</c> where the browser registered it, as
+    /// Run does; on macOS through <c>open -a</c>, which knows where the application is; on
+    /// Linux by the command the browser's package puts on <c>PATH</c>.
+    /// </summary>
+    private static LaunchCommand BrowserCommand(Browser browser, string page, ExecutionPlatform platform) =>
+        platform switch
+        {
+            ExecutionPlatform.Windows => new LaunchCommand(browser.Windows, [page], UseShellExecute: true),
+            ExecutionPlatform.MacOS => new LaunchCommand("open", ["-a", browser.MacOS, page]),
+            _ => new LaunchCommand(browser.Linux, [page]),
+        };
 
     /// <summary>
     /// The machine-level actions as processes, so the one launcher starts these too
@@ -1047,7 +1129,8 @@ public static class ExecutionPolicy
     /// </summary>
     /// <param name="alsoOpens">
     /// Extensions as a person writes them — <c>.slnx</c>, <c>slnx</c> or <c>*.slnx</c> —
-    /// without regard to case. Null or empty is the built-in list alone.
+    /// without regard to case. Null or empty is the built-in list alone. A kind of link on
+    /// the same list, <c>vscode:</c>, is no extension and is passed over.
     /// </param>
     public static bool Opens(string? token, IReadOnlyCollection<string>? alsoOpens = null)
     {
@@ -1063,7 +1146,8 @@ public static class ExecutionPolicy
 
         var extension = name[dot..];
         foreach (var listed in alsoOpens)
-            if (string.Equals(AsExtension(listed), extension, StringComparison.OrdinalIgnoreCase))
+            if (AsLinkKind(listed) is null
+                && string.Equals(AsExtension(listed), extension, StringComparison.OrdinalIgnoreCase))
                 return true;
 
         return false;
@@ -1081,12 +1165,61 @@ public static class ExecutionPolicy
     }
 
     /// <summary>
-    /// Why <paramref name="extension"/> cannot join the kinds of file to open, or null
-    /// when it can — what Settings asks before adding one, so the list shown there never
-    /// holds a kind <see cref="Opens"/> would pass over. Read through
-    /// <see cref="AsExtension"/> first, so any spelling of one is judged the same.
+    /// A kind of link as the list keeps it — <c>vscode:</c> — from however a person wrote
+    /// it: <c>vscode:</c>, <c>vscode://</c>, <c>VSCode:</c>. Null when it was not written as
+    /// one, which is to say without its colon: <c>slnx</c> is a kind of file, and the colon
+    /// is what tells the two apart on the one list. It says nothing about whether the result
+    /// is one the list may hold; <see cref="WhyNotOpenable"/> does.
     /// </summary>
-    public static string? WhyNotOpenable(string? extension)
+    public static string? AsLinkKind(string? written)
+    {
+        var kind = (written ?? "").Trim().ToLowerInvariant();
+        if (kind.EndsWith("://", StringComparison.Ordinal)) kind = kind[..^2];
+        return kind.Length > 0 && kind[^1] == ':' ? kind : null;
+    }
+
+    /// <summary>
+    /// Why <paramref name="kind"/> cannot join the kinds of thing to open, or null when it
+    /// can — what Settings asks before adding one, so the list shown there never holds a
+    /// kind <see cref="Plan"/> would pass over. A kind of link is written with its colon and
+    /// read through <see cref="AsLinkKind"/>; anything else is a kind of file, read through
+    /// <see cref="AsExtension"/>. Either way any spelling of one is judged the same.
+    /// </summary>
+    public static string? WhyNotOpenable(string? kind) =>
+        AsLinkKind(kind) is { } link ? WhyNotOpenableLink(link) : WhyNotOpenableFile(kind);
+
+    /// <summary>
+    /// Kinds of link that are never opened, listed or not: each carries something to run
+    /// rather than somewhere to go — a script, or a whole page of its own.
+    /// </summary>
+    private static readonly string[] NeverOpened = { "javascript", "vbscript", "data" };
+
+    /// <summary>
+    /// Why a kind of link cannot be added. What is left once these are refused is the
+    /// user's own call about which application a link hands itself to — the same call that
+    /// double-clicking a link in an email already is, and the same warning: some
+    /// applications do a great deal with a link, and a kind is added only on purpose.
+    /// </summary>
+    private static string? WhyNotOpenableLink(string link)
+    {
+        var scheme = link[..^1];
+
+        // A scheme as RFC 3986 spells one. More than a letter, since C: is a drive.
+        if (scheme.Length < 2 || !char.IsAsciiLetter(scheme[0]))
+            return $"{link} is not a kind of link — one at a time, like vscode:.";
+        foreach (var c in scheme)
+            if (!char.IsAsciiLetterOrDigit(c) && c is not ('+' or '-' or '.'))
+                return $"{link} is not a kind of link — one at a time, like vscode:.";
+
+        if (scheme == "file") return "file: links open as the path they name, by rules of their own.";
+        if (Array.IndexOf(NeverOpened, scheme) >= 0)
+            return $"{link} links carry something to run rather than somewhere to go, and are never opened.";
+        if (IsBuiltInLink(scheme)) return $"{link} links open already.";
+
+        return null;
+    }
+
+    private static string? WhyNotOpenableFile(string? extension)
     {
         var written = AsExtension(extension);
 
@@ -1122,15 +1255,19 @@ public static class ExecutionPolicy
     private const string FileScheme = "file://";
 
     /// <summary>
-    /// The local path a <c>file:</c> link names — <c>C:\Docs\report.html</c> for
+    /// The path a <c>file:</c> link names — <c>C:\Docs\report.html</c> for
     /// <c>file:///C:/Docs/report.html</c> on Windows, <c>/home/sam/report.html</c> for
     /// <c>file:///home/sam/report.html</c> elsewhere — or null when it is not one.
     ///
     /// Read by hand rather than through <see cref="Uri.LocalPath"/>, which answers for the
-    /// machine it is running on, for the reason <see cref="FileNameOf"/> gives. Only this
-    /// machine's files: an empty host or <c>localhost</c>, never a server, since a link to
-    /// one is a request to it made on the user's behalf. And nothing a path cannot carry
-    /// once decoded — a quote or a control character is a link built to mislead.
+    /// machine it is running on, for the reason <see cref="FileNameOf"/> gives. On Windows a
+    /// link may name a share, as Windows' own links do: <c>file://server/share/x</c> is
+    /// <c>\\server\share\x</c>, and so are the <c>file:////server/…</c> and
+    /// <c>file://///server/…</c> some programs write. It is the same request to the same
+    /// server as writing that path would be, and nothing more. Elsewhere a host other than
+    /// <c>localhost</c> names nothing the file system can reach, since there a share is an
+    /// <c>smb://</c> link to be mounted first. And nothing a path cannot carry once decoded —
+    /// a quote or a control character is a link built to mislead.
     /// </summary>
     internal static string? FileUrlPath(string? token, ExecutionPlatform platform)
     {
@@ -1141,7 +1278,7 @@ public static class ExecutionPolicy
         if (slash < 0) return null;
 
         var host = rest[..slash];
-        if (host.Length > 0 && !host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return null;
+        bool local = host.Length == 0 || host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
 
         // A query or a fragment belongs to the page rather than to the file.
         var encoded = rest[slash..];
@@ -1152,12 +1289,32 @@ public static class ExecutionPolicy
         foreach (var c in path)
             if (c == '"' || char.IsControl(c)) return null;
 
-        if (platform != ExecutionPlatform.Windows) return path;
+        if (platform != ExecutionPlatform.Windows) return local ? path : null;
+
+        // file://C:/Docs/report.html: the drive where the host goes, which Windows reads too.
+        if (host.Length == 2 && char.IsAsciiLetter(host[0]) && host[1] == ':')
+            return (host + path).Replace('/', '\\');
+
+        // file://server/share/x, and file:////server/share/x with the host left empty.
+        if (!local) return Share(host + path);
+        if (path.StartsWith("//", StringComparison.Ordinal)) return Share(path.TrimStart('/'));
 
         // /C:/Docs/report.html: the drive is the path's first segment, behind a slash.
         return path.Length >= 3 && path[0] == '/' && char.IsAsciiLetter(path[1]) && path[2] == ':'
             ? path[1..].Replace('/', '\\')
             : null;
+
+        // A server by the name a network knows it by, and a share on it: \\server\share.
+        static string? Share(string serverAndPath)
+        {
+            int end = serverAndPath.IndexOf('/');
+            if (end <= 0 || end == serverAndPath.Length - 1) return null;
+
+            foreach (var c in serverAndPath.AsSpan(0, end))
+                if (!char.IsAsciiLetterOrDigit(c) && c is not ('-' or '.' or '_')) return null;
+
+            return @"\\" + serverAndPath.Replace('/', '\\');
+        }
     }
 
     private static readonly char[] QueryOrFragment = { '?', '#' };
@@ -1214,9 +1371,9 @@ public static class ExecutionPolicy
     };
 
     /// <summary>
-    /// The URL a word stands for, or null if it is not one. A short allow-list on
-    /// purpose: these are documents to open, where a scheme like <c>file:</c> — or a
-    /// bare path — is a program waiting to be launched under another name.
+    /// The web URL a word stands for, or null if it is not one: http, https, mailto and a
+    /// bare <c>www.</c>. A short list on purpose, and the one a line typed into the search box
+    /// is held to; an item takes the wider list <see cref="IsLink"/> reads.
     /// </summary>
     public static string? AsUrl(string? token)
     {
@@ -1233,22 +1390,76 @@ public static class ExecutionPolicy
     }
 
     /// <summary>
-    /// Whether a word opens with a scheme — <c>file:</c>, <c>javascript:</c>, anything
-    /// the URL allow-list above already declined — rather than naming a path. A path may
-    /// carry a colon, but only ever as a Windows drive letter, so that is the one shape
-    /// let through.
+    /// The scheme a word opens with, lower-cased — <c>ms-settings</c> for
+    /// <c>ms-settings:display</c> — or null when it names a path instead. A path may carry a
+    /// colon, but only ever as a Windows drive letter, so that is the one shape let through.
     /// </summary>
-    private static bool HasScheme(string token)
+    private static string? SchemeOf(string token)
     {
         int colon = token.IndexOf(':');
-        if (colon <= 0 || !char.IsAsciiLetter(token[0])) return false;
-        if (colon == 1) return false; // C:\tools\build.ps1
+        if (colon <= 0 || !char.IsAsciiLetter(token[0])) return null;
+        if (colon == 1) return null; // C:\tools\build.ps1
 
         for (int i = 1; i < colon; i++)
             if (!char.IsAsciiLetterOrDigit(token[i]) && token[i] is not ('+' or '-' or '.'))
-                return false;
+                return null;
 
-        return true;
+        return token[..colon].ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Links to a page of something already on the machine, opened without being listed:
+    /// its settings, or a browser's own pages. Nothing is started that is not already
+    /// there, and nothing is handed more than the page to show. Some have a home, as an
+    /// application does: <c>ms-settings:</c> names nothing on a Mac.
+    /// </summary>
+    private static readonly (string Scheme, ExecutionPlatform? Home)[] Pages =
+    {
+        ("ms-settings", ExecutionPlatform.Windows),
+        ("x-apple.systempreferences", ExecutionPlatform.MacOS),
+        ("edge", null),
+        ("chrome", null),
+    };
+
+    /// <summary>The browser a page's scheme belongs to, by the names each platform starts it by.</summary>
+    private sealed record Browser(string Scheme, string Windows, string MacOS, string Linux);
+
+    /// <summary>
+    /// The browsers whose own pages <see cref="Pages"/> opens. No browser registers its
+    /// internal scheme with the OS, so <c>start edge://settings</c> finds nothing: each page
+    /// goes to its own browser, which opens it as it would one typed into its address bar.
+    /// </summary>
+    private static readonly Browser[] Browsers =
+    {
+        new("edge", "msedge.exe", "Microsoft Edge", "microsoft-edge"),
+        new("chrome", "chrome.exe", "Google Chrome", "google-chrome"),
+    };
+
+    private static Browser? BrowserFor(string link) =>
+        SchemeOf(link) is { } scheme ? Array.Find(Browsers, b => b.Scheme == scheme) : null;
+
+    /// <summary>Whether a kind of link opens without being listed: the web's, or one of <see cref="Pages"/>.</summary>
+    private static bool IsBuiltInLink(string scheme) =>
+        scheme is "http" or "https" or "mailto" || Array.Exists(Pages, p => p.Scheme == scheme);
+
+    /// <summary>
+    /// Whether a word is a link Klippy opens: a web one, one of <see cref="Pages"/> — on its
+    /// home platform or not, which <see cref="LinkPlan"/> is the one to say — or one whose
+    /// kind <paramref name="alsoOpens"/> lists. Never a <c>file:</c> link, which is a path,
+    /// nor any kind <see cref="WhyNotOpenable"/> refuses, whatever a hand-written list says.
+    /// </summary>
+    private static bool IsLink(string token, IReadOnlyCollection<string>? alsoOpens)
+    {
+        if (AsUrl(token) is not null) return true;
+        if (SchemeOf(token) is not { } scheme) return false;
+        if (IsBuiltInLink(scheme)) return true;
+
+        if (alsoOpens is not { Count: > 0 } || WhyNotOpenableLink(scheme + ":") is not null) return false;
+        foreach (var listed in alsoOpens)
+            if (AsLinkKind(listed) == scheme + ":")
+                return true;
+
+        return false;
     }
 
     private static string NameOf(ExecutionPlatform platform) => platform switch
@@ -1258,12 +1469,57 @@ public static class ExecutionPolicy
         _ => "Linux",
     };
 
-    private static ExecutionPlan UrlPlan(string token)
+    /// <summary>
+    /// What opening a link comes to, once <see cref="IsLink"/> has said it is one. A web
+    /// link is opened as it stands, as it always has been. Any other is opened on its home
+    /// platform only, and with anything that could end the argument it arrives in encoded —
+    /// see <see cref="ForHandler"/>.
+    /// </summary>
+    private static ExecutionPlan LinkPlan(string token, ExecutionPlatform os)
     {
-        if (AsUrl(token) is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out _))
-            return Nothing($"\"{Ellipsis(token)}\" is not a URL Klippy can open.");
+        if (AsUrl(token) is { } url)
+            return Uri.TryCreate(url, UriKind.Absolute, out _)
+                ? new ExecutionPlan { Kind = ExecutionKind.Url, Target = url }
+                : Nothing($"\"{Ellipsis(token)}\" is not a URL Klippy can open.");
 
-        return new ExecutionPlan { Kind = ExecutionKind.Url, Target = url };
+        var scheme = SchemeOf(token);
+        foreach (var (page, home) in Pages)
+            if (page == scheme && home is { } only && only != os)
+                return Nothing($"{scheme}: links only open on {NameOf(only)}.");
+
+        var link = ForHandler(token);
+        return Uri.TryCreate(link, UriKind.Absolute, out _)
+            ? new ExecutionPlan { Kind = ExecutionKind.Url, Target = link }
+            : Nothing($"\"{Ellipsis(token)}\" is not a URL Klippy can open.");
+    }
+
+    /// <summary>
+    /// A link as it is handed to whatever opens its kind, with the characters no link
+    /// carries percent-encoded: whitespace, control characters, <c>"</c>, <c>&lt;</c>,
+    /// <c>&gt;</c>, <c>`</c> and <c>\</c>. What a browser does before it hands a link to an
+    /// application, and for the same reason. An application registers a command line with
+    /// the link as <c>"%1"</c> in it, so a quote in the link would end that argument and
+    /// start another of the link's own choosing, and a space would do it where the
+    /// application forgot the quotes. Encoded, a link reaches it as one argument whatever
+    /// came off the clipboard, and an application that reads links decodes them anyway.
+    /// </summary>
+    private static string ForHandler(string link)
+    {
+        StringBuilder? encoded = null;
+        for (int i = 0; i < link.Length; i++)
+        {
+            char c = link[i];
+            if (!char.IsWhiteSpace(c) && !char.IsControl(c) && c is not ('"' or '<' or '>' or '`' or '\\'))
+            {
+                encoded?.Append(c);
+                continue;
+            }
+
+            encoded ??= new StringBuilder(link, 0, i, link.Length + 16);
+            foreach (var b in Encoding.UTF8.GetBytes([c]))
+                encoded.Append('%').Append(b.ToString("X2"));
+        }
+        return encoded?.ToString() ?? link;
     }
 
     private static ExecutionPlan Nothing(string problem) => new() { Problem = problem };

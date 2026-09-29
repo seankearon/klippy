@@ -396,13 +396,13 @@ public class SettingsTests
     // ---- kinds of file to open ----
 
     [Fact]
-    public void OpenExtensions_ShowWhatTheFileHolds_AsTheListKeepsThem()
+    public void OpenKinds_ShowWhatTheFileHolds_AsTheListKeepsThem()
     {
         var settings = new AppSettings { ExecuteOpenExtensions = ["sln", "*.SLNX", ".sln", ""] };
         var vm = new SettingsViewModel(settings, close: () => { });
 
-        Assert.Equal(new[] { ".sln", ".slnx" }, vm.OpenExtensions);
-        Assert.True(vm.HasOpenExtensions);
+        Assert.Equal(new[] { ".sln", ".slnx" }, vm.OpenKinds);
+        Assert.True(vm.HasOpenKinds);
     }
 
     [Fact]
@@ -414,18 +414,18 @@ public class SettingsTests
             var settings = AppSettings.Load(path);
             var vm = new SettingsViewModel(settings, close: () => { });
 
-            vm.NewOpenExtension = "*.SLNX";
-            vm.AddOpenExtensionCommand.Execute(null);
+            vm.NewOpenKind = "*.SLNX";
+            vm.AddOpenKindCommand.Execute(null);
 
-            Assert.Equal(new[] { ".slnx" }, vm.OpenExtensions);
-            Assert.Equal("", vm.NewOpenExtension);
+            Assert.Equal(new[] { ".slnx" }, vm.OpenKinds);
+            Assert.Equal("", vm.NewOpenKind);
             Assert.Equal(new[] { ".slnx" }, settings.ExecuteOpenExtensions); // what Enter reads
             Assert.Equal(new[] { ".slnx" }, AppSettings.Load(path).ExecuteOpenExtensions);
 
             // The same kind again is nothing new, however it is written.
-            vm.NewOpenExtension = "slnx";
-            vm.AddOpenExtensionCommand.Execute(null);
-            Assert.Single(vm.OpenExtensions);
+            vm.NewOpenKind = "slnx";
+            vm.AddOpenKindCommand.Execute(null);
+            Assert.Single(vm.OpenKinds);
         }
         finally
         {
@@ -443,9 +443,9 @@ public class SettingsTests
             settings.ExecuteOpenExtensions = [".slnx", ".sln"];
             var vm = new SettingsViewModel(settings, close: () => { });
 
-            vm.RemoveOpenExtensionCommand.Execute(".sln");
+            vm.RemoveOpenKindCommand.Execute(".sln");
 
-            Assert.Equal(new[] { ".slnx" }, vm.OpenExtensions);
+            Assert.Equal(new[] { ".slnx" }, vm.OpenKinds);
             Assert.Equal(new[] { ".slnx" }, AppSettings.Load(path).ExecuteOpenExtensions);
         }
         finally
@@ -467,12 +467,95 @@ public class SettingsTests
         {
             var vm = new SettingsViewModel(AppSettings.Load(path), close: () => { });
 
-            vm.NewOpenExtension = typed;
-            vm.AddOpenExtensionCommand.Execute(null);
+            vm.NewOpenKind = typed;
+            vm.AddOpenKindCommand.Execute(null);
 
-            Assert.Empty(vm.OpenExtensions);
+            Assert.Empty(vm.OpenKinds);
             Assert.Contains(said, vm.StatusText);
-            Assert.Equal(typed, vm.NewOpenExtension);
+            Assert.Equal(typed, vm.NewOpenKind);
+            Assert.False(File.Exists(path)); // nothing was saved
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    // ---- kinds of link to open, on the same list ----
+
+    [Fact]
+    public void KindsOfLink_AreNoneUntilSomeoneAddsSome_AndReachTheRulesWithTheirColon()
+    {
+        Assert.Empty(new AppSettings().ExecuteOpenSchemes);
+
+        // Written by hand, the setting already says which list it is: the colon is optional
+        // there, and the rules are handed one either way.
+        var settings = new AppSettings { ExecuteOpenExtensions = [".slnx"], ExecuteOpenSchemes = ["vscode:", "obsidian", " "] };
+        Assert.Equal(new[] { ".slnx", "vscode:", "obsidian:" }, settings.AlsoOpens);
+    }
+
+    [Fact]
+    public void AKindOfLink_GoesOnTheSameList_AndIsSavedWithTheLinks()
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var settings = AppSettings.Load(path);
+            settings.ExecuteOpenExtensions = [".slnx"];
+            var vm = new SettingsViewModel(settings, close: () => { });
+
+            vm.NewOpenKind = "VSCode://";
+            vm.AddOpenKindCommand.Execute(null);
+
+            Assert.Equal(new[] { ".slnx", "vscode:" }, vm.OpenKinds);
+            Assert.Equal("", vm.NewOpenKind);
+            Assert.Equal(new[] { ".slnx" }, settings.ExecuteOpenExtensions);
+            Assert.Equal(new[] { "vscode:" }, settings.ExecuteOpenSchemes);
+            Assert.Equal(new[] { "vscode:" }, AppSettings.Load(path).ExecuteOpenSchemes);
+
+            // Taken off again from its chip, and the kinds of file are left as they were.
+            vm.RemoveOpenKindCommand.Execute("vscode:");
+            Assert.Empty(AppSettings.Load(path).ExecuteOpenSchemes);
+            Assert.Equal(new[] { ".slnx" }, AppSettings.Load(path).ExecuteOpenExtensions);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void KindsOfLink_ShowWhatTheFileHolds_AfterTheKindsOfFile()
+    {
+        var settings = new AppSettings { ExecuteOpenExtensions = ["sln"], ExecuteOpenSchemes = ["Obsidian", "vscode://", "obsidian:"] };
+        var vm = new SettingsViewModel(settings, close: () => { });
+
+        Assert.Equal(new[] { ".sln", "obsidian:", "vscode:" }, vm.OpenKinds);
+
+        // One written into the other list is shown as what its colon says it is.
+        var misplaced = new SettingsViewModel(new AppSettings { ExecuteOpenExtensions = ["zoommtg:"] }, close: () => { });
+        Assert.Equal(new[] { "zoommtg:" }, misplaced.OpenKinds);
+    }
+
+    [Theory]
+    [InlineData("file:", "rules of their own")]   // a file: link is the path it spells
+    [InlineData("https://", "open already")]
+    [InlineData("ms-settings:", "open already")]
+    [InlineData("javascript:", "never opened")]
+    [InlineData("c:", "not a kind of link")]
+    public void AKindOfLinkTheListCannotHold_IsSaid_AndLeftInTheBoxToCorrect(string typed, string said)
+    {
+        var path = TempSettingsPath();
+        try
+        {
+            var vm = new SettingsViewModel(AppSettings.Load(path), close: () => { });
+
+            vm.NewOpenKind = typed;
+            vm.AddOpenKindCommand.Execute(null);
+
+            Assert.Empty(vm.OpenKinds);
+            Assert.Contains(said, vm.StatusText);
+            Assert.Equal(typed, vm.NewOpenKind);
             Assert.False(File.Exists(path)); // nothing was saved
         }
         finally
@@ -485,10 +568,10 @@ public class SettingsTests
     public void AddWaitsForSomethingToAdd()
     {
         var vm = new SettingsViewModel(new AppSettings(), close: () => { });
-        Assert.False(vm.AddOpenExtensionCommand.CanExecute(null));
+        Assert.False(vm.AddOpenKindCommand.CanExecute(null));
 
-        vm.NewOpenExtension = ".slnx";
-        Assert.True(vm.AddOpenExtensionCommand.CanExecute(null));
+        vm.NewOpenKind = ".slnx";
+        Assert.True(vm.AddOpenKindCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
@@ -506,7 +589,7 @@ public class SettingsTests
             vm.OpenSettingsCommand.Execute(null);
             Dispatcher.UIThread.RunJobs();
 
-            var box = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "NewOpenExtensionBox");
+            var box = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "NewOpenKindBox");
             box.Focus();
             box.Text = ".slnx";
             window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\n");

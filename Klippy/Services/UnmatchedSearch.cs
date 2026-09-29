@@ -33,7 +33,8 @@ public sealed record PathProbe(Func<string, bool> DirectoryExists, Func<string, 
 ///
 /// Deliberately narrower than <see cref="ExecutionPolicy"/> is for a marked item, in two
 /// ways. URLs here are <c>http</c>, <c>https</c> and a bare <c>www.</c>, where a marked
-/// item may also carry <c>mailto</c>: an item was written and marked on purpose, while
+/// item may also carry <c>mailto</c>, a settings or browser page, a <c>file:</c> link and
+/// the kinds of link the settings add: an item was written and marked on purpose, while
 /// this is whatever happened to be typed into a filter box. And a path has to be rooted,
 /// because a relative one would resolve against wherever Klippy was started from, which
 /// is nobody's mental model.
@@ -85,9 +86,9 @@ public static class UnmatchedSearch
     /// A marked item's rules rather than a typed line's, because a value is not something
     /// that landed in a filter box: it was written into a file of the user's own, as an
     /// item's text is, and the name that reached it was typed on purpose. So a document
-    /// opens, a <c>mailto:</c> is a link, and a program keeps the arguments the value gives
-    /// it — all of it still the allow-list <see cref="ExecutionPolicy.Plan"/> applies to
-    /// every item, and nothing past it.
+    /// opens, a <c>mailto:</c> or an <c>ms-settings:</c> is a link, and a program keeps the
+    /// arguments the value gives it — all of it still the allow-list
+    /// <see cref="ExecutionPolicy.Plan"/> applies to every item, and nothing past it.
     ///
     /// Three things are narrower than for an item, since this is an offer made on a
     /// keystroke rather than a line someone chose to run:
@@ -106,7 +107,7 @@ public static class UnmatchedSearch
     /// thing as a value before it.
     /// </summary>
     /// <param name="variables">The defines to read the line against — the file in force, for the app.</param>
-    /// <param name="alsoOpens">Extra kinds of file to open, as <see cref="ExecutionPolicy.Plan"/> takes them.</param>
+    /// <param name="alsoOpens">Extra kinds of file and of link to open, as <see cref="ExecutionPolicy.Plan"/> takes them.</param>
     public static IReadOnlyList<ExecutionPlan> PlanDefine(
         string? query,
         KlippyVariables variables,

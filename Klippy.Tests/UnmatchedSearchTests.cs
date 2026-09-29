@@ -212,6 +212,8 @@ public class UnmatchedSearchTests
     [InlineData("file:///C:/Windows")]          // the shell would happily open it
     [InlineData("javascript:alert(1)")]
     [InlineData("shell:startup")]
+    [InlineData("ms-settings:display")]         // an item's, never a typed line's
+    [InlineData("edge://settings")]
     [InlineData("https://")]                    // a scheme with no host does not parse
     [InlineData("http://")]
     [InlineData("www.")]                        // half-typed: a bare www. still wants its dot
@@ -569,6 +571,25 @@ public class UnmatchedSearchTests
         Assert.Empty(PlanDefine("mac", "mac=/Applications/Safari.app", Probe(folders: ["/Applications/Safari.app"])));
         Assert.Empty(PlanDefine("js", "js=javascript:alert(1)"));
         Assert.Empty(PlanDefine("ctl", "ctl=lock")); // a machine control is a typed word, not a value
+    }
+
+    [Fact]
+    public void AValueThatIsALink_IsOfferedAsAnItemsLinkWouldBe()
+    {
+        // Where a typed ms-settings: is no link at all: a value was written on purpose.
+        var display = Assert.Single(PlanDefine("display", "display=ms-settings:display"));
+        Assert.Equal(ExecutionKind.Url, display.Kind);
+        Assert.Equal("ms-settings:display", display.Target);
+
+        // A kind the settings add opens here as it does from an item, and not before.
+        Assert.Empty(PlanDefine("notes", "notes=obsidian://open?vault=work"));
+        Assert.Equal(ExecutionKind.Url,
+            Assert.Single(PlanDefine("notes", "notes=obsidian://open?vault=work", alsoOpens: ["obsidian:"])).Kind);
+
+        // And a file: link is the folder it spells, there to be opened.
+        var share = Assert.Single(PlanDefine("films", "films=file://nas/media/Films", Probe(folders: [@"\\nas\media\Films"])));
+        Assert.Equal(ExecutionKind.Folder, share.Kind);
+        Assert.Equal(@"\\nas\media\Films", share.Target);
     }
 
     [Fact]

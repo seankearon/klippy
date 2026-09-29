@@ -23,7 +23,11 @@ once any environment variable in it has resolved:
 | Snippet starts with | Runs as |
 |---|---|
 | `http://`, `https://`, `mailto:`, or a bare `www.` | Opened in the default browser |
-| The full path of a document, or a `file:///` link to one | Opened with whatever opens its kind, as double-clicking it would — see [Documents](#documents) |
+| `ms-settings:` — **Windows only** — or `x-apple.systempreferences:` — **macOS only** | That page of Settings or System Settings — see [Links](#links) |
+| `edge://`, `chrome://` | That page of Edge or Chrome, in Edge or Chrome — see [Links](#links) |
+| A kind of link you have added under **ALSO OPEN** — `vscode:`, `obsidian:` | Handed to whatever application registered that kind, as clicking it in a browser would — see [Other kinds of link](#other-kinds-of-link) |
+| A `file:` link | Exactly what the path it spells would do — see [`file:` links](#file-links) |
+| The full path of a document | Opened with whatever opens its kind, as double-clicking it would — see [Documents](#documents) |
 | `*.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` on Windows, `pwsh -NoProfile -File` elsewhere |
 | `*.sh` | The script itself where it is executable, so its `#!` line chooses; otherwise `/bin/sh`. `bash.exe` (Git Bash, WSL) on Windows |
 | `*.bat`, `*.cmd` | `cmd.exe /c` — **Windows only** |
@@ -34,9 +38,10 @@ once any environment variable in it has resolved:
 | The full path of anything else — a folder, a log file, an `.hta` | Shown in Explorer or Finder: a folder opens, a file is selected in its folder — see [Showing where a file is](#showing-where-a-file-is) |
 | anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
 
-The last three are what each platform calls an application, and each runs only at home:
-an `.exe` is no more startable on a Mac than a `.bat` is, and marking one there warns
-you in the editor rather than failing at the press of Enter.
+The `.exe`, `.app` and `.AppImage` rows are what each platform calls an application, and
+each runs only at home: an `.exe` is no more startable on a Mac than a `.bat` is, and
+marking one there warns you in the editor rather than failing at the press of Enter. A
+settings page has a home in the same way.
 
 Everything after the first word is passed to the script or application as arguments,
 quotes grouping the words that belong together: `deploy.ps1 --env "west europe"` passes
@@ -62,6 +67,88 @@ has been split into words: `%LOCALAPPDATA%\Programs\WebStorm\bin\webstorm64.exe`
 path however many spaces your user name has in it. Scripts and applications alike run from
 their own folder, which is where each normally expects to be, and a bare `notepad.exe` is
 left to Windows to find on `PATH`, as Run would.
+
+## Links
+
+A web link is not the only kind worth keeping. A page of Windows' Settings, the privacy page
+of your browser, a note in Obsidian: each has a link of its own, and a snippet marked
+Execute opens it.
+
+```
+ms-settings:display
+ms-settings:windowsupdate
+edge://settings/privacy
+chrome://flags
+x-apple.systempreferences:com.apple.preference.security?Privacy_Camera
+```
+
+Two kinds open without anything being added, because each only ever shows you a page of
+something already on your machine:
+
+- **Settings pages.** `ms-settings:` opens that page of Settings on Windows, and
+  `x-apple.systempreferences:` that pane of System Settings on macOS. Each belongs to one
+  platform, as an `.exe` does, and marking one on the other warns you in the editor.
+- **Browser pages.** `edge://` and `chrome://` are pages of the browser itself, not of the
+  web. No browser tells the operating system about them, so Windows has nothing to open
+  `edge://settings` with. Klippy hands the page to the browser it belongs to instead, the way
+  a desktop shortcut to one is written: `msedge.exe` or `chrome.exe` on Windows, found
+  wherever the browser registered itself, as Run finds it; `open -a "Microsoft Edge"` or
+  `"Google Chrome"` on macOS; `microsoft-edge` or `google-chrome` on Linux.
+
+As with a web link, `%P%` in one is percent-encoded into it, and anything after the link on
+the line is left behind. **The macOS and Linux browser commands have not been run**, for the
+same reason as the macOS hotkey: they cannot be tested from Windows.
+
+### Other kinds of link
+
+`vscode://file/…` opens a file at a line in VS Code, `obsidian://open?…` a note, and
+`zoommtg:`, `msteams:` and `slack:` a meeting or a channel. These open once you have added
+their kind under **ALSO OPEN** in [Settings](settings.md): type `vscode:` (the colon is what
+says it is a kind of link rather than of file) and press `Enter` or **Add**. Until then, the
+editor says so as you tick the marker, and names what to add.
+
+A kind on the list is handed to whatever application registered it, as clicking the link in a
+browser would be. That is also why each kind is added on purpose rather than all of them
+being open by default: what an application does with a link is up to the application, and
+some do a great deal with one. The list takes a kind at a time, and it will not take these:
+
+| Written | Why not |
+|---|---|
+| `file:` | A `file:` link is a path, and has [rules of its own](#file-links) |
+| `javascript:`, `vbscript:`, `data:` | Each carries something to run rather than somewhere to go |
+| `http:`, `https:`, `mailto:`, and the settings and browser pages above | They open already |
+
+A link handed to an application has the characters no link carries percent-encoded on the
+way: spaces, control characters, `"`, `<`, `>`, `` ` `` and `\`. That is what a browser does
+before handing a link to an application, and for the same reason: an application registers
+a command line with the link in it as `"%1"`, so a quote in a link off the clipboard could
+end that argument and start one of its own. Encoded, it arrives as the one argument it is,
+and an application that reads links decodes it anyway.
+
+### `file:` links
+
+A `file:` link is how an address bar, an email or a wiki names somewhere on disk, and to
+Klippy it is that place in every respect. The path it spells is read exactly as if you had
+written it: a folder opens, a [document](#documents) opens, a script runs with the rest of the
+line as its arguments, and a log file is [shown where it is](#showing-where-a-file-is).
+
+```
+file:///C:/Users/sam/Documents/
+file:///C:/My%20Docs/release-notes.html
+file:///D:/tools/deploy.ps1 --env west
+file://nas/media/Films
+```
+
+The link is decoded before anything looks at it, so an encoded `%2E` hides no extension, and
+one that decodes to a quote or a control character is refused. It never reaches the shell as
+a link, only as the path. A program named by one starts as its path would, on its own platform
+and with its arguments judged, so the link is a way of spelling a path, not a way round a rule.
+
+On Windows a link may also name a share, as Windows' own links do. `file://nas/media/Films` is
+`\\nas\media\Films`, and so are `file:////nas/…` and `file://///nas/…`, which some programs
+write. `file://C:/Docs/…`, with the drive where the host would go, is read as the drive. On
+macOS and Linux a share has no path until it is mounted, so a `file:` link naming another
+machine is refused.
 
 ## Documents
 
@@ -94,10 +181,9 @@ It is a short list on purpose. To the shell, *open* and *run* are the same verb 
 extension decides between them: opening a `.js`, `.vbs`, `.hta`, `.lnk` or `.scr` on
 Windows, or a `.command` on macOS, runs it. These are the kinds that are read.
 
-A `file:` link is otherwise refused, as every scheme but the web ones is. It is let through
-only as far as a document, judged on the path it decodes to — so an encoded `%2E` hides no
-extension — and only for this machine's files: `file://server/…` is a request to a server,
-and stays refused.
+A `file:` link to one of these opens it too, being the same file as the path it spells, and
+a link to any other kind of file is shown, as that path would be. See
+[`file:` links](#file-links).
 
 ### Opening other kinds of file
 
@@ -115,7 +201,11 @@ list by hand, in `settings.json`:
 }
 ```
 
-A kind on it opens exactly as the documents above do — by its full path or a `file:///`
+The same box takes [kinds of link](#other-kinds-of-link) too, told apart by their colon:
+`.slnx` is a kind of file and `vscode:` a kind of link, and each chip is saved to the list it
+belongs to — `ExecuteOpenSchemes` for the links.
+
+A kind of file on it opens exactly as the documents above do — by its full path or a `file:///`
 link, with whatever your machine opens that kind with — from an item marked Execute and from
 a [variable typed by name](variables.md#typing-a-name). A path typed into the search box is
 still only [shown](unmatched-search.md), whatever the list says. Write an extension as
@@ -234,10 +324,11 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   application is not runnable however firmly it is marked, so `docker system prune -af`
   stays text. A full path to anything else is [shown](#showing-where-a-file-is) rather
   than run, which starts nothing: an `.hta` is pointed at in Explorer, never opened. A
-  scheme is not a path whatever it ends in, either:
-  `file:///C:/Windows/System32/cmd.exe` names an `.exe` without being one, and is
-  refused along with `javascript:` — a `file:` link reaches a [document](#documents)
-  and nothing else. The one way to widen what opens is to
+  scheme is not a path whatever it ends in, either: `ms-msdt:/id x\cmd.exe` names an
+  `.exe` without being one, and is refused along with `javascript:` and every other kind
+  of link nobody added. A `file:` link is the one scheme that *is* a path, and it gets
+  exactly [what that path would](#file-links) — no more, since the link never reaches the
+  shell. The one way to widen what opens is to
   [name a kind yourself](#opening-other-kinds-of-file), and even that never reaches a
   script or an application.
 - **An application is a program, and starting one is starting a program.** That is the
@@ -265,16 +356,17 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   with it, since the script is one you keep in Klippy and have just asked for by name.
 
 Running something dismisses the window, as copying can: the browser, the script or the
-application is where you are going next. On a phone a marked link opens in the mobile
-browser; a marked document, script, application or path says there is nothing to open it
-with rather than doing nothing, and `%C%` and `%P%` expand on a copy there as they do
-everywhere.
+application is where you are going next. On a phone a marked link is handed to the phone to
+open — a web link in the mobile browser — while a marked document, script, application or
+path says there is nothing to open it with rather than doing nothing, and `%C%` and `%P%`
+expand on a copy there as they do everywhere. A settings page belongs to a desktop, and
+ALSO OPEN is a desktop setting, so neither reaches a phone.
 
 ## Showing where a file is
 
 A path you keep in Klippy is often somewhere you want to *go* rather than something to
 paste: a logs folder, the file a support call is about, the installer you downloaded. Klippy
-resolves it — its variables, `~`, a pair of quotes, a `file:///` link — and shows it in the
+resolves it — its variables, `~`, a pair of quotes, a `file:` link — and shows it in the
 platform's file manager. A folder opens; a file is shown selected in the folder it is in.
 Nothing is opened and nothing runs, so any kind of file can be shown, where only the short
 list of [documents](#documents) can be opened.
@@ -287,7 +379,8 @@ There are three ways to get there:
   The button only appears where the row's text reads as a full path; whether the file is
   still there is checked when you press it, and the toast says *Not found* if it is not.
 - **A snippet marked Execute** whose first word is the full path of anything that is not a
-  link, document, script or application — the second-to-last row of the table above.
+  link, document, script or application, or a `file:` link to one — the second-to-last row
+  of the table above.
   `%LOCALAPPDATA%\Klippy` or `D:\work\invoices` opens the folder, and `C:\logs\app.log` is
   shown selected in `C:\logs`. A path with a space in it needs no quotes when it is the
   whole line; otherwise the rest of the line is left behind, as it is for a document.

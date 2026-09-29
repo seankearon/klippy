@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -148,6 +149,39 @@ public sealed class AppSettings
     /// <see cref="ExecutionPolicy.Opens"/>.
     /// </summary>
     public string[] ExecuteOpenExtensions { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Kinds of link opened beyond the built-in web, settings and browser pages —
+    /// <c>["vscode:", "obsidian:"]</c> — each handed to whatever application registered
+    /// its kind, as clicking one in a browser would. Applies where
+    /// <see cref="ExecuteOpenExtensions"/> does, and is empty by default for the same
+    /// reason: what an application does with a link is up to the application, so which
+    /// kinds are opened is a choice made one kind at a time. Settings keeps these on the
+    /// same ALSO OPEN list, told apart by their colon; here one may be written with or
+    /// without it. A <c>file:</c> link is a path and never a kind to list — see
+    /// <see cref="ExecutionPolicy.WhyNotOpenable"/>.
+    /// </summary>
+    public string[] ExecuteOpenSchemes { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Both lists as the execution rules take them: the kinds of file as written, and the
+    /// kinds of link each with its colon, which is how the rules tell one from the other.
+    /// </summary>
+    [JsonIgnore]
+    public string[] AlsoOpens
+    {
+        get
+        {
+            var schemes = ExecuteOpenSchemes ?? [];
+            var kinds = new List<string>((ExecuteOpenExtensions ?? []).Length + schemes.Length);
+            kinds.AddRange(ExecuteOpenExtensions ?? []);
+            foreach (var written in schemes)
+                if (!string.IsNullOrWhiteSpace(written)
+                    && (ExecutionPolicy.AsLinkKind(written) ?? ExecutionPolicy.AsLinkKind(written + ":")) is { } kind)
+                    kinds.Add(kind);
+            return [.. kinds];
+        }
+    }
 
     /// <summary>
     /// Where the window lands when a hotkey summons it: "Remembered", "Centre" or

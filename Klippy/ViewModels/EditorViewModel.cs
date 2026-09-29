@@ -60,6 +60,10 @@ public partial class EditorViewModel : ViewModelBase
             ? $"Shows {shown} in {FileManager} when triggered — {CopyKeyHint} still copies it"
         : ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment, alsoOpens: AlsoOpens)
             ? $"Opened or run when triggered — {CopyKeyHint} still copies it"
+        // A link of a kind nobody has added yet: say where to add it, since that is the
+        // whole of what stands between this and Enter opening it.
+        : ExecutionPolicy.UnlistedLink(Content, AlsoOpens) is { } kind
+            ? $"{kind} links only open once {kind} is added under ALSO OPEN in Settings, so triggering this will say so"
             : "This is not a link, a full path, an application or a script Klippy can run, so triggering it will say so";
 
     private static readonly string FileManager = ExecutionPolicy.FileManager(ExecutionPolicy.CurrentPlatform);
@@ -74,10 +78,11 @@ public partial class EditorViewModel : ViewModelBase
     private static EnvironmentProbe RunEnvironment => KlippyVariables.Current.Ahead(EnvironmentProbe.Real);
 
     /// <summary>
-    /// The kinds of file the settings add to what Enter opens, for the same reason: a hint
-    /// that says a <c>.slnx</c> will be shown in Explorer when Enter opens it is wrong.
+    /// The kinds of file and of link the settings add to what Enter opens, for the same
+    /// reason: a hint that says a <c>.slnx</c> will be shown in Explorer when Enter opens
+    /// it, or that a <c>vscode:</c> link will not open when it will, is wrong.
     /// </summary>
-    private static string[] AlsoOpens => AppSettings.Current.ExecuteOpenExtensions;
+    private static string[] AlsoOpens => AppSettings.Current.AlsoOpens;
 
     /// <summary>
     /// The tags already in use, offered as chips under the TAG field so a snippet joins
