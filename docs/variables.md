@@ -255,8 +255,8 @@ and with `.slnx` among the [kinds of file to open](running-things.md#opening-oth
 - **Each value is read the way an item marked Execute reads its text**, because that is
   what it is: something you wrote, in a file of your own, reached by a name you typed on
   purpose. So everything [Running things](running-things.md) says holds — a document opens,
-  a script or application runs with the arguments the value gives it, a `mailto:` is a
-  link, a folder opens and any other file is
+  a script or application runs with the arguments the value gives it, a `mailto:` or an
+  `ms-settings:` is a link, a folder opens and any other file is
   [shown](running-things.md#showing-where-a-file-is) — and so does its allow-list: a value
   that is none of those, an account number say, is not offered at all. The quotes a shell
   wants come off, as they do when a marked item runs.

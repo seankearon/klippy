@@ -111,18 +111,20 @@
                                Text="Run git pull in a script or application's own folder before starting it, so what runs is what is in the repository. Skipped where it is not a checkout." />
                   </Grid>
 
-                  <!-- The kinds of file opened beyond the built-in documents. A chip per
-                       kind, which a click takes off; the box below adds one. Opening a
-                       kind of file can be running it, so each is added on purpose. -->
-                  <StackPanel x:Name="OpenExtensionsRow" Spacing="6" Margin="0,4,0,0">
+                  <!-- The kinds of file and of link opened beyond the built-in ones. A chip
+                       per kind, which a click takes off; the box below adds one, a link's
+                       kind written with its colon. Opening a kind of file can be running
+                       it, and a link is whatever its application makes of it, so each is
+                       added on purpose. -->
+                  <StackPanel x:Name="OpenKindsRow" Spacing="6" Margin="0,4,0,0">
                     <TextBlock Classes="mono" Text="ALSO OPEN" FontSize="10" LetterSpacing="0.8"
                                Foreground="{StaticResource MutedBrush}" />
                     <TextBlock FontSize="11" TextWrapping="Wrap"
                                Foreground="{StaticResource MutedBrush}"
-                               Text="Kinds of file opened in whatever your machine opens them with — .slnx in your IDE, say — from an item marked Execute or a variable typed by name. Opening some kinds is running them, so add only what you mean. Scripts and applications keep their own rules." />
+                               Text="Kinds of file, like .slnx for your IDE, and kinds of link, written with their colon, like vscode:, opened in whatever your machine opens them with — from an item marked Execute or a variable typed by name. Opening some is running something, so add only what you mean. Scripts and applications keep their own rules." />
 
-                    <ItemsControl ItemsSource="{Binding OpenExtensions}"
-                                  IsVisible="{Binding HasOpenExtensions}">
+                    <ItemsControl ItemsSource="{Binding OpenKinds}"
+                                  IsVisible="{Binding HasOpenKinds}">
                       <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                           <WrapPanel />
@@ -132,7 +134,7 @@
                         <DataTemplate x:DataType="x:String">
                           <Button Classes="chip" Margin="0,0,6,6"
                                   ToolTip.Tip="Stop opening these"
-                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveOpenExtensionCommand}"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveOpenKindCommand}"
                                   CommandParameter="{Binding}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                               <TextBlock Text="{Binding}" VerticalAlignment="Center" />
@@ -146,12 +148,12 @@
                     <Grid ColumnDefinitions="*,8,Auto">
                       <!-- Enter adds, as the button does: the window leaves a bare Enter
                            to whatever has the keyboard while an overlay is up. -->
-                      <TextBox x:Name="NewOpenExtensionBox" Grid.Column="0" Classes="mono" FontSize="11"
-                               Watermark=".slnx"
-                               Text="{Binding NewOpenExtension}"
-                               KeyDown="NewOpenExtensionKeyDown" />
+                      <TextBox x:Name="NewOpenKindBox" Grid.Column="0" Classes="mono" FontSize="11"
+                               Watermark=".slnx or vscode:"
+                               Text="{Binding NewOpenKind}"
+                               KeyDown="NewOpenKindKeyDown" />
                       <Button Grid.Column="2" Classes="chip" Content="Add"
-                              Command="{Binding AddOpenExtensionCommand}" />
+                              Command="{Binding AddOpenKindCommand}" />
                     </Grid>
                   </StackPanel>
                 </StackPanel>

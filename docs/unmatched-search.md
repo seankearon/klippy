@@ -60,7 +60,9 @@ Three things are deliberately narrower here than for a snippet you marked yourse
 a marked item was written on purpose and this is whatever landed in a filter box:
 
 - **Links are `http:`, `https:` and a bare `www.` only.** A marked snippet may also carry
-  `mailto:`; typed text may not, and the rest of the schemes were never on the list. A
+  `mailto:`, a [settings or browser page](running-things.md#links) like `ms-settings:display`,
+  a [`file:` link](running-things.md#file-links) and the kinds of link you add in Settings;
+  typed text may not. A
   typed `http://` opens on the scheme you typed — a dev server on `localhost:8000`, or a
   box on the LAN, answers on that and nothing else, so quietly promoting it to `https://`
   would send you to a port with nothing listening on it. A bare `www.` still gets an

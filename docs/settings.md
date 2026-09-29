@@ -39,10 +39,13 @@ what keeps it current.
 
 Under it, **ALSO OPEN** is a list rather than a toggle: the kinds of file opened
 [as documents are](running-things.md#opening-other-kinds-of-file) beyond the built-in ones —
-`.slnx` for solutions that should open in their IDE. Type one and press `Enter` or **Add**;
-click its chip to take it off. A script or an application is refused, since those run by
-rules of their own, and so is a kind that opens already. Empty by default; in
-`settings.json` it is `ExecuteOpenExtensions`.
+`.slnx` for solutions that should open in their IDE — and the
+[kinds of link](running-things.md#other-kinds-of-link) handed to their application, written
+with the colon: `vscode:`. Type one and press `Enter` or **Add**; click its chip to take it
+off. A script or an application is refused, since those run by rules of their own, and so is
+a `file:` link, which is a path, `javascript:` and its like, and a kind that opens already.
+Empty by default; in `settings.json` the kinds of file are `ExecuteOpenExtensions` and the
+kinds of link `ExecuteOpenSchemes`.
 
 Three more, desktop only, govern
 [running an unmatched search](unmatched-search.md) — the one feature that executes
@@ -62,7 +65,8 @@ In `settings.json`:
   "ExecuteUnmatched": true,
   "ExecuteVerifyPaths": true,
   "ExecuteConfirmSystemActions": true,
-  "ExecuteOpenExtensions": []
+  "ExecuteOpenExtensions": [],
+  "ExecuteOpenSchemes": []
 }
 ```
 

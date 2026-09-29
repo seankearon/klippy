@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -171,19 +172,21 @@ public partial class SettingsViewModel : ViewModelBase
     public bool ShowExecutePullFirst => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
     /// <summary>
-    /// The kinds of file opened as documents beyond the built-in list — the
-    /// <c>ExecuteOpenExtensions</c> setting, kept here as chips so it need not be kept by
-    /// hand in settings.json. Each as the list keeps it, <c>.slnx</c>, however it was
-    /// written in the file. Desktop only, beside Pull first: only a desktop opens a file.
+    /// The kinds of file and of link opened beyond the built-in ones — the
+    /// <c>ExecuteOpenExtensions</c> and <c>ExecuteOpenSchemes</c> settings, kept here as
+    /// one row of chips so neither need be kept by hand in settings.json. Each as the list
+    /// keeps it, <c>.slnx</c> or <c>vscode:</c>, however it was written in the file; the
+    /// colon is what says which setting a chip belongs to. Desktop only, beside Pull first:
+    /// only a desktop opens a file or hands a link to an application.
     /// </summary>
-    public ObservableCollection<string> OpenExtensions { get; } = new();
+    public ObservableCollection<string> OpenKinds { get; } = new();
 
-    public bool HasOpenExtensions => OpenExtensions.Count > 0;
+    public bool HasOpenKinds => OpenKinds.Count > 0;
 
     /// <summary>What is being typed into the box that adds one.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(AddOpenExtensionCommand))]
-    private string _newOpenExtension = "";
+    [NotifyCanExecuteChangedFor(nameof(AddOpenKindCommand))]
+    private string _newOpenKind = "";
 
     /// <summary>
     /// Whether to offer the run-unmatched choices. The same answer that decides whether
@@ -244,9 +247,20 @@ public partial class SettingsViewModel : ViewModelBase
         // As the list keeps them, so a hand-written "sln" and a chip reading ".sln" are not
         // two different things on screen. One that could never open is shown all the same:
         // it is in the file, and this is where it can be taken back out.
+        // A kind of link written into the kinds of file is shown as the link it is, and saved
+        // back to the list its colon says it belongs to.
         foreach (var written in settings.ExecuteOpenExtensions ?? [])
-            if (ExecutionPolicy.AsExtension(written) is { Length: > 1 } extension && !OpenExtensions.Contains(extension))
-                OpenExtensions.Add(extension);
+            if ((ExecutionPolicy.AsLinkKind(written) ?? ExecutionPolicy.AsExtension(written)) is { Length: > 1 } kind
+                && !OpenKinds.Contains(kind))
+                OpenKinds.Add(kind);
+
+        // A kind of link with its colon, which the file may have left off: the setting says
+        // which list it is on, where the chip has only the colon to say it.
+        foreach (var written in settings.ExecuteOpenSchemes ?? [])
+            if (!string.IsNullOrWhiteSpace(written)
+                && (ExecutionPolicy.AsLinkKind(written) ?? ExecutionPolicy.AsLinkKind(written + ":")) is { Length: > 1 } kind
+                && !OpenKinds.Contains(kind))
+                OpenKinds.Add(kind);
 
         _dataFolder = settings.DataDirectory;
         RereadDataFolder();
@@ -474,40 +488,44 @@ public partial class SettingsViewModel : ViewModelBase
     private void PickPlacement(LauncherPlacement placement) => SummonPlacement = placement;
 
     /// <summary>
-    /// Adds what the box holds to the kinds of file to open, and saves. One the list may not
-    /// hold — a script, an application, one that opens already, or not an extension at all —
-    /// is said so in the status line and left in the box to be corrected.
+    /// Adds what the box holds to the kinds to open, and saves: a kind of link where it was
+    /// written with its colon, <c>vscode:</c>, and a kind of file otherwise. One the list may
+    /// not hold — a script, an application, a <c>file:</c> link, one that opens already, or
+    /// not a kind of anything — is said so in the status line and left in the box to be
+    /// corrected.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(CanAddOpenExtension))]
-    private void AddOpenExtension()
+    [RelayCommand(CanExecute = nameof(CanAddOpenKind))]
+    private void AddOpenKind()
     {
-        if (ExecutionPolicy.WhyNotOpenable(NewOpenExtension) is { } problem)
+        if (ExecutionPolicy.WhyNotOpenable(NewOpenKind) is { } problem)
         {
             StatusText = problem;
             return;
         }
 
-        var extension = ExecutionPolicy.AsExtension(NewOpenExtension);
-        NewOpenExtension = "";
-        if (OpenExtensions.Contains(extension)) return; // there already: nothing to save
+        var kind = ExecutionPolicy.AsLinkKind(NewOpenKind) ?? ExecutionPolicy.AsExtension(NewOpenKind);
+        NewOpenKind = "";
+        if (OpenKinds.Contains(kind)) return; // there already: nothing to save
 
-        OpenExtensions.Add(extension);
-        SaveOpenExtensions();
+        OpenKinds.Add(kind);
+        SaveOpenKinds();
     }
 
-    private bool CanAddOpenExtension() => !string.IsNullOrWhiteSpace(NewOpenExtension);
+    private bool CanAddOpenKind() => !string.IsNullOrWhiteSpace(NewOpenKind);
 
     /// <summary>Takes a kind back off the list, and saves.</summary>
     [RelayCommand]
-    private void RemoveOpenExtension(string? extension)
+    private void RemoveOpenKind(string? kind)
     {
-        if (extension is not null && OpenExtensions.Remove(extension)) SaveOpenExtensions();
+        if (kind is not null && OpenKinds.Remove(kind)) SaveOpenKinds();
     }
 
-    private void SaveOpenExtensions()
+    /// <summary>Each chip back to the setting its colon, or the lack of one, says it is on.</summary>
+    private void SaveOpenKinds()
     {
-        _settings.ExecuteOpenExtensions = [.. OpenExtensions];
-        OnPropertyChanged(nameof(HasOpenExtensions));
+        _settings.ExecuteOpenExtensions = [.. OpenKinds.Where(k => ExecutionPolicy.AsLinkKind(k) is null)];
+        _settings.ExecuteOpenSchemes = [.. OpenKinds.Where(k => ExecutionPolicy.AsLinkKind(k) is not null)];
+        OnPropertyChanged(nameof(HasOpenKinds));
         Save();
     }
 
