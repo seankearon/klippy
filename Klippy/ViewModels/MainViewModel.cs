@@ -716,8 +716,9 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Runs the item: its link opens in the default browser, or the script or
-    /// application it names starts, with the same macros a copy would have resolved.
+    /// Runs the item: its link opens in whatever opens its kind, or the document,
+    /// script or application it names opens or starts, with the same macros a copy would
+    /// have resolved.
     /// Reached by triggering an item marked Execute.
     ///
     /// The item's stored text goes to the execution engine together with the typed

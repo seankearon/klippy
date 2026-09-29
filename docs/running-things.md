@@ -38,9 +38,10 @@ once any environment variable in it has resolved:
 | The full path of anything else — a folder, a log file, an `.hta` | Shown in Explorer or Finder: a folder opens, a file is selected in its folder — see [Showing where a file is](#showing-where-a-file-is) |
 | anything else | Nothing — and the editor says so as you tick the marker, rather than leaving you to find out by pressing Enter |
 
-The last three are what each platform calls an application, and each runs only at home:
-an `.exe` is no more startable on a Mac than a `.bat` is, and marking one there warns
-you in the editor rather than failing at the press of Enter.
+The `.exe`, `.app` and `.AppImage` rows are what each platform calls an application, and
+each runs only at home: an `.exe` is no more startable on a Mac than a `.bat` is, and
+marking one there warns you in the editor rather than failing at the press of Enter. A
+settings page has a home in the same way.
 
 Everything after the first word is passed to the script or application as arguments,
 quotes grouping the words that belong together: `deploy.ps1 --env "west europe"` passes
@@ -109,7 +110,7 @@ editor says so as you tick the marker, and names what to add.
 A kind on the list is handed to whatever application registered it, as clicking the link in a
 browser would be. That is also why each kind is added on purpose rather than all of them
 being open by default: what an application does with a link is up to the application, and
-some do a great deal with one. The list takes a kind at a time, and it will not take four:
+some do a great deal with one. The list takes a kind at a time, and it will not take these:
 
 | Written | Why not |
 |---|---|
@@ -355,16 +356,17 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   with it, since the script is one you keep in Klippy and have just asked for by name.
 
 Running something dismisses the window, as copying can: the browser, the script or the
-application is where you are going next. On a phone a marked link opens in whatever the
-phone opens its kind with — a web link in the mobile browser; a marked document, script, application or path says there is nothing to open it
-with rather than doing nothing, and `%C%` and `%P%` expand on a copy there as they do
-everywhere.
+application is where you are going next. On a phone a marked link is handed to the phone to
+open — a web link in the mobile browser — while a marked document, script, application or
+path says there is nothing to open it with rather than doing nothing, and `%C%` and `%P%`
+expand on a copy there as they do everywhere. A settings page belongs to a desktop, and
+ALSO OPEN is a desktop setting, so neither reaches a phone.
 
 ## Showing where a file is
 
 A path you keep in Klippy is often somewhere you want to *go* rather than something to
 paste: a logs folder, the file a support call is about, the installer you downloaded. Klippy
-resolves it — its variables, `~`, a pair of quotes, a `file:///` link — and shows it in the
+resolves it — its variables, `~`, a pair of quotes, a `file:` link — and shows it in the
 platform's file manager. A folder opens; a file is shown selected in the folder it is in.
 Nothing is opened and nothing runs, so any kind of file can be shown, where only the short
 list of [documents](#documents) can be opened.
@@ -377,7 +379,8 @@ There are three ways to get there:
   The button only appears where the row's text reads as a full path; whether the file is
   still there is checked when you press it, and the toast says *Not found* if it is not.
 - **A snippet marked Execute** whose first word is the full path of anything that is not a
-  link, document, script or application — the second-to-last row of the table above.
+  link, document, script or application, or a `file:` link to one — the second-to-last row
+  of the table above.
   `%LOCALAPPDATA%\Klippy` or `D:\work\invoices` opens the folder, and `C:\logs\app.log` is
   shown selected in `C:\logs`. A path with a space in it needs no quotes when it is the
   whole line; otherwise the rest of the line is left behind, as it is for a document.

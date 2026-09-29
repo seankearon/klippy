@@ -62,11 +62,10 @@ a marked item was written on purpose and this is whatever landed in a filter box
 - **Links are `http:`, `https:` and a bare `www.` only.** A marked snippet may also carry
   `mailto:`, a [settings or browser page](running-things.md#links) like `ms-settings:display`,
   a [`file:` link](running-things.md#file-links) and the kinds of link you add in Settings;
-  typed text may not. A
-  typed `http://` opens on the scheme you typed — a dev server on `localhost:8000`, or a
-  box on the LAN, answers on that and nothing else, so quietly promoting it to `https://`
-  would send you to a port with nothing listening on it. A bare `www.` still gets an
-  `https://` in front of it, exactly as a browser does.
+  typed text may not. A typed `http://` opens on the scheme you typed — a dev server on
+  `localhost:8000`, or a box on the LAN, answers on that and nothing else, so quietly
+  promoting it to `https://` would send you to a port with nothing listening on it. A bare
+  `www.` still gets an `https://` in front of it, exactly as a browser does.
 
   Writing the scheme out is you saying you meant a link, so the host is taken as you spelled
   it: `http://localhost:8000` and `http://build-server/job/klippy` open, dot or no dot. A
@@ -77,7 +76,7 @@ a marked item was written on purpose and this is whatever landed in a filter box
   started from, which is nobody's mental model, and without the rule every unmatched word
   with a dot in it would look like a file.
 - **Files are shown, never opened.** A marked snippet may open a
-  [document](running-things.md#documents) — a web page, a PDF — by its path or a `file:///`
+  [document](running-things.md#documents) — a web page, a PDF — by its path or a `file:`
   link. A typed one is not: a path to a file you have just typed is far more often a path
   you are hunting a snippet for than one you want opened. What it is offered instead is to
   be [shown where it lies](running-things.md#showing-where-a-file-is) — its folder opened in

@@ -7,7 +7,7 @@ description: "Every setting and what it changes."
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
 say whether a copy dismisses the window, one brings a script's folder up to date before it
-runs, a list adds kinds of file to open, three govern running an unmatched search, and one
+runs, a list adds kinds of file and of link to open, three govern running an unmatched search, and one
 says where the window lands when you summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
@@ -42,8 +42,9 @@ Under it, **ALSO OPEN** is a list rather than a toggle: the kinds of file opened
 `.slnx` for solutions that should open in their IDE — and the
 [kinds of link](running-things.md#other-kinds-of-link) handed to their application, written
 with the colon: `vscode:`. Type one and press `Enter` or **Add**; click its chip to take it
-off. A script or an application is refused, since those run by rules of their own, and so is
-a `file:` link, which is a path, `javascript:` and its like, and a kind that opens already.
+off. A script or an application is refused, since those run by rules of their own, and so are
+`file:`, since a `file:` link is a path, `javascript:` and its like, and a kind that opens
+already.
 Empty by default; in `settings.json` the kinds of file are `ExecuteOpenExtensions` and the
 kinds of link `ExecuteOpenSchemes`.
 
