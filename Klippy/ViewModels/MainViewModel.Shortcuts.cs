@@ -153,14 +153,27 @@ public partial class MainViewModel
     /// it with. Its quick-code goes into the search box instead, with a space after it and the caret at the
     /// end, which is the line someone typing it by hand would have got to; the argument and Enter are theirs
     /// to give (<see cref="TriggerOutcome.AwaitingArguments"/>).
+    ///
+    /// A snippet that uses the clipboard — a <c>%C%</c> — goes ahead when the clipboard holds text, which is
+    /// the point of pressing its keys: search for what was just copied. When it holds none — nothing, a
+    /// picture, files — it does nothing and says so, rather than search for nothing; Enter on the row is the
+    /// way to have it with an empty <c>%C%</c>, for whoever wants that.
     /// </summary>
     public async Task<TriggerOutcome> TriggerSnippetAsync(Guid id)
     {
         if (_store.Find(id) is not { } snippet) return TriggerOutcome.Failed;
 
         // The variables file first, as copy and run apply it: a define can be what brings the %P%.
-        if (Macros.TakesArguments(KlippyVariables.Current.Expand(snippet.Content)))
+        var expanded = KlippyVariables.Current.Expand(snippet.Content);
+        if (Macros.TakesArguments(expanded))
             return PromptForArguments(snippet);
+
+        if (Macros.UsesClipboard(expanded) && !await ClipboardHasTextAsync())
+        {
+            ShowToast($"\u201c{snippet.Label}\u201d uses the clipboard, and there's no text on it — copy some, " +
+                      "then press its keys again.", isError: true);
+            return TriggerOutcome.Failed;
+        }
 
         // A fresh row rather than the list's own: the list's may be carrying arguments typed after its
         // quick-code, and a shortcut names the snippet, not that line.
@@ -175,6 +188,14 @@ public partial class MainViewModel
             : await CopyCore(row, record: false, quiet);
         return done ? TriggerOutcome.Done : TriggerOutcome.Failed;
     }
+
+    /// <summary>
+    /// Whether the clipboard holds text for a <c>%C%</c> — not nothing, not a picture or files, not just
+    /// whitespace. Read here and again when the snippet resolves: a second read is cheap, and threading the
+    /// first one through copy and run would buy nothing but a moment's difference.
+    /// </summary>
+    private async Task<bool> ClipboardHasTextAsync() =>
+        ClipboardReader is { } read && !string.IsNullOrWhiteSpace(await read());
 
     /// <summary>
     /// Puts <paramref name="snippet"/>'s quick-code in the search box, ready for its argument — or, where it

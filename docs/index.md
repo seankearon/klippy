@@ -59,7 +59,9 @@ hide:
     ---
 
     A global hotkey summons Klippy over whatever you are working in, on Windows and
-    macOS. Type, press ++enter++, and it is on your clipboard and out of your way.
+    macOS. Type, press ++enter++, and it is on your clipboard and out of your way — or
+    give a snippet [keys of its own](snippet-shortcuts.md), chords included, or a hotkey
+    that triggers it from any application.
 
     [:octicons-arrow-right-24: Global hotkeys](global-hotkeys.md)
 

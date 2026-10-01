@@ -32,13 +32,16 @@ public class SnippetShortcutUiTests
         public List<string> Copies { get; } = new();
         public List<ExecutionPlan> Ran { get; } = new();
 
+        /// <summary>What the clipboard holds as text — null for nothing, or a picture or files.</summary>
+        public string? Clipboard { get; set; }
+
         public Snippet Snippet(string label) => Store.Snippets.Single(s => s.Label == label);
 
         /// <summary>The test's clipboard and launcher — again after a window opens, which wires the real ones.</summary>
         public Fixture Attach()
         {
             Vm.ClipboardWriter = payload => { Copies.Add(payload.Plain); return Task.CompletedTask; };
-            Vm.ClipboardReader = () => Task.FromResult<string?>(null);
+            Vm.ClipboardReader = () => Task.FromResult(Clipboard);
             Vm.Executor = plan =>
             {
                 Ran.Add(plan);
@@ -218,6 +221,94 @@ public class SnippetShortcutUiTests
         Press(window, Key.Enter, text: "\n");
 
         Assert.Equal("https://example.com/search?q=cats", Assert.Single(f.Ran).Target);
+    }
+
+    // ---- a snippet that uses the clipboard ----
+
+    private static Snippet SearchClipboard => new()
+    {
+        Label = "Search the clipboard", Content = "https://example.com/search?q=%C%", IsExecutable = true,
+        Shortcut = "Ctrl+K, C",
+    };
+
+    [AvaloniaFact]
+    public async Task ASnippetUsingTheClipboard_GoesAheadWhenItHoldsText()
+    {
+        var f = NewVm(SearchClipboard);
+        f.Clipboard = "cats and dogs";
+
+        Assert.Equal(TriggerOutcome.Done, await f.Vm.TriggerSnippetAsync(f.Snippet("Search the clipboard").Id));
+
+        var plan = Assert.Single(f.Ran);
+        Assert.Contains("cats", plan.Target);
+        Assert.DoesNotContain("%C%", plan.Target);
+        Assert.Equal("", f.Vm.FilterText); // no prompt: there was nothing to ask for
+    }
+
+    [AvaloniaTheory]
+    [InlineData(null)]       // nothing on it — or a picture, or files
+    [InlineData("")]
+    [InlineData("   \n")]    // only whitespace: nothing to search for
+    public async Task ASnippetUsingTheClipboard_DoesNothingAndSaysSo_WhenItHoldsNoText(string? clipboard)
+    {
+        var f = NewVm(SearchClipboard);
+        f.Clipboard = clipboard;
+
+        Assert.Equal(TriggerOutcome.Failed, await f.Vm.TriggerSnippetAsync(f.Snippet("Search the clipboard").Id));
+
+        Assert.Empty(f.Ran);
+        Assert.True(f.Vm.IsToastError);
+        Assert.Contains("no text on it", f.Vm.ToastText);
+    }
+
+    [AvaloniaFact]
+    public async Task ACopyUsingTheClipboard_IsHeldToTheSameRule()
+    {
+        var reply = new Snippet { Label = "Reply", Content = "Re: %C%", Shortcut = "Ctrl+K, R" };
+        var f = NewVm(reply);
+
+        Assert.Equal(TriggerOutcome.Failed, await f.Vm.TriggerSnippetAsync(f.Snippet("Reply").Id));
+        Assert.Empty(f.Copies);
+
+        f.Clipboard = "the invoice";
+        Assert.Equal(TriggerOutcome.Done, await f.Vm.TriggerSnippetAsync(f.Snippet("Reply").Id));
+        Assert.Equal("Re: the invoice", Assert.Single(f.Copies));
+    }
+
+    [AvaloniaFact]
+    public async Task ASnippetWithBothPlaceholders_StillWaitsForItsArgument()
+    {
+        var both = Search;
+        both.Content = "https://example.com/search?q=%P%+%C%";
+        var f = NewVm(both);
+        f.Clipboard = "cats";
+
+        Assert.Equal(TriggerOutcome.AwaitingArguments, await f.Vm.TriggerSnippetAsync(f.Snippet("Search").Id));
+        Assert.Equal("? ", f.Vm.FilterText);
+        Assert.Empty(f.Ran);
+    }
+
+    [AvaloniaFact]
+    public void ItsShortcut_SearchesTheClipboard_StraightAway()
+    {
+        var (window, f) = Open(NewVm(SearchClipboard));
+        f.Clipboard = "cats";
+
+        Press(window, Key.K, RawInputModifiers.Control);
+        Press(window, Key.C, text: "c");
+
+        Assert.Equal("https://example.com/search?q=cats", Assert.Single(f.Ran).Target);
+        Assert.Equal("", f.Vm.FilterText);
+    }
+
+    [AvaloniaFact]
+    public void TheEditor_SaysItsKeysUseTheClipboard()
+    {
+        var f = NewVm(SearchClipboard);
+        var editor = Edit(f, "Search the clipboard");
+
+        Assert.Contains("uses the clipboard", editor.ArgumentsHint);
+        Assert.False(editor.ArgumentsHintIsWarning);   // no quick-code needed for this one
     }
 
     [AvaloniaFact]

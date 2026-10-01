@@ -24,9 +24,13 @@ remembers the lines that did something and offers them back:
 
 A *command* is a line that did something: whatever was in the search box at the moment a
 snippet was copied or run. Browsing to a row and pressing `Enter` with an empty box
-records nothing, because there is no line to recall. A command used again moves back to
-the top rather than being duplicated, which is what "most recently used" means, and
-`? Cats` is kept apart from `? cats` — they search for different things.
+records nothing, because there is no line to recall — and neither does a snippet's own
+[shortcut or hotkey](snippet-shortcuts.md), which names the snippet rather than any line.
+A snippet whose keys put its quick-code in the box to wait for an argument is the one
+case that is recorded, when you press `Enter`: by then the line is one you typed. A
+command used again moves back to the top rather than being duplicated, which is what
+"most recently used" means, and `? Cats` is kept apart from `? cats` — they search for
+different things.
 
 One pair of arrow keys, two lists that could want them. The rule is that the MRU has them
 only while it is open, and it is only open when it has something to say: a `↓` on an empty

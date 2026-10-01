@@ -113,16 +113,21 @@ public partial class EditorViewModel
         _keys.HotkeyUnclaimed && Hotkey.Length > 0 && string.Equals(Hotkey, _originalHotkey, StringComparison.Ordinal);
 
     /// <summary>
-    /// What the keys will do for a snippet that takes an argument — a <c>%P%</c> — which they can't fill:
-    /// bring Klippy up with the quick-code typed, waiting for it; or, with no quick-code to type it after,
-    /// only say so. Empty for a snippet with no keys, or no argument to take.
+    /// What the keys will do for a snippet with a placeholder they can't simply fill. An argument — a
+    /// <c>%P%</c> — they bring Klippy up for, with the quick-code typed and waiting; or, with no quick-code to
+    /// type it after, only say so. The clipboard — a <c>%C%</c> — they use, and only say so when it holds no
+    /// text. Empty for a snippet with no keys, or no placeholder.
     /// </summary>
     public string ArgumentsHint
     {
         get
         {
             if (!ShowsShortcuts || (!HasShortcut && !HasHotkey)) return "";
-            if (!Macros.TakesArguments(KlippyVariables.Current.Expand(Content))) return "";
+            var expanded = KlippyVariables.Current.Expand(Content);
+            if (!Macros.TakesArguments(expanded))
+                return Macros.UsesClipboard(expanded)
+                    ? "It uses the clipboard, so its keys use whatever text is on it — and say so when there's none."
+                    : "";
 
             var code = QuickCode.Trim().ToLowerInvariant();
             return code.Length > 0
@@ -136,7 +141,9 @@ public partial class EditorViewModel
     public bool HasArgumentsHint => ArgumentsHint.Length > 0;
 
     /// <summary>An argument with no quick-code to type it after: the keys can't do their job.</summary>
-    public bool ArgumentsHintIsWarning => HasArgumentsHint && QuickCode.Trim().Length == 0;
+    public bool ArgumentsHintIsWarning =>
+        HasArgumentsHint && QuickCode.Trim().Length == 0
+        && Macros.TakesArguments(KlippyVariables.Current.Expand(Content));
 
     partial void OnContentChanged(string value) => NotifyArgumentsHint();
     partial void OnQuickCodeChanged(string value) => NotifyArgumentsHint();
