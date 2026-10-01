@@ -9,6 +9,22 @@ using Klippy.Services;
 
 namespace Klippy.ViewModels;
 
+/// <summary>What triggering a snippet by its keys came to.</summary>
+public enum TriggerOutcome
+{
+    /// <summary>Copied, or run.</summary>
+    Done,
+
+    /// <summary>Nothing happened, and the toast says why — the window should come up so it can be read.</summary>
+    Failed,
+
+    /// <summary>
+    /// The snippet takes an argument, so its quick-code is in the search box with the caret after it, waiting
+    /// for the argument and Enter — the window should come up, ready for typing.
+    /// </summary>
+    AwaitingArguments,
+}
+
 /// <summary>
 /// Snippet shortcuts and system-wide hotkeys: a snippet can carry keys that trigger it while Klippy is up —
 /// a chord such as <c>Ctrl+K, Ctrl+L</c> included — and a hotkey that triggers it from any application.
@@ -23,6 +39,12 @@ public partial class MainViewModel
     private readonly ChordMatcher _chords = new(SnippetShortcutMap.Empty);
     private readonly HashSet<Guid> _unclaimedHotkeys = new();
     private DispatcherTimer? _chordMissTimer;
+
+    /// <summary>
+    /// Raised when a snippet's keys have put its quick-code in the search box to wait for an argument: the
+    /// view hands the box the keyboard with the caret at the end, ready for typing.
+    /// </summary>
+    public event Action? ArgumentsRequested;
 
     /// <summary>
     /// Raised after snippets were saved, deleted or imported — anything that can change which keys trigger
@@ -125,13 +147,20 @@ public partial class MainViewModel
     /// Triggers the snippet with <paramref name="id"/> as Enter on its row would — a copy, or a run for one
     /// marked Execute — wherever the list happens to be: in the clipboard history, or filtered down to
     /// something else entirely. Reached from a shortcut and from a system-wide hotkey. Nothing typed is
-    /// involved, so no arguments fill its placeholders and nothing goes into the command MRU. True when it
-    /// did what it was for; false when there is no such snippet, or the run could not start — the toast says
-    /// why, and the launcher brings the window up so it can be read.
+    /// involved, so nothing goes into the command MRU.
+    ///
+    /// A snippet that takes an argument — a <c>%P%</c> — can't be done on the spot: there is nothing to fill
+    /// it with. Its quick-code goes into the search box instead, with a space after it and the caret at the
+    /// end, which is the line someone typing it by hand would have got to; the argument and Enter are theirs
+    /// to give (<see cref="TriggerOutcome.AwaitingArguments"/>).
     /// </summary>
-    public async Task<bool> TriggerSnippetAsync(Guid id)
+    public async Task<TriggerOutcome> TriggerSnippetAsync(Guid id)
     {
-        if (_store.Find(id) is not { } snippet) return false;
+        if (_store.Find(id) is not { } snippet) return TriggerOutcome.Failed;
+
+        // The variables file first, as copy and run apply it: a define can be what brings the %P%.
+        if (Macros.TakesArguments(KlippyVariables.Current.Expand(snippet.Content)))
+            return PromptForArguments(snippet);
 
         // A fresh row rather than the list's own: the list's may be carrying arguments typed after its
         // quick-code, and a shortcut names the snippet, not that line.
@@ -141,9 +170,38 @@ public partial class MainViewModel
         // It still does its job, but leaves the window be: the keyboard stays in the editor, where a snippet
         // copied by hotkey is as likely as not about to be pasted, and nothing closes mid-edit.
         var quiet = IsOverlayOpen;
-        return snippet.IsExecutable
+        var done = snippet.IsExecutable
             ? await ExecuteCore(row, record: false, quiet)
             : await CopyCore(row, record: false, quiet);
+        return done ? TriggerOutcome.Done : TriggerOutcome.Failed;
+    }
+
+    /// <summary>
+    /// Puts <paramref name="snippet"/>'s quick-code in the search box, ready for its argument — or, where it
+    /// can't, says why. Arguments are typed after a quick-code, so a snippet without one has nowhere to take
+    /// them; and an overlay up (a hotkey pressed from the editor) is not torn down for it.
+    /// </summary>
+    private TriggerOutcome PromptForArguments(Snippet snippet)
+    {
+        if (IsOverlayOpen)
+        {
+            ShowToast($"\u201c{snippet.Label}\u201d takes an argument — close this first, then press its keys again.",
+                isError: true);
+            return TriggerOutcome.Failed;
+        }
+
+        if (snippet.QuickCode.Length == 0)
+        {
+            ShowToast($"\u201c{snippet.Label}\u201d takes an argument, which is typed after a quick-code — " +
+                      "give it one in the editor.", isError: true);
+            return TriggerOutcome.Failed;
+        }
+
+        if (IsHistoryMode) ShowSnippets();
+        CloseCommands(restore: false);
+        FilterText = snippet.QuickCode + " ";
+        ArgumentsRequested?.Invoke();
+        return TriggerOutcome.AwaitingArguments;
     }
 
     /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings — is up.</summary>

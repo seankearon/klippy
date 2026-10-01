@@ -112,6 +112,44 @@ public partial class EditorViewModel
     private bool HotkeyIsUnclaimed =>
         _keys.HotkeyUnclaimed && Hotkey.Length > 0 && string.Equals(Hotkey, _originalHotkey, StringComparison.Ordinal);
 
+    /// <summary>
+    /// What the keys will do for a snippet that takes an argument — a <c>%P%</c> — which they can't fill:
+    /// bring Klippy up with the quick-code typed, waiting for it; or, with no quick-code to type it after,
+    /// only say so. Empty for a snippet with no keys, or no argument to take.
+    /// </summary>
+    public string ArgumentsHint
+    {
+        get
+        {
+            if (!ShowsShortcuts || (!HasShortcut && !HasHotkey)) return "";
+            if (!Macros.TakesArguments(KlippyVariables.Current.Expand(Content))) return "";
+
+            var code = QuickCode.Trim().ToLowerInvariant();
+            return code.Length > 0
+                ? $"It takes an argument, so its keys bring Klippy up with \u201c{code} \u201d typed — type the " +
+                  "argument, then Enter."
+                : "It takes an argument, which is typed after a quick-code — give it one, or its keys can only " +
+                  "say so.";
+        }
+    }
+
+    public bool HasArgumentsHint => ArgumentsHint.Length > 0;
+
+    /// <summary>An argument with no quick-code to type it after: the keys can't do their job.</summary>
+    public bool ArgumentsHintIsWarning => HasArgumentsHint && QuickCode.Trim().Length == 0;
+
+    partial void OnContentChanged(string value) => NotifyArgumentsHint();
+    partial void OnQuickCodeChanged(string value) => NotifyArgumentsHint();
+    partial void OnShortcutChanged(string value) => NotifyArgumentsHint();
+    partial void OnHotkeyChanged(string value) => NotifyArgumentsHint();
+
+    private void NotifyArgumentsHint()
+    {
+        OnPropertyChanged(nameof(ArgumentsHint));
+        OnPropertyChanged(nameof(HasArgumentsHint));
+        OnPropertyChanged(nameof(ArgumentsHintIsWarning));
+    }
+
     [RelayCommand]
     private void RecordShortcut() => BeginRecording(KeyField.Shortcut);
 

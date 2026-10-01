@@ -63,9 +63,17 @@ public class SnippetShortcutUiTests
 
     private static Snippet Mail => new() { Label = "Work email", Content = "sam@example.com", Shortcut = "Ctrl+Shift+M" };
 
+    /// <summary>Takes an argument: its keys can't run it on the spot, only ask for the argument.</summary>
     private static Snippet Search => new()
     {
-        Label = "Search", Content = "https://example.com/search?q=%P%", IsExecutable = true, Shortcut = "Ctrl+K, S",
+        Label = "Search", Content = "https://example.com/search?q=%P%", IsExecutable = true, QuickCode = "?",
+        Shortcut = "Ctrl+K, S",
+    };
+
+    /// <summary>Marked to run, with nothing to ask for.</summary>
+    private static Snippet Docs => new()
+    {
+        Label = "Docs", Content = "https://example.com/docs", IsExecutable = true, Shortcut = "Ctrl+K, D",
     };
 
     private static (Window Window, Fixture Fixture) Open(Fixture f)
@@ -104,13 +112,13 @@ public class SnippetShortcutUiTests
     [AvaloniaFact]
     public async Task Triggering_CopiesAPlainSnippet_AndRunsAMarkedOne()
     {
-        var f = NewVm(Log, Search);
+        var f = NewVm(Log, Docs);
 
-        Assert.True(await f.Vm.TriggerSnippetAsync(f.Snippet("Send log files").Id));
+        Assert.Equal(TriggerOutcome.Done, await f.Vm.TriggerSnippetAsync(f.Snippet("Send log files").Id));
         Assert.Equal("Please send the logs", Assert.Single(f.Copies));
 
-        Assert.True(await f.Vm.TriggerSnippetAsync(f.Snippet("Search").Id));
-        Assert.Single(f.Ran);
+        Assert.Equal(TriggerOutcome.Done, await f.Vm.TriggerSnippetAsync(f.Snippet("Docs").Id));
+        Assert.Equal("https://example.com/docs", Assert.Single(f.Ran).Target);
         Assert.Single(f.Copies); // it ran, rather than copying
     }
 
@@ -124,7 +132,7 @@ public class SnippetShortcutUiTests
         var f = new Fixture { Vm = new MainViewModel(store, commands: commands), Store = store }.Attach();
 
         f.Vm.FilterText = "something else entirely";
-        Assert.True(await f.Vm.TriggerSnippetAsync(f.Snippet("Send log files").Id));
+        Assert.Equal(TriggerOutcome.Done, await f.Vm.TriggerSnippetAsync(f.Snippet("Send log files").Id));
 
         Assert.Equal("Please send the logs", Assert.Single(f.Copies));
         Assert.Equal(0, commands.Count); // the line in the box had nothing to do with it
@@ -133,11 +141,100 @@ public class SnippetShortcutUiTests
     [AvaloniaFact]
     public async Task Triggering_ARunThatCannotStart_SaysSo()
     {
-        var f = NewVm(Search);
+        var f = NewVm(Docs);
         f.Vm.Executor = null;   // nothing here can run things
 
-        Assert.False(await f.Vm.TriggerSnippetAsync(f.Snippet("Search").Id));
-        Assert.False(await f.Vm.TriggerSnippetAsync(Guid.NewGuid())); // and no such snippet
+        Assert.Equal(TriggerOutcome.Failed, await f.Vm.TriggerSnippetAsync(f.Snippet("Docs").Id));
+        Assert.Equal(TriggerOutcome.Failed, await f.Vm.TriggerSnippetAsync(Guid.NewGuid())); // and no such snippet
+    }
+
+    // ---- a snippet that takes an argument ----
+
+    [AvaloniaFact]
+    public async Task ASnippetTakingAnArgument_PutsItsQuickCodeInTheBox_AndWaits()
+    {
+        var f = NewVm(Search, Mail);
+        f.Vm.IsHistoryMode = true;   // wherever the list was
+        var asked = 0;
+        f.Vm.ArgumentsRequested += () => asked++;
+
+        Assert.Equal(TriggerOutcome.AwaitingArguments, await f.Vm.TriggerSnippetAsync(f.Snippet("Search").Id));
+
+        Assert.False(f.Vm.IsHistoryMode);
+        Assert.Equal("? ", f.Vm.FilterText);
+        Assert.Equal("Search", Assert.Single(f.Vm.Filtered).Label);   // the invocation, on screen
+        Assert.Equal(1, asked);
+        Assert.Empty(f.Ran);    // nothing runs until the argument and Enter are given
+        Assert.Empty(f.Copies);
+    }
+
+    [AvaloniaFact]
+    public async Task ASnippetTakingAnArgument_WithNoQuickCode_SaysWhatItNeeds()
+    {
+        var noCode = Search;
+        noCode.QuickCode = "";
+        var f = NewVm(noCode);
+
+        Assert.Equal(TriggerOutcome.Failed, await f.Vm.TriggerSnippetAsync(f.Snippet("Search").Id));
+
+        Assert.True(f.Vm.IsToastError);
+        Assert.Contains("quick-code", f.Vm.ToastText);
+        Assert.Equal("", f.Vm.FilterText);
+        Assert.Empty(f.Ran);
+    }
+
+    [AvaloniaFact]
+    public async Task ASnippetTakingAnArgument_LeavesAnOpenEditorAlone()
+    {
+        var f = NewVm(Search, Mail);
+        var editor = Edit(f, "Work email");
+
+        Assert.Equal(TriggerOutcome.Failed, await f.Vm.TriggerSnippetAsync(f.Snippet("Search").Id));
+
+        Assert.Same(editor, f.Vm.Editor);
+        Assert.Equal("", f.Vm.FilterText);
+        Assert.Contains("close this first", f.Vm.ToastText);
+    }
+
+    [AvaloniaFact]
+    public void ItsShortcut_LeavesTheCaretAfterTheQuickCode_AndEnterRunsWhatIsTyped()
+    {
+        var (window, f) = Open(NewVm(Search, Mail));
+        var box = window.GetVisualDescendantsOf<TextBox>().Single(b => b.Name == "SearchBox");
+        f.Vm.FilterText = "something";
+        box.SelectAll();
+
+        Press(window, Key.K, RawInputModifiers.Control);
+        Press(window, Key.S, text: "s");
+
+        Assert.Equal("? ", box.Text);
+        Assert.True(box.IsFocused);
+        Assert.Equal(2, box.CaretIndex);
+        Assert.Equal(box.SelectionStart, box.SelectionEnd);   // nothing selected: typing adds, it doesn't replace
+        Assert.Empty(f.Ran);
+
+        foreach (var c in "cats")
+            Press(window, Key.A + (c - 'a'), text: c.ToString());
+        Press(window, Key.Enter, text: "\n");
+
+        Assert.Equal("https://example.com/search?q=cats", Assert.Single(f.Ran).Target);
+    }
+
+    [AvaloniaFact]
+    public void TheEditor_SaysWhatTheKeysDoForASnippetTakingAnArgument()
+    {
+        var f = NewVm(Search);
+        var editor = Edit(f, "Search");
+
+        Assert.Contains("\u201c? \u201d typed", editor.ArgumentsHint);
+        Assert.False(editor.ArgumentsHintIsWarning);
+
+        editor.QuickCode = "";
+        Assert.Contains("give it one", editor.ArgumentsHint);
+        Assert.True(editor.ArgumentsHintIsWarning);
+
+        editor.Content = "https://example.com/";   // no argument to take: nothing to say
+        Assert.False(editor.HasArgumentsHint);
     }
 
     // ---- the keyboard ----
@@ -476,7 +573,7 @@ public class SnippetShortcutUiTests
         f.Vm.CloseRequested += () => closes++;
         Edit(f, "Work email");
 
-        Assert.True(await f.Vm.TriggerSnippetAsync(f.Snippet("Work email").Id));
+        Assert.Equal(TriggerOutcome.Done, await f.Vm.TriggerSnippetAsync(f.Snippet("Work email").Id));
 
         Assert.Equal("sam@example.com", Assert.Single(f.Copies));
         Assert.Equal(0, copiedEvents);   // the keyboard stays in the editor…

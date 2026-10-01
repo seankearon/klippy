@@ -92,6 +92,7 @@ public partial class MainWindow : Window
             previous.Copied -= SelectSearchText;
             previous.CloseRequested -= HideAfterCopy;
             previous.QuitRequested -= Quit;
+            previous.ArgumentsRequested -= PlaceCaretAtEnd;
         }
         _watched = Vm;
         if (_watched is { } current)
@@ -100,6 +101,7 @@ public partial class MainWindow : Window
             current.Copied += SelectSearchText;
             current.CloseRequested += HideAfterCopy;
             current.QuitRequested += Quit;
+            current.ArgumentsRequested += PlaceCaretAtEnd;
         }
 
         ApplyPreviewHeight();
@@ -115,6 +117,19 @@ public partial class MainWindow : Window
     {
         SearchBox.Focus();
         SearchBox.SelectAll();
+    }
+
+    /// <summary>
+    /// Hands focus to the search box with the caret at the end of what is in it and nothing selected — where a
+    /// snippet's keys leave its quick-code waiting for an argument, so the next keystroke is the argument.
+    /// </summary>
+    public void PlaceCaretAtEnd()
+    {
+        SearchBox.Focus();
+        var end = SearchBox.Text?.Length ?? 0;
+        SearchBox.SelectionStart = end;
+        SearchBox.SelectionEnd = end;
+        SearchBox.CaretIndex = end;
     }
 
     /// <summary>

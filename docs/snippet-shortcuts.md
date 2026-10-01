@@ -20,8 +20,9 @@ the keys it has beside its quick-code — `Ctrl+K, Ctrl+L · Ctrl+Alt+1 anywhere
 ## Shortcuts in Klippy
 
 Summon Klippy, press the snippet's keys, and it is copied — whatever the list is showing, the clipboard
-history included, and whatever is in the search box. Nothing typed is involved: a `%P%` gets no argument,
-and nothing goes into [recent commands](recent-commands.md).
+history included, and whatever is in the search box. Nothing typed is involved, so nothing goes into
+[recent commands](recent-commands.md) — except for a snippet that
+[takes an argument](#snippets-that-take-an-argument), which waits for you to type one.
 
 A **chord** is two presses one after the other, as Visual Studio and VS Code have them: `Ctrl+K`, then
 `Ctrl+L`. After the first, a pill near the foot of the window says Klippy is waiting for the second. It waits as long
@@ -61,6 +62,20 @@ as `Ctrl+Alt+/`.
 !!! note
     Pressed while Klippy's editor or another overlay is open, a hotkey still copies its snippet — so one
     snippet can be pasted into another as you write it — but leaves the window as it is.
+
+## Snippets that take an argument
+
+A snippet with a `%P%` can't be done on the spot: its keys don't know what to fill it with. So they do what
+you would have done by hand — put its [quick-code](finding-snippets.md) in the search box with a space after
+it, the caret at the end, and wait. Type the argument and press `Enter`.
+
+With the seeded **Google search** snippet — `https://www.google.com/search?q=%P%` behind the quick-code `?` —
+pressing its keys leaves `? ` in the box, ready; `cats` and `Enter` then search for cats. The same goes for a
+hotkey: it brings Klippy up on the snippets, wherever you were, with the line waiting for you.
+
+Arguments are typed after a quick-code, so a snippet that takes one needs a quick-code for its keys to work —
+without one they only say so, and the editor warns as you set them. Pressed while the editor or another
+overlay is open, the keys leave it alone and say why, rather than throw away what you were doing.
 
 ## Setting keys
 

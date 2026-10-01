@@ -202,6 +202,13 @@
                     <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}"
                                IsVisible="{Binding HotkeyHintIsWarning}" Text="{Binding HotkeyHint}" />
                   </Panel>
+                  <!-- A snippet with a %P% can't be done on the spot: say what its keys will do instead. -->
+                  <Panel IsVisible="{Binding HasArgumentsHint}">
+                    <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                               IsVisible="{Binding !ArgumentsHintIsWarning}" Text="{Binding ArgumentsHint}" />
+                    <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}"
+                               IsVisible="{Binding ArgumentsHintIsWarning}" Text="{Binding ArgumentsHint}" />
+                  </Panel>
                 </StackPanel>
 
                 <DockPanel Grid.Row="7" Margin="0,4,0,0">

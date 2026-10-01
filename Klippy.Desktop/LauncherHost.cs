@@ -154,8 +154,9 @@ internal sealed class LauncherHost : IDisposable
 
     /// <summary>
     /// A snippet's hotkey, pressed in whatever application has the keyboard: the snippet is copied, or run if
-    /// it is marked Execute, without the window coming up. One that can't do its job — a run that could not
-    /// start — does bring it up, so the reason it gives can be read.
+    /// it is marked Execute, without the window coming up. One that takes an argument brings it up with its
+    /// quick-code typed and the caret after it, waiting for the argument and Enter; and one that can't do its
+    /// job — a run that could not start — brings it up so the reason it gives can be read.
     /// </summary>
     private async void TriggerSnippet(Guid id, HotkeySpec spec)
     {
@@ -165,17 +166,24 @@ internal sealed class LauncherHost : IDisposable
         // — which is how a combination another snippet holds gets recorded rather than firing.
         if (vm.OfferHotkeyToRecorder(spec)) return;
 
-        bool done;
+        TriggerOutcome outcome;
         try
         {
-            done = await vm.TriggerSnippetAsync(id);
+            outcome = await vm.TriggerSnippetAsync(id);
         }
         catch (Exception)
         {
-            done = false;
+            outcome = TriggerOutcome.Failed;
         }
 
-        if (!done) ShowWindow();
+        if (outcome == TriggerOutcome.Done) return;
+
+        ShowWindow();
+
+        // Its quick-code is in the box waiting for an argument: after the show, as with a summons, since
+        // bringing the window forward is what settles where the keyboard goes.
+        if (outcome == TriggerOutcome.AwaitingArguments && _lifetime.MainWindow is Klippy.Views.MainWindow main)
+            main.PlaceCaretAtEnd();
     }
 
     private void DisposeSnippetHotkeys()
