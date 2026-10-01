@@ -8,6 +8,31 @@ using Klippy.Services;
 
 namespace Klippy.ViewModels;
 
+/// <summary>
+/// What the editor needs to know to say anything useful about a snippet's keys: the other snippets (so it can
+/// say whose keys it is about to take), Klippy's two summon keys (which no snippet may have), whether this
+/// head registers system-wide hotkeys at all, and whether this snippet's hotkey is one that could not be
+/// claimed.
+/// </summary>
+public sealed record SnippetKeysContext(
+    IReadOnlyList<Snippet> Others,
+    HotkeySpec? SnippetsKey,
+    HotkeySpec? HistoryKey,
+    bool CanRegisterHotkeys,
+    bool HotkeyUnclaimed)
+{
+    /// <summary>Nothing known: no other snippets, no summon keys, no system-wide hotkeys.</summary>
+    public static SnippetKeysContext None { get; } = new([], null, null, false, false);
+}
+
+/// <summary>Which of the editor's two key fields is listening, if either.</summary>
+public enum KeyField
+{
+    None,
+    Shortcut,
+    Hotkey,
+}
+
 /// <summary>Backs the new/edit snippet overlay. Works on a copy; applies on Save.</summary>
 public partial class EditorViewModel : ViewModelBase
 {
@@ -17,6 +42,8 @@ public partial class EditorViewModel : ViewModelBase
     private readonly Action? _duplicate;
     private readonly string? _title;
     private readonly List<string> _knownTags = new();
+    private readonly SnippetKeysContext _keys;
+    private readonly string _originalHotkey = "";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -105,14 +132,17 @@ public partial class EditorViewModel : ViewModelBase
     public bool HasDuplicate => _duplicate is not null;
 
     /// <param name="knownTags">Tags already in use, offered under the TAG field.</param>
+    /// <param name="keys">What the two key fields need to know; none by default.</param>
     public EditorViewModel(Snippet? existing, Action<Snippet, bool> save, Action close,
-        Action? duplicate = null, string? title = null, IEnumerable<string>? knownTags = null)
+        Action? duplicate = null, string? title = null, IEnumerable<string>? knownTags = null,
+        SnippetKeysContext? keys = null)
     {
         _existing = existing;
         _save = save;
         _close = close;
         _duplicate = duplicate;
         _title = title;
+        _keys = keys ?? SnippetKeysContext.None;
         if (knownTags is not null) _knownTags.AddRange(knownTags);
         if (existing is not null)
         {
@@ -122,6 +152,8 @@ public partial class EditorViewModel : ViewModelBase
             _quickCode = existing.QuickCode;
             _isMarkdown = existing.IsMarkdown;
             _isExecutable = existing.IsExecutable;
+            _shortcut = existing.Shortcut ?? "";
+            _hotkey = _originalHotkey = existing.Hotkey ?? "";
         }
         RefreshTagSuggestions();
     }
@@ -200,6 +232,8 @@ public partial class EditorViewModel : ViewModelBase
         snippet.QuickCode = QuickCode.Trim().ToLowerInvariant();
         snippet.IsMarkdown = IsMarkdown;
         snippet.IsExecutable = IsExecutable;
+        snippet.Shortcut = Shortcut;
+        snippet.Hotkey = Hotkey;
         _save(snippet, IsNew);
     }
 

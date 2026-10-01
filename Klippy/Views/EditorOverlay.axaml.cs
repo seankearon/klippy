@@ -1,7 +1,10 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using Klippy.Services;
 using Klippy.ViewModels;
 
 namespace Klippy.Views;
@@ -11,6 +14,35 @@ public partial class EditorOverlay : UserControl
     public EditorOverlay()
     {
         InitializeComponent();
+
+        // While a key field is listening, every press is its own — Enter and Esc included, which would
+        // otherwise press a button or close the editor. Tunnel, so it hears them before anything inside.
+        AddHandler(KeyDownEvent, RecordingKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(TextInputEvent, (_, e) => { if (Recording is not null) e.Handled = true; },
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+        // A click anywhere but a key field leaves the listening one as it was.
+        AddHandler(PointerPressedEvent, PointerPressedAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    /// <summary>The open editor, when one of its key fields is listening.</summary>
+    private EditorViewModel? Recording =>
+        DataContext is MainViewModel { Editor: { IsRecording: true } editor } ? editor : null;
+
+    private void RecordingKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (Recording is not { } editor) return;
+        e.Handled = true;
+        editor.Press(KeyStroke.From(e.Key, e.KeyModifiers));
+    }
+
+    private void PointerPressedAnywhere(object? sender, PointerPressedEventArgs e)
+    {
+        if (Recording is not { } editor) return;
+        // A key field's own click starts (or restarts) listening, which ends any other.
+        if (e.Source is Visual source && source.FindAncestorOfType<Button>(includeSelf: true) is { } button
+            && button.Classes.Contains("keyField"))
+            return;
+        editor.CancelRecording();
     }
 
     // The template instantiates when Editor becomes non-null, so this fires per open.

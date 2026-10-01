@@ -11,6 +11,9 @@ public interface IGlobalHotkey : IDisposable
 
 public static class GlobalHotkey
 {
+    /// <summary>Whether this platform has system-wide hotkeys to register at all: Windows and macOS.</summary>
+    public static bool IsSupported => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+
     /// <summary>
     /// Registers <paramref name="spec"/> system-wide and invokes <paramref name="onPressed"/>
     /// when it fires. Returns null where the platform is unsupported or the combination is

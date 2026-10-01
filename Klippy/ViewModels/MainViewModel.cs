@@ -306,6 +306,7 @@ public partial class MainViewModel : ViewModelBase
 
         RebuildTags();
         Refresh();
+        RebuildShortcuts();
     }
 
     private void OnHistoryChanged()
@@ -674,7 +675,16 @@ public partial class MainViewModel : ViewModelBase
     private Task ActivateSelected() => Activate(SelectedSnippet);
 
     [RelayCommand]
-    private async Task Copy(RowViewModel? row)
+    private Task Copy(RowViewModel? row) => CopyCore(row, record: true);
+
+    /// <summary>
+    /// Puts the item on the clipboard. <paramref name="record"/> says whether what is in the search box is the
+    /// line that chose it, and so belongs in the command MRU — false for a shortcut, which names the snippet
+    /// itself and has nothing to do with whatever happens to be typed. <paramref name="quiet"/> leaves the
+    /// window as it is — no focus moved, nothing closed — for a hotkey pressed while an overlay is up. True
+    /// when something was copied.
+    /// </summary>
+    private async Task<bool> CopyCore(RowViewModel? row, bool record, bool quiet = false)
     {
         CloseCommands(restore: false); // whatever route got here, the line has been chosen
 
@@ -696,15 +706,16 @@ public partial class MainViewModel : ViewModelBase
         // what the original copy would have — real files into Explorer, a picture into
         // an image editor, formatting into a rich-text box.
         else if (row is ClipViewModel clip) payload = BuildClipPayload(clip);
-        else return;
+        else return false;
 
         if (ClipboardWriter is { } write)
             await write(payload);
 
         MarkUsed(row);
-        RecordCommand();
+        if (record) RecordCommand();
 
         ShowToast();
+        if (quiet) return true;
         Copied?.Invoke();
 
         // Read per copy rather than cached: the Settings overlay writes straight through
@@ -713,6 +724,7 @@ public partial class MainViewModel : ViewModelBase
             ? _prefs.CloseAfterClipboardCopy
             : _prefs.CloseAfterSnippetCopy;
         if (close) CloseRequested?.Invoke();
+        return true;
     }
 
     /// <summary>
@@ -727,9 +739,15 @@ public partial class MainViewModel : ViewModelBase
     /// argument list, and those want it escaped differently.
     /// </summary>
     [RelayCommand]
-    private async Task Execute(RowViewModel? row)
+    private Task Execute(RowViewModel? row) => ExecuteCore(row, record: true);
+
+    /// <summary>
+    /// Runs the item — see <see cref="Execute"/>. <paramref name="record"/> and <paramref name="quiet"/> as for
+    /// <see cref="CopyCore"/>. True when it started.
+    /// </summary>
+    private async Task<bool> ExecuteCore(RowViewModel? row, bool record, bool quiet = false)
     {
-        if (row is null) return;
+        if (row is null) return false;
 
         CloseCommands(restore: false);
 
@@ -738,7 +756,7 @@ public partial class MainViewModel : ViewModelBase
             // Nothing wired up to run things: say so rather than leaving Enter looking
             // broken on an item that is marked to run.
             ShowToast(CannotExecuteHere, isError: true);
-            return;
+            return false;
         }
 
         var text = row.Template;
@@ -757,21 +775,23 @@ public partial class MainViewModel : ViewModelBase
         if (plan.Kind == ExecutionKind.None)
         {
             ShowToast(plan.Problem, isError: true);
-            return;
+            return false;
         }
 
         var result = await run(plan);
         ShowToast(result.Message, isError: !result.Started);
-        if (!result.Started) return;
+        if (!result.Started) return false;
 
         MarkUsed(row);
-        RecordCommand();
+        if (record) RecordCommand();
+        if (quiet) return true;
         Copied?.Invoke();
 
         // Executing is a launcher gesture: the browser or the script is where you are
         // going next, so Klippy gets out of the way — the copy preferences are about
         // staying put to copy a second thing, which does not apply here.
         CloseRequested?.Invoke();
+        return true;
     }
 
     [RelayCommand]
@@ -1188,7 +1208,7 @@ public partial class MainViewModel : ViewModelBase
     /// The tags are read per open, so one added in the last edit is on offer in the next.
     /// </summary>
     private EditorViewModel NewEditor(Snippet? existing, Action? duplicate = null, string? title = null) =>
-        new(existing, SaveSnippet, CloseEditor, duplicate, title, _store.Tags());
+        new(existing, SaveSnippet, CloseEditor, duplicate, title, _store.Tags(), KeysContextFor(existing));
 
     /// <summary>
     /// The keyboard's way into the row actions, which belong to snippets: the selection
@@ -1237,6 +1257,9 @@ public partial class MainViewModel : ViewModelBase
 
     private void SaveSnippet(Snippet snippet, bool isNew)
     {
+        // Keys go to the snippet saved last: whatever had them gives them up, as the editor said it would.
+        TakeKeysFromOthers(snippet);
+
         if (isNew)
             _store.Add(snippet);
         else
@@ -1248,6 +1271,8 @@ public partial class MainViewModel : ViewModelBase
         Editor = null;
         RebuildTags();
         Refresh();
+        OnSnippetsChanged();
+        ReportUnclaimedHotkey(snippet);
     }
 
     private void CloseEditor() => Editor = null;
@@ -1264,6 +1289,7 @@ public partial class MainViewModel : ViewModelBase
         DeleteTarget = null;
         RebuildTags();
         Refresh();
+        OnSnippetsChanged();
     }
 
     [RelayCommand]
@@ -1285,6 +1311,7 @@ public partial class MainViewModel : ViewModelBase
             _rowCache.Clear();
             RebuildTags();
             Refresh();
+            OnSnippetsChanged(); // an import can bring shortcuts and hotkeys with it
         },
         close: () => Transfer = null);
 
@@ -1333,6 +1360,7 @@ public partial class MainViewModel : ViewModelBase
         // Not restore: putting back the line that was being typed is the opposite of what
         // this is for. Ahead of the clear, which fires nothing when the box is already empty.
         CloseCommands(restore: false);
+        CancelChord(); // a chord half-pressed when the window went away is not one to finish later
         FilterText = "";
     }
 

@@ -104,6 +104,12 @@ public static partial class Macros
         return found.ToArray();
     }
 
+    /// <summary>
+    /// Whether <paramref name="text"/> asks for arguments — carries a <c>%P%</c>, qualified or not — and so
+    /// has to be invoked from the search box, with the arguments typed after its quick-code.
+    /// </summary>
+    public static bool TakesArguments(string? text) => PositionalQualifiers(text).Length > 0;
+
     /// <summary>Whether <paramref name="text"/> carries any macro at all.</summary>
     public static bool IsPresent(string? text) =>
         !string.IsNullOrEmpty(text) && AnyMacro().IsMatch(text);

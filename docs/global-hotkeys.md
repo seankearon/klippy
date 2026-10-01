@@ -59,7 +59,14 @@ Stored in `settings.json`, in Klippy's app-data folder (Settings shows the path)
 just that one — it is not filled back in with the default, since that would re-register a
 key you had just removed.
 
-Modifiers may be written as Ctrl/Control, Alt/Option, Shift and Cmd/Command/Win/Meta, in
+A **snippet** can have a system-wide hotkey of its own, which triggers it from any application without
+summoning Klippy — or summons it with the snippet's quick-code waiting, when the snippet needs an argument
+typed — see [Snippet shortcuts](snippet-shortcuts.md#hotkeys-anywhere). Those are registered the
+same way, one apiece, under the same `HotkeyEnabled` switch, and none may take a summon key.
+
+The key may be a letter, a digit, `Space`, `F1`–`F20` or a punctuation key — see
+[Snippet shortcuts](snippet-shortcuts.md#hotkeys-anywhere) for which, and what your keyboard layout does to
+them. Modifiers may be written as Ctrl/Control, Alt/Option, Shift and Cmd/Command/Win/Meta, in
 any order and any case; at least one modifier is required, since a bare key would swallow
 that keystroke system-wide. If another application already owns the combination, Klippy
 says so on stderr and starts without a hotkey rather than failing.

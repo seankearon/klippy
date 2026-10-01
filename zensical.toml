@@ -20,6 +20,7 @@ nav = [
     { "Markdown snippets" = "markdown-snippets.md" },
     { "Variables" = "variables.md" },
     { "Clipboard history" = "clipboard-history.md" },
+    { "Snippet shortcuts" = "snippet-shortcuts.md" },
     { "Global hotkeys" = "global-hotkeys.md" },
     { "Quitting" = "quitting.md" },
   ] },

@@ -39,11 +39,28 @@ public partial class MainWindow : Window
     /// </summary>
     public Action? QuitRequested { get; set; }
 
+    /// <summary>
+    /// Set when a snippet shortcut has just taken a key press, so the character that press would type — the
+    /// <c>L</c> of <c>Ctrl+K, L</c> — doesn't land in the search box as well. Cleared by the next press.
+    /// </summary>
+    private bool _swallowTextInput;
+
     public MainWindow()
     {
         InitializeComponent();
         // Tunnel so arrows/enter reach us before the search TextBox consumes them.
         AddHandler(KeyDownEvent, PreviewKeyDown, RoutingStrategies.Tunnel);
+
+        // Snippet shortcuts. A first press is offered once everything else has had its say — Klippy's own
+        // keys above, then the search box's — so a shortcut never takes a key either of them uses. The
+        // second press of a chord is taken in PreviewKeyDown instead, ahead of all of them.
+        AddHandler(KeyDownEvent, ShortcutKeyDown, RoutingStrategies.Bubble);
+        AddHandler(TextInputEvent, ShortcutTextInput, RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        // A chord waits for its second press as long as it takes — but not across a click, or the window
+        // losing the keyboard: by then the user has plainly moved on.
+        AddHandler(PointerPressedEvent, (_, _) => Vm?.CancelChord(), RoutingStrategies.Tunnel, handledEventsToo: true);
+        Deactivated += (_, _) => Vm?.CancelChord();
     }
 
     protected override void OnOpened(EventArgs e)
@@ -75,6 +92,7 @@ public partial class MainWindow : Window
             previous.Copied -= SelectSearchText;
             previous.CloseRequested -= HideAfterCopy;
             previous.QuitRequested -= Quit;
+            previous.ArgumentsRequested -= PlaceCaretAtEnd;
         }
         _watched = Vm;
         if (_watched is { } current)
@@ -83,6 +101,7 @@ public partial class MainWindow : Window
             current.Copied += SelectSearchText;
             current.CloseRequested += HideAfterCopy;
             current.QuitRequested += Quit;
+            current.ArgumentsRequested += PlaceCaretAtEnd;
         }
 
         ApplyPreviewHeight();
@@ -98,6 +117,19 @@ public partial class MainWindow : Window
     {
         SearchBox.Focus();
         SearchBox.SelectAll();
+    }
+
+    /// <summary>
+    /// Hands focus to the search box with the caret at the end of what is in it and nothing selected — where a
+    /// snippet's keys leave its quick-code waiting for an argument, so the next keystroke is the argument.
+    /// </summary>
+    public void PlaceCaretAtEnd()
+    {
+        SearchBox.Focus();
+        var end = SearchBox.Text?.Length ?? 0;
+        SearchBox.SelectionStart = end;
+        SearchBox.SelectionEnd = end;
+        SearchBox.CaretIndex = end;
     }
 
     /// <summary>
@@ -148,14 +180,29 @@ public partial class MainWindow : Window
     private void PreviewKeyDown(object? sender, KeyEventArgs e)
     {
         if (Vm is not { } vm) return;
+        _swallowTextInput = false; // a fresh press: whatever the last one left to hold back is stale now
+
+        // A key field in the editor is listening: every press is its own, Esc and Cmd/Ctrl+Enter included.
+        if (vm.Editor is { IsRecording: true }) return;
+
+        // The second press of a chord, heard ahead of everything — so it is the chord's alone, and the N of
+        // Ctrl+K, Ctrl+N doesn't also open a new snippet. A modifier going down is only the run-up to it.
+        if (vm.IsChordPending)
+        {
+            if (vm.PressShortcutKey(KeyStroke.From(e.Key, e.KeyModifiers)).Kind != ChordOutcomeKind.StillWaiting)
+            {
+                e.Handled = true;
+                _swallowTextInput = true;
+            }
+            return;
+        }
 
         var cmdMod = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
         // While an overlay is open only Esc (cancel) and Cmd/Ctrl+Enter (save) are global.
         // A bare Enter is left to the focused button, which in a confirmation starts out
         // as Cancel — see ConfirmFocus.
-        if (vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
-            || vm.Settings is not null || vm.PendingOffer is not null)
+        if (IsOverlayOpen(vm))
         {
             if (e.Key == Key.Escape)
             {
@@ -264,6 +311,37 @@ public partial class MainWindow : Window
                 }
                 break;
         }
+    }
+
+    /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings — has the window.</summary>
+    private static bool IsOverlayOpen(MainViewModel vm) =>
+        vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
+        || vm.Settings is not null || vm.PendingOffer is not null;
+
+    /// <summary>
+    /// A press that neither Klippy's own keys nor the search box wanted, offered to the snippet shortcuts: a
+    /// shortcut triggers its snippet, and the first press of a chord raises the pill and waits for the second
+    /// (taken by <see cref="PreviewKeyDown"/>). Not while an overlay is open — the editor's own fields, a
+    /// confirmation's buttons — since triggering a snippet behind one would be a surprise.
+    /// </summary>
+    private void ShortcutKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (Vm is not { } vm || e.Handled || IsOverlayOpen(vm)) return;
+
+        var outcome = vm.PressShortcutKey(KeyStroke.From(e.Key, e.KeyModifiers));
+        if (outcome.Kind is ChordOutcomeKind.Waiting or ChordOutcomeKind.Matched)
+        {
+            e.Handled = true;
+            _swallowTextInput = true; // Ctrl+Alt is AltGr on some layouts, and AltGr types
+        }
+    }
+
+    /// <summary>Holds back the character a key press would have typed, when a shortcut has just taken that press.</summary>
+    private void ShortcutTextInput(object? sender, TextInputEventArgs e)
+    {
+        if (!_swallowTextInput) return;
+        _swallowTextInput = false;
+        e.Handled = true;
     }
 
     /// <summary>

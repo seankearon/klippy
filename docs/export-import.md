@@ -10,7 +10,9 @@ transfer button in the mobile header.
 
 - **Export** writes snippets to a JSON file — the whole set or a single tag
   (the scope defaults to whichever tag chip is active). The format is identical
-  to the store file, so an export doubles as a backup.
+  to the store file, so an export doubles as a backup. A snippet's
+  [shortcut and hotkey](snippet-shortcuts.md) go with it; if an import brings keys another snippet
+  already has, the first in the file keeps them.
 - **Import** first previews the picked file (snippet count and the tags it
   contains), then merges everything or just one tag. Merging never wipes data:
   a snippet with a known id replaces the existing copy, everything else is added.

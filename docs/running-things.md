@@ -312,6 +312,11 @@ A `%C%` can carry the whole command — a snippet of just `%C%`, marked Execute,
 whatever is on the clipboard, link or script or application path and switches alike,
 which is the other half of the clipboard history.
 
+Triggered by [its own keys](snippet-shortcuts.md#snippets-with-placeholders) rather than
+`Enter`, a snippet with a `%P%` brings Klippy up with its quick-code typed and the caret
+after it, waiting for the argument; and one with a `%C%` goes ahead only when the
+clipboard holds text, saying so rather than running with nothing.
+
 ## What running something will not do
 
 Running a snippet is running code, so the edges are drawn deliberately tightly:

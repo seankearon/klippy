@@ -42,7 +42,9 @@ public sealed record HotkeySpec(HotkeyModifiers Modifiers, string Key)
     /// <summary>
     /// Parses "Ctrl+Alt+K". Accepts Ctrl/Control, Alt/Option/Opt, Shift, Cmd/Command/Win/Meta,
     /// in any order and any case. Requires at least one modifier — a bare key would swallow
-    /// that keystroke system-wide.
+    /// that keystroke system-wide. The key is a letter, a digit, Space, F1–F20, or one of the
+    /// punctuation keys by its character (<c>/</c>, <c>;</c>, <c>'</c>, <c>,</c>, <c>.</c>,
+    /// <c>-</c>, <c>=</c>, <c>[</c>, <c>]</c>, <c>\</c>, <c>`</c>) or its name (Slash, Comma…).
     /// </summary>
     public static bool TryParse(string? text, out HotkeySpec spec)
     {
@@ -63,6 +65,7 @@ public sealed record HotkeySpec(HotkeyModifiers Modifiers, string Key)
                 default:
                     if (key is not null) return false; // more than one non-modifier key
                     key = raw.ToUpperInvariant();
+                    if (PunctuationNames.TryGetValue(key, out var character)) key = character;
                     break;
             }
         }
@@ -84,7 +87,25 @@ public sealed record HotkeySpec(HotkeyModifiers Modifiers, string Key)
         return sb.Append(Key).ToString();
     }
 
-    /// <summary>Windows virtual-key codes (VK_*). Letters and digits share their ASCII values.</summary>
+    /// <summary>
+    /// Words a punctuation key may be written as, for anyone who would rather not put a
+    /// backslash or a comma in a settings file. Each reads as the character.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> PunctuationNames = new Dictionary<string, string>
+    {
+        ["SLASH"] = "/", ["SEMICOLON"] = ";", ["QUOTE"] = "'", ["COMMA"] = ",", ["PERIOD"] = ".",
+        ["DOT"] = ".", ["MINUS"] = "-", ["EQUALS"] = "=", ["PLUS"] = "=", ["LEFTBRACKET"] = "[",
+        ["RIGHTBRACKET"] = "]", ["BACKSLASH"] = "\\", ["BACKTICK"] = "`", ["GRAVE"] = "`",
+    };
+
+    /// <summary>
+    /// Windows virtual-key codes (VK_*). Letters and digits share their ASCII values.
+    ///
+    /// The punctuation codes (VK_OEM_*) name a key by what it types on a US layout, and Windows
+    /// maps them through the active layout — so on a UK keyboard "/" is the key marked "/", but
+    /// on a German one VK_OEM_2 is the "#" key. Recording and registering agree either way,
+    /// since both go through the same mapping; only the label can differ from the keycap.
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, uint> VirtualKeys = BuildVirtualKeys();
 
     /// <summary>Carbon virtual key codes (kVK_ANSI_*), which are positional and not ASCII.</summary>
@@ -97,6 +118,14 @@ public sealed record HotkeySpec(HotkeyModifiers Modifiers, string Key)
         ["0"] = 29, ["1"] = 18, ["2"] = 19, ["3"] = 20, ["4"] = 21,
         ["5"] = 23, ["6"] = 22, ["7"] = 26, ["8"] = 28, ["9"] = 25,
         ["SPACE"] = 49,
+        // Punctuation, kVK_ANSI_*: the key in that position on a US keyboard.
+        ["="] = 24, ["-"] = 27, ["]"] = 30, ["["] = 33, ["'"] = 39, [";"] = 41,
+        ["\\"] = 42, [","] = 43, ["/"] = 44, ["."] = 47, ["`"] = 50,
+        // kVK_F1…kVK_F20, which follow no pattern. Carbon has no F21–F24.
+        ["F1"] = 122, ["F2"] = 120, ["F3"] = 99, ["F4"] = 118, ["F5"] = 96, ["F6"] = 97,
+        ["F7"] = 98, ["F8"] = 100, ["F9"] = 101, ["F10"] = 109, ["F11"] = 103, ["F12"] = 111,
+        ["F13"] = 105, ["F14"] = 107, ["F15"] = 113, ["F16"] = 106, ["F17"] = 64, ["F18"] = 79,
+        ["F19"] = 80, ["F20"] = 90,
     };
 
     private static Dictionary<string, uint> BuildVirtualKeys()
@@ -105,6 +134,23 @@ public sealed record HotkeySpec(HotkeyModifiers Modifiers, string Key)
         for (char c = 'A'; c <= 'Z'; c++) map[c.ToString()] = c;        // VK_A..VK_Z == 'A'..'Z'
         for (char c = '0'; c <= '9'; c++) map[c.ToString()] = c;        // VK_0..VK_9 == '0'..'9'
         map["SPACE"] = 0x20;
+
+        // VK_OEM_* — see the remarks on VirtualKeys about layouts.
+        map[";"] = 0xBA;  // VK_OEM_1
+        map["="] = 0xBB;  // VK_OEM_PLUS
+        map[","] = 0xBC;  // VK_OEM_COMMA
+        map["-"] = 0xBD;  // VK_OEM_MINUS
+        map["."] = 0xBE;  // VK_OEM_PERIOD
+        map["/"] = 0xBF;  // VK_OEM_2
+        map["`"] = 0xC0;  // VK_OEM_3
+        map["["] = 0xDB;  // VK_OEM_4
+        map["\\"] = 0xDC; // VK_OEM_5
+        map["]"] = 0xDD;  // VK_OEM_6
+        map["'"] = 0xDE;  // VK_OEM_7
+
+        // VK_F1..VK_F20. Windows goes to F24, but a Mac stops at F20, and a key that registers
+        // on one platform and silently does nothing on the other is worse than not offering it.
+        for (uint n = 1; n <= 20; n++) map[$"F{n}"] = 0x70 + n - 1;
         return map;
     }
 }
