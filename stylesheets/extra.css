@@ -1,0 +1,227 @@
+/* ==========================================================================
+   Klippy docs theme
+   --------------------------------------------------------------------------
+   Colours are lifted from the app's own Avalonia theme (Klippy/Styles/) so the
+   site and the application read as one thing.
+
+     amber      #F5A524   the run marker, the selected row
+     amber-hi   #FFC35C   hover
+     slate      #16181D   the app background
+     slate-2    #1D2027   raised surfaces
+     mist       #E8EAEF   primary text on slate
+     alert      #E0665C   destructive actions
+
+   Amber on white is ~1.9:1, so it is never used for body links. Light mode
+   links use a darkened amber (#8A5A0B, ~5.6:1 on white) instead; dark mode
+   can use the amber itself.
+   ========================================================================== */
+
+:root {
+  --klippy-amber: #f5a524;
+  --klippy-amber-hi: #ffc35c;
+  --klippy-amber-text: #8a5a0b;
+  --klippy-slate: #16181d;
+  --klippy-slate-2: #1d2027;
+  --klippy-slate-3: #262a33;
+  --klippy-mist: #e8eaef;
+  --klippy-mist-2: #b8bdc9;
+  --klippy-mist-3: #9aa0ad;
+  --klippy-alert: #e0665c;
+}
+
+/* -- Light ---------------------------------------------------------------- */
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--klippy-slate-2);
+  --md-primary-fg-color--light: var(--klippy-slate-3);
+  --md-primary-fg-color--dark: var(--klippy-slate);
+  --md-primary-bg-color: var(--klippy-mist);
+
+  --md-accent-fg-color: var(--klippy-amber-text);
+  --md-accent-fg-color--transparent: rgb(138 90 11 / 10%);
+
+  --md-typeset-a-color: var(--klippy-amber-text);
+  --md-code-bg-color: #f1f3f6;
+  --md-footer-bg-color: var(--klippy-slate);
+  --md-footer-bg-color--dark: #101217;
+}
+
+/* -- Dark ----------------------------------------------------------------- */
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--klippy-slate-2);
+  --md-primary-fg-color--light: var(--klippy-slate-3);
+  --md-primary-fg-color--dark: var(--klippy-slate);
+  --md-primary-bg-color: var(--klippy-mist);
+
+  --md-accent-fg-color: var(--klippy-amber);
+  --md-accent-fg-color--transparent: rgb(245 165 36 / 12%);
+
+  --md-hue: 222deg;
+  --md-default-bg-color: var(--klippy-slate);
+  --md-typeset-a-color: var(--klippy-amber);
+  --md-code-bg-color: var(--klippy-slate-2);
+  --md-footer-bg-color: #101217;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  border-bottom: 1px solid rgb(245 165 36 / 24%);
+}
+
+/* ==========================================================================
+   Landing page
+   ========================================================================== */
+
+.klippy-hero {
+  background:
+    radial-gradient(
+      ellipse at 20% 0%,
+      rgb(245 165 36 / 13%) 0%,
+      rgb(245 165 36 / 0%) 60%
+    ),
+    var(--md-default-bg-color);
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  padding: 3.2rem 0.8rem 2.6rem;
+}
+
+.klippy-hero__inner {
+  display: grid;
+  gap: 2.6rem;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  align-items: center;
+  margin: 0 auto;
+  max-width: 61rem;
+}
+
+.klippy-hero__title {
+  font-size: 2.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 0;
+  color: var(--md-default-fg-color);
+}
+
+.klippy-hero__tagline {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0.35rem 0 0;
+  color: var(--klippy-amber-text);
+}
+
+[data-md-color-scheme="slate"] .klippy-hero__tagline {
+  color: var(--klippy-amber);
+}
+
+.klippy-hero__lede {
+  font-size: 0.78rem;
+  line-height: 1.65;
+  margin: 0.9rem 0 0;
+  max-width: 30rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.klippy-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+.klippy-hero__actions .md-button {
+  margin: 0;
+}
+
+.klippy-hero__actions .md-button--primary {
+  background-color: var(--klippy-amber);
+  border-color: var(--klippy-amber);
+  color: var(--klippy-slate);
+  font-weight: 600;
+}
+
+.klippy-hero__actions .md-button--primary:hover,
+.klippy-hero__actions .md-button--primary:focus {
+  background-color: var(--klippy-amber-hi);
+  border-color: var(--klippy-amber-hi);
+  color: var(--klippy-slate);
+}
+
+.klippy-hero__meta {
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  margin: 1.4rem 0 0;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--lighter);
+}
+
+.klippy-hero__shot img {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 10%),
+    0 12px 32px -8px rgb(0 0 0 / 26%);
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The hero already names the page, so the generated `<h1>` (and the edit
+   pencil that sits beside it) are noise there. Scoped to pages that actually
+   render a hero, so every other page keeps both. */
+.klippy-hero ~ .md-main .md-content__inner > h1,
+.klippy-hero ~ .md-main .md-content__button[rel="edit"] {
+  display: none;
+}
+
+.klippy-section-title {
+  margin-top: 2.4rem;
+  text-align: center;
+}
+
+@media screen and (max-width: 76.2344em) {
+  .klippy-hero__inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+    max-width: 40rem;
+  }
+
+  .klippy-hero__lede {
+    max-width: none;
+  }
+}
+
+@media screen and (max-width: 44.9844em) {
+  .klippy-hero {
+    padding: 2.2rem 0.8rem 2rem;
+  }
+
+  .klippy-hero__title {
+    font-size: 2.2rem;
+  }
+
+  .klippy-hero__tagline {
+    font-size: 1rem;
+  }
+}
+
+/* ==========================================================================
+   Content tweaks
+   ========================================================================== */
+
+.md-typeset figure img {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+}
+
+/* The keyboard tables in Finding snippets and Settings are dense; stop the
+   shortcut column wrapping mid-chord. */
+.md-typeset table:not([class]) td:first-child {
+  white-space: nowrap;
+}
+
+@media screen and (max-width: 44.9844em) {
+  .md-typeset table:not([class]) td:first-child {
+    white-space: normal;
+  }
+}
