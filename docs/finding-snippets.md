@@ -29,7 +29,9 @@ search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `↓` on an empty search box opens
 [recent commands](recent-commands.md), `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it, the
-same as `Enter`. Typing `quit` offers to [close Klippy](quitting.md), and typing a
+same as `Enter`. A snippet can also have [keys of its own](snippet-shortcuts.md) — a
+shortcut such as `Ctrl+K, Ctrl+L` while Klippy is up, and a hotkey that works from any
+application. Typing `quit` offers to [close Klippy](quitting.md), and typing a
 [variable's name](variables.md#typing-a-name) offers each value it stands for — above the
 list, where `↑` from the top row reaches them.
 

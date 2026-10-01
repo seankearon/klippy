@@ -23,7 +23,7 @@
             <DataTemplate x:DataType="vm:EditorViewModel">
               <!-- Grid, not StackPanel, so the content field is the one row that
                    takes up the height the grip adds. -->
-              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" RowSpacing="10">
+              <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
                 <TextBlock Grid.Row="0" Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
                            Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
 
@@ -129,7 +129,82 @@
                   </DockPanel>
                 </StackPanel>
 
-                <DockPanel Grid.Row="6" Margin="0,4,0,0">
+                <!-- The keys that trigger it: a shortcut while Klippy is up (a chord allowed), and a hotkey
+                     from anywhere where this head registers them. Fields you click and then press keys
+                     into, rather than text boxes: Ctrl+K typed into a text box is just a K. -->
+                <StackPanel Grid.Row="6" Spacing="4" IsVisible="{Binding ShowsShortcuts}">
+                  <Grid ColumnDefinitions="*,12,*">
+                    <StackPanel Grid.Column="0" Spacing="4">
+                      <TextBlock Classes="mono" Text="SHORTCUT IN KLIPPY" FontSize="10" LetterSpacing="0.8"
+                                 Foreground="{StaticResource MutedBrush}" />
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Classes="icon ghost" Margin="4,0,0,0"
+                                IsVisible="{Binding HasShortcut}" Command="{Binding ClearShortcutCommand}"
+                                ToolTip.Tip="Remove the shortcut">
+                          <Viewbox Width="10" Height="10">
+                            <Grid Width="24" Height="24">
+                              <Path Data="M 6,6 L 18,18 M 18,6 L 6,18" Stroke="{StaticResource Muted3Brush}"
+                                    StrokeThickness="2.4" StrokeLineCap="Round" />
+                            </Grid>
+                          </Viewbox>
+                        </Button>
+                        <Button x:Name="ShortcutField" Classes="keyField"
+                                Classes.recording="{Binding IsRecordingShortcut}"
+                                Command="{Binding RecordShortcutCommand}"
+                                ToolTip.Tip="Click, then press the keys — two in a row for a chord">
+                          <Panel>
+                            <TextBlock Text="{Binding ShortcutText}" />
+                            <TextBlock Text="click, then press keys" Foreground="{StaticResource MutedBrush}"
+                                       IsVisible="{Binding ShortcutText, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                          </Panel>
+                        </Button>
+                      </DockPanel>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4" IsVisible="{Binding ShowsHotkey}">
+                      <TextBlock Classes="mono" Text="HOTKEY ANYWHERE" FontSize="10" LetterSpacing="0.8"
+                                 Foreground="{StaticResource MutedBrush}" />
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Classes="icon ghost" Margin="4,0,0,0"
+                                IsVisible="{Binding HasHotkey}" Command="{Binding ClearHotkeyCommand}"
+                                ToolTip.Tip="Remove the hotkey">
+                          <Viewbox Width="10" Height="10">
+                            <Grid Width="24" Height="24">
+                              <Path Data="M 6,6 L 18,18 M 18,6 L 6,18" Stroke="{StaticResource Muted3Brush}"
+                                    StrokeThickness="2.4" StrokeLineCap="Round" />
+                            </Grid>
+                          </Viewbox>
+                        </Button>
+                        <Button x:Name="HotkeyField" Classes="keyField"
+                                Classes.recording="{Binding IsRecordingHotkey}"
+                                Command="{Binding RecordHotkeyCommand}"
+                                ToolTip.Tip="Click, then press the keys — works in any application">
+                          <Panel>
+                            <TextBlock Text="{Binding HotkeyText}" />
+                            <TextBlock Text="click, then press keys" Foreground="{StaticResource MutedBrush}"
+                                       IsVisible="{Binding HotkeyText, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                          </Panel>
+                        </Button>
+                      </DockPanel>
+                    </StackPanel>
+                  </Grid>
+                  <!-- One line per field, said as the keys go in: what they'll do, whose they'll take, or
+                       why they can't be had. A refusal reads as the warning it is. -->
+                  <Panel>
+                    <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                               IsVisible="{Binding !ShortcutHintIsWarning}" Text="{Binding ShortcutHint}" />
+                    <TextBlock x:Name="ShortcutWarning" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource DangerBrush}"
+                               IsVisible="{Binding ShortcutHintIsWarning}" Text="{Binding ShortcutHint}" />
+                  </Panel>
+                  <Panel IsVisible="{Binding ShowsHotkey}">
+                    <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                               IsVisible="{Binding !HotkeyHintIsWarning}" Text="{Binding HotkeyHint}" />
+                    <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}"
+                               IsVisible="{Binding HotkeyHintIsWarning}" Text="{Binding HotkeyHint}" />
+                  </Panel>
+                </StackPanel>
+
+                <DockPanel Grid.Row="7" Margin="0,4,0,0">
                   <Button DockPanel.Dock="Left" Classes="subtle" Content="Duplicate"
                           IsVisible="{Binding HasDuplicate}"
                           Command="{Binding DuplicateCommand}" />

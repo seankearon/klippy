@@ -36,6 +36,21 @@ public sealed class Snippet : ISearchable
     public bool IsExecutable { get; set; }
 
     /// <summary>
+    /// Keys that trigger the snippet while Klippy's window is up — one press such as <c>Ctrl+Shift+L</c>, or a
+    /// two-press chord such as <c>Ctrl+K, Ctrl+L</c>, written with a comma between the presses. Triggering
+    /// does what Enter on the row does: a copy, or a run for a snippet marked Execute. Empty for none, which is
+    /// what older files read as.
+    /// </summary>
+    public string Shortcut { get; set; } = "";
+
+    /// <summary>
+    /// A system-wide hotkey for the snippet, such as <c>Ctrl+Alt+1</c>: pressed in any application, it triggers
+    /// the snippet without summoning Klippy. Written as the summon keys are (see <c>HotkeySpec</c>) — a letter,
+    /// digit or Space held with at least one modifier. Empty for none, which is what older files read as.
+    /// </summary>
+    public string Hotkey { get; set; } = "";
+
+    /// <summary>
     /// Where the snippet came from, e.g. "BoldDesk Aug 2026". Empty for snippets
     /// created in Klippy itself.
     /// </summary>

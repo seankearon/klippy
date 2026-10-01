@@ -22,6 +22,12 @@ public sealed class SnippetStore
     public IReadOnlyList<SnippetSearch.Entry<Snippet>> Entries => _entries;
     public int Count => _snippets.Count;
 
+    /// <summary>Every snippet, in file order — the order a clash between two shortcuts is settled in.</summary>
+    public IReadOnlyList<Snippet> Snippets => _snippets;
+
+    /// <summary>The snippet with <paramref name="id"/>, or null.</summary>
+    public Snippet? Find(Guid id) => _snippets.Find(s => s.Id == id);
+
     public static string DefaultFilePath => StorageLocations.ActivePath;
 
     /// <summary>Where this store is currently reading and writing.</summary>
@@ -209,6 +215,8 @@ public sealed class SnippetStore
         s.QuickCode = s.QuickCode?.Trim().ToLowerInvariant() ?? "";
         s.Source = s.Source?.Trim() ?? "";
         s.ExternalId = s.ExternalId?.Trim() ?? "";
+        s.Shortcut = s.Shortcut?.Trim() ?? "";
+        s.Hotkey = s.Hotkey?.Trim() ?? "";
         if (s.Id == Guid.Empty) s.Id = Guid.NewGuid();
     }
 

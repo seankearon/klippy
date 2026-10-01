@@ -1,7 +1,8 @@
 # Klippy
 
 A small, cross-platform snippet, actions, and clipbpard manager. Store pieces of text, 
-find them instantly, and put them on the clipboard with one click, tap, or keystroke. 
+find them instantly, and put them on the clipboard with one click, tap, or keystroke — or give a
+snippet keys of its own, VS Code-style chords included, or a hotkey that works from any application. 
 Store and access your clipboard history.  Run actions such as opening files or URLs.
 Built with .NET 10 and [Avalonia UI](https://avaloniaui.net/) for Windows, macOS, Android, and iOS.
 
@@ -79,6 +80,7 @@ Everything above, in full:
 | [Markdown snippets](https://seankearon.github.io/klippy/markdown-snippets/) | Pasting rich text into editors that accept it |
 | [Variables](https://seankearon.github.io/klippy/variables/) | Local defines, resolution order, arguments, flavours, typing a name to open what it stands for |
 | [Clipboard history](https://seankearon.github.io/klippy/clipboard-history/) | Text, files and images on Windows |
+| [Snippet shortcuts](https://seankearon.github.io/klippy/snippet-shortcuts/) | Keys of a snippet's own: in Klippy, chords included, and from any application |
 | [Global hotkeys](https://seankearon.github.io/klippy/global-hotkeys/) | Summoning Klippy from anywhere |
 | [Settings](https://seankearon.github.io/klippy/settings/) | Every setting and what it changes |
 | [Export / import](https://seankearon.github.io/klippy/export-import/) | Moving snippets between machines |

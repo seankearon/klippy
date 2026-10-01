@@ -47,6 +47,23 @@ public partial class SnippetViewModel : RowViewModel
     }
 
     public string Tag => Model.Tag;
+
+    /// <summary>
+    /// The keys that trigger the snippet, as the row shows them: its in-Klippy shortcut, then its system-wide
+    /// hotkey marked as such. Empty when it has neither.
+    /// </summary>
+    public string KeysHint
+    {
+        get
+        {
+            var shortcut = Services.Shortcut.TryParse(Model.Shortcut, out var keys) ? keys.DisplayText : "";
+            var hotkey = SnippetHotkeys.TryRead(Model.Hotkey, out var spec) ? $"{spec} anywhere" : "";
+            return shortcut.Length > 0 && hotkey.Length > 0 ? $"{shortcut} · {hotkey}" : shortcut + hotkey;
+        }
+    }
+
+    public bool HasKeys => KeysHint.Length > 0;
+
     public string QuickCode => Model.QuickCode;
     public bool HasQuickCode => Model.QuickCode.Length > 0;
     public bool IsMarkdown => Model.IsMarkdown;

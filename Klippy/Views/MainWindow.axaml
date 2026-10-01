@@ -229,6 +229,10 @@
                             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                                        Foreground="{StaticResource Muted2Brush}" Text="md"
                                        IsVisible="{Binding IsMarkdown}" />
+                            <!-- the keys that trigger it, in Klippy and from anywhere -->
+                            <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Muted2Brush}" Text="{Binding KeysHint}"
+                                       IsVisible="{Binding HasKeys}" />
                             <Border BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
                                     CornerRadius="4" Padding="5,1" VerticalAlignment="Center"
                                     IsVisible="{Binding HasQuickCode}">
@@ -648,6 +652,18 @@
                    TextWrapping="Wrap"
                    Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
       </StackPanel>
+    </Border>
+
+    <!-- A chord half-pressed: the first key of a two-key snippet shortcut is down, and Klippy is waiting
+         for the second — or the second led nowhere. Above the toast, so a copy's toast never covers it. -->
+    <Border x:Name="ChordPill" Classes="toast" Classes.visible="{Binding HasChordStatus}"
+            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,80">
+      <Panel>
+        <TextBlock Classes="mono" Text="{Binding ChordStatus}" FontSize="11"
+                   Foreground="{StaticResource AccentBrush}" IsVisible="{Binding !IsChordMiss}" />
+        <TextBlock Classes="mono" Text="{Binding ChordStatus}" FontSize="11"
+                   Foreground="{StaticResource DangerBrush}" IsVisible="{Binding IsChordMiss}" />
+      </Panel>
     </Border>
 
     <views:EditorOverlay />

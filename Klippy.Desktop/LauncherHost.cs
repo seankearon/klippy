@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -24,6 +26,14 @@ internal sealed class LauncherHost : IDisposable
     private IGlobalHotkey? _hotkey;
     private IGlobalHotkey? _historyHotkey;
     private IActivatableLifetime? _activatable;
+
+    /// <summary>The snippets' own system-wide hotkeys, one registration apiece — see <see cref="RegisterSnippetHotkeys"/>.</summary>
+    private readonly List<IGlobalHotkey> _snippetHotkeys = new();
+
+    /// <summary>What <see cref="_snippetHotkeys"/> was registered from, so an unchanged plan isn't re-registered.</summary>
+    private IReadOnlyList<(Guid SnippetId, HotkeySpec Spec)> _snippetHotkeyPlan = [];
+
+    private MainViewModel? _watched;
 
     public LauncherHost(IClassicDesktopStyleApplicationLifetime lifetime, AppSettings settings)
     {
@@ -94,6 +104,85 @@ internal sealed class LauncherHost : IDisposable
         if (ClipboardHistory.IsAvailable && _settings.ParsedHistoryHotkey is { } historySpec)
             _historyHotkey = GlobalHotkey.TryRegister(historySpec,
                 () => Dispatcher.UIThread.Post(ToggleHistory));
+
+        // The snippets' own hotkeys, under the same master switch: the editor offers one only from here on,
+        // and every save, delete or import that could change them registers them again.
+        if (GlobalHotkey.IsSupported && _lifetime.MainWindow?.DataContext is MainViewModel vm)
+        {
+            _watched = vm;
+            vm.CanRegisterHotkeys = true;
+            vm.SnippetsChanged += OnSnippetsChanged;
+            RegisterSnippetHotkeys(vm);
+        }
+    }
+
+    private void OnSnippetsChanged()
+    {
+        if (_watched is { } vm) RegisterSnippetHotkeys(vm);
+    }
+
+    /// <summary>
+    /// Registers each snippet's system-wide hotkey, replacing whatever the last round registered — unless the
+    /// plan is what it was, which is the usual case for a save that touched a label. Each is its own
+    /// registration, as the summon keys are, so one another application already holds leaves the rest
+    /// working; those that could not be claimed are handed back to the view model, whose editor says so, and
+    /// named on stderr.
+    /// </summary>
+    private void RegisterSnippetHotkeys(MainViewModel vm)
+    {
+        var plan = vm.PlannedHotkeys();
+        if (plan.SequenceEqual(_snippetHotkeyPlan)) return;
+
+        DisposeSnippetHotkeys();
+        var unclaimed = new List<Guid>();
+        foreach (var (id, spec) in plan)
+        {
+            var hotkey = GlobalHotkey.TryRegister(spec, () => Dispatcher.UIThread.Post(() => TriggerSnippet(id, spec)));
+            if (hotkey is not null)
+            {
+                _snippetHotkeys.Add(hotkey);
+                continue;
+            }
+
+            unclaimed.Add(id);
+            Console.Error.WriteLine($"Could not register a snippet's hotkey ({spec}); another app may hold it.");
+        }
+
+        _snippetHotkeyPlan = plan;
+        vm.ReportUnclaimedHotkeys(unclaimed);
+    }
+
+    /// <summary>
+    /// A snippet's hotkey, pressed in whatever application has the keyboard: the snippet is copied, or run if
+    /// it is marked Execute, without the window coming up. One that can't do its job — a run that could not
+    /// start — does bring it up, so the reason it gives can be read.
+    /// </summary>
+    private async void TriggerSnippet(Guid id, HotkeySpec spec)
+    {
+        if (_lifetime.MainWindow?.DataContext is not MainViewModel vm) return;
+
+        // Pressed while a key field in the editor is listening: it is the field's, as any other press would be
+        // — which is how a combination another snippet holds gets recorded rather than firing.
+        if (vm.OfferHotkeyToRecorder(spec)) return;
+
+        bool done;
+        try
+        {
+            done = await vm.TriggerSnippetAsync(id);
+        }
+        catch (Exception)
+        {
+            done = false;
+        }
+
+        if (!done) ShowWindow();
+    }
+
+    private void DisposeSnippetHotkeys()
+    {
+        foreach (var hotkey in _snippetHotkeys) hotkey.Dispose();
+        _snippetHotkeys.Clear();
+        _snippetHotkeyPlan = [];
     }
 
     /// <summary>
@@ -166,6 +255,11 @@ internal sealed class LauncherHost : IDisposable
         if (_lifetime.MainWindow is not { } window) return;
 
         var vm = window.DataContext as MainViewModel;
+
+        // A key field in the editor is listening, and the OS handed it the summon key instead: the field says
+        // why it can't have it, and the window stays where it is.
+        var summon = history ? _settings.ParsedHistoryHotkey : _settings.ParsedHotkey;
+        if (summon is not null && vm?.OfferHotkeyToRecorder(summon) == true) return;
 
         if (window.IsVisible && window.IsActive && vm?.IsHistoryMode == history)
         {
@@ -338,6 +432,12 @@ internal sealed class LauncherHost : IDisposable
         _hotkey = null;
         _historyHotkey?.Dispose();
         _historyHotkey = null;
+        if (_watched is not null)
+        {
+            _watched.SnippetsChanged -= OnSnippetsChanged;
+            _watched = null;
+        }
+        DisposeSnippetHotkeys();
         if (_activatable is not null)
         {
             _activatable.Activated -= OnActivated;

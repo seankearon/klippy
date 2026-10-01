@@ -418,6 +418,31 @@
     <Setter Property="IsVisible" Value="True" />
   </Style>
 
+  <!-- ============ Key field (editor): click, then press the keys ============ -->
+  <Style Selector="Button.keyField">
+    <Setter Property="Background" Value="{StaticResource AppBgBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="9,7" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.keyField:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AppBgBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Muted2Brush}" />
+  </Style>
+  <Style Selector="Button.keyField.recording /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+  </Style>
+  <Style Selector="Button.keyField.recording">
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+  </Style>
+
   <!-- ============ Toast ============ -->
   <Style Selector="Border.toast">
     <Setter Property="Opacity" Value="0" />
