@@ -46,7 +46,8 @@ public sealed class Snippet : ISearchable
     /// <summary>
     /// A system-wide hotkey for the snippet, such as <c>Ctrl+Alt+1</c>: pressed in any application, it triggers
     /// the snippet without summoning Klippy. Written as the summon keys are (see <c>HotkeySpec</c>) — a letter,
-    /// digit or Space held with at least one modifier. Empty for none, which is what older files read as.
+    /// digit, Space, F1–F20 or punctuation key held with at least one modifier, e.g. <c>Ctrl+Alt+/</c>. Empty
+    /// for none, which is what older files read as.
     /// </summary>
     public string Hotkey { get; set; } = "";
 

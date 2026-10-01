@@ -93,7 +93,8 @@ public partial class EditorViewModel
         get
         {
             if (IsRecordingHotkey)
-                return $"Press a letter, digit or Space with Ctrl, Alt or {Meta} held. Esc cancels.";
+                return $"Press a letter, digit, punctuation key, Space or F1–F20 with Ctrl, Alt or {Meta} held. " +
+                       "Esc cancels.";
             if (_hotkeyRefusal is { } refusal) return refusal;
             if (!SnippetHotkeys.TryRead(Hotkey, out var spec))
                 return "A hotkey that triggers this snippet from any application — e.g. Ctrl+Alt+1";
@@ -202,7 +203,7 @@ public partial class EditorViewModel
         if (!SnippetHotkeys.TryFromStroke(stroke, out var spec))
         {
             _hotkeyRefusal = $"{stroke.DisplayText} can't be a system-wide hotkey: hold Ctrl, Alt or {Meta} " +
-                             "with a letter, a digit or Space.";
+                             "with a letter, a digit, a punctuation key, Space or F1–F20.";
             OnPropertyChanged(nameof(HotkeyHint));
             OnPropertyChanged(nameof(HotkeyHintIsWarning));
             return;

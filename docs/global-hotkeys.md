@@ -63,7 +63,9 @@ A **snippet** can have a system-wide hotkey of its own, which triggers it from a
 summoning Klippy — see [Snippet shortcuts](snippet-shortcuts.md#hotkeys-anywhere). Those are registered the
 same way, one apiece, under the same `HotkeyEnabled` switch, and none may take a summon key.
 
-Modifiers may be written as Ctrl/Control, Alt/Option, Shift and Cmd/Command/Win/Meta, in
+The key may be a letter, a digit, `Space`, `F1`–`F20` or a punctuation key — see
+[Snippet shortcuts](snippet-shortcuts.md#hotkeys-anywhere) for which, and what your keyboard layout does to
+them. Modifiers may be written as Ctrl/Control, Alt/Option, Shift and Cmd/Command/Win/Meta, in
 any order and any case; at least one modifier is required, since a bare key would swallow
 that keystroke system-wide. If another application already owns the combination, Klippy
 says so on stderr and starts without a hotkey rather than failing.

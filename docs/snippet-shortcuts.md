@@ -12,7 +12,7 @@ kinds, and a snippet can have either or both:
 | | Works | Keys |
 |---|---|---|
 | **Shortcut in Klippy** | While Klippy's window is up | One press such as `Ctrl+Shift+L`, or a **chord** of two such as `Ctrl+K, Ctrl+L` |
-| **Hotkey anywhere** | In any application, without summoning Klippy | One combination such as `Ctrl+Alt+1` — Windows and macOS |
+| **Hotkey anywhere** | In any application, without summoning Klippy | One combination such as `Ctrl+Alt+1` or `Ctrl+Alt+/` — Windows and macOS |
 
 Both are set in the snippet's editor, under **SHORTCUT IN KLIPPY** and **HOTKEY ANYWHERE**, and a row shows
 the keys it has beside its quick-code — `Ctrl+K, Ctrl+L · Ctrl+Alt+1 anywhere`.
@@ -43,8 +43,20 @@ not be claimed, and so does a toast when you save one. They live under the same 
 `HotkeyEnabled` off there are no hotkeys at all, and the editor offers none. On Windows each costs an idle
 thread, as the summon keys do.
 
-A hotkey is a letter, a digit or `Space`, held with at least one of `Ctrl`, `Alt` or `Win` / `⌘` — `Shift`
-alone would take capitals from every application.
+A hotkey is a letter, a digit, `Space`, `F1`–`F20`, or one of the punctuation keys `` / ; ' , . - = [ ] \ ` ``
+— held with at least one of `Ctrl`, `Alt` or `Win` / `⌘`. `Shift` alone would take capitals from every
+application. In the file a punctuation key is written as its character, or by name — `Ctrl+Alt+Slash` reads
+as `Ctrl+Alt+/`.
+
+!!! warning "Punctuation keys and your keyboard layout"
+    A punctuation key is the key in that place on a **US** keyboard. On a US or UK layout `Ctrl+Alt+/` is the
+    key marked `/`; on others the same physical key may be marked differently — on a German keyboard it is
+    `#`, and `/` is `Shift+7`. Recording and registering always agree, since both go through your layout:
+    the key you press is the key that fires. Only the name Klippy shows for it can differ from the keycap.
+
+    On many European layouts `Ctrl+Alt` is also **AltGr**, which types characters such as `{` and `@`. A
+    system-wide `Ctrl+Alt` hotkey takes that character from every application, letters and digits included —
+    so where `Ctrl+Alt` types, choose a combination that doesn't.
 
 !!! note
     Pressed while Klippy's editor or another overlay is open, a hotkey still copies its snippet — so one

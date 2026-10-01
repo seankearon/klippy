@@ -200,7 +200,7 @@ public class SnippetShortcutTests
         var again = WithKeys("Again", hotkey: "Alt+Ctrl+1");     // the same combination, written differently
         var summon = WithKeys("Summon", hotkey: "Ctrl+Alt+K");
         var shiftOnly = WithKeys("Shouty", hotkey: "Shift+K");   // would take capital K from everyone
-        var garbage = WithKeys("Garbage", hotkey: "Ctrl+Alt+F13");
+        var garbage = WithKeys("Garbage", hotkey: "Ctrl+Alt+F21");
         var two = WithKeys("Two", hotkey: "Ctrl+Alt+2");
 
         var plan = SnippetHotkeys.Plan([one, again, summon, shiftOnly, garbage, two],
@@ -213,6 +213,11 @@ public class SnippetShortcutTests
     [InlineData(Key.D1, KeyModifiers.Control | KeyModifiers.Alt, "Ctrl+Alt+1")]
     [InlineData(Key.J, KeyModifiers.Alt | KeyModifiers.Shift, "Alt+Shift+J")]
     [InlineData(Key.Space, KeyModifiers.Control, "Ctrl+SPACE")]
+    [InlineData(Key.OemQuestion, KeyModifiers.Control | KeyModifiers.Alt, "Ctrl+Alt+/")]
+    [InlineData(Key.OemPipe, KeyModifiers.Alt, "Alt+\\")]
+    [InlineData(Key.OemPlus, KeyModifiers.Control | KeyModifiers.Alt, "Ctrl+Alt+=")]
+    [InlineData(Key.F5, KeyModifiers.Control, "Ctrl+F5")]
+    [InlineData(Key.F20, KeyModifiers.Control | KeyModifiers.Shift, "Ctrl+Shift+F20")]
     public void AKeyPress_BecomesAHotkey(Key key, KeyModifiers modifiers, string expected)
     {
         Assert.True(SnippetHotkeys.TryFromStroke(KeyStroke.From(key, modifiers), out var spec));
@@ -222,7 +227,9 @@ public class SnippetShortcutTests
     [Theory]
     [InlineData(Key.K, KeyModifiers.None)]       // no modifier at all
     [InlineData(Key.K, KeyModifiers.Shift)]      // capitals
-    [InlineData(Key.F5, KeyModifiers.Control)]   // not a key every platform can register
+    [InlineData(Key.F21, KeyModifiers.Control)]  // not a key every platform can register: a Mac stops at F20
+    [InlineData(Key.Home, KeyModifiers.Control)]
+    [InlineData(Key.OemBackslash, KeyModifiers.Control)]   // the ISO key beside left Shift: no code for it
     public void SomeKeyPresses_CannotBeHotkeys(Key key, KeyModifiers modifiers) =>
         Assert.False(SnippetHotkeys.TryFromStroke(KeyStroke.From(key, modifiers), out _));
 
@@ -231,6 +238,10 @@ public class SnippetShortcutTests
     [InlineData("Alt+Shift+J")]
     [InlineData("Ctrl+SPACE")]
     [InlineData("Cmd+Alt+K")]
+    [InlineData("Ctrl+Alt+/")]
+    [InlineData("Alt+Shift+[")]
+    [InlineData("Ctrl+Alt+Comma")]
+    [InlineData("Ctrl+F13")]
     public void AHotkey_ReadsBackAsThePressItStandsFor(string text)
     {
         Assert.True(HotkeySpec.TryParse(text, out var spec));

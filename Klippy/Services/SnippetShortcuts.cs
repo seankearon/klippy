@@ -216,37 +216,23 @@ public static class SnippetHotkeys
     /// </summary>
     public static KeyStroke ToStroke(HotkeySpec spec)
     {
-        var key = spec.Key switch
-        {
-            "SPACE" => Key.Space,
-            [var c] when c is >= 'A' and <= 'Z' => Key.A + (c - 'A'),
-            [var c] when c is >= '0' and <= '9' => Key.D0 + (c - '0'),
-            _ => Key.None,
-        };
-
         var mods = KeyModifiers.None;
         if (spec.Modifiers.HasFlag(HotkeyModifiers.Control)) mods |= KeyModifiers.Control;
         if (spec.Modifiers.HasFlag(HotkeyModifiers.Alt)) mods |= KeyModifiers.Alt;
         if (spec.Modifiers.HasFlag(HotkeyModifiers.Shift)) mods |= KeyModifiers.Shift;
         if (spec.Modifiers.HasFlag(HotkeyModifiers.Meta)) mods |= KeyModifiers.Meta;
-        return KeyStroke.From(key, mods);
+        return KeyStroke.From(KeyFor(spec.Key), mods);
     }
 
     /// <summary>
-    /// The system-wide hotkey for a key press, when it can be one: a letter, a digit or Space, held with at
-    /// least one modifier — the keys every platform Klippy registers on can take.
+    /// The system-wide hotkey for a key press, when it can be one: a letter, a digit, Space, F1–F20 or a
+    /// punctuation key, held with at least one modifier — the keys every platform Klippy registers on can
+    /// take (<see cref="HotkeySpec.VirtualKeys"/>).
     /// </summary>
     public static bool TryFromStroke(KeyStroke stroke, out HotkeySpec spec)
     {
         spec = HotkeySpec.Default;
-        var key = stroke.Key switch
-        {
-            >= Key.A and <= Key.Z => stroke.Key.ToString(),
-            >= Key.D0 and <= Key.D9 => ((char)('0' + (stroke.Key - Key.D0))).ToString(),
-            Key.Space => "SPACE",
-            _ => null,
-        };
-        if (key is null) return false;
+        if (NameFor(stroke.Key) is not { } key || !HotkeySpec.VirtualKeys.ContainsKey(key)) return false;
 
         var mods = HotkeyModifiers.None;
         if (stroke.Modifiers.HasFlag(KeyModifiers.Control)) mods |= HotkeyModifiers.Control;
@@ -260,4 +246,36 @@ public static class SnippetHotkeys
         spec = new HotkeySpec(mods, key);
         return true;
     }
+
+    /// <summary>
+    /// The punctuation keys, by the Avalonia key and the character <see cref="HotkeySpec"/> writes for it.
+    /// Avalonia reads these through the same layout mapping the OS registers them with (VK_OEM_2 is
+    /// <see cref="Key.OemQuestion"/> either way), so what is recorded is what gets registered.
+    /// </summary>
+    private static readonly (Key Key, string Name)[] Punctuation =
+    [
+        (Key.OemQuestion, "/"), (Key.OemSemicolon, ";"), (Key.OemQuotes, "'"), (Key.OemComma, ","),
+        (Key.OemPeriod, "."), (Key.OemMinus, "-"), (Key.OemPlus, "="), (Key.OemOpenBrackets, "["),
+        (Key.OemCloseBrackets, "]"), (Key.OemPipe, "\\"), (Key.OemTilde, "`"),
+    ];
+
+    /// <summary><see cref="HotkeySpec"/>'s name for <paramref name="key"/>, or null for one it has no name for.</summary>
+    private static string? NameFor(Key key) => key switch
+    {
+        >= Key.A and <= Key.Z => key.ToString(),
+        >= Key.D0 and <= Key.D9 => ((char)('0' + (key - Key.D0))).ToString(),
+        >= Key.F1 and <= Key.F24 => $"F{key - Key.F1 + 1}",
+        Key.Space => "SPACE",
+        _ => Punctuation.FirstOrDefault(p => p.Key == key).Name,
+    };
+
+    /// <summary>The Avalonia key <see cref="HotkeySpec"/>'s <paramref name="name"/> stands for, or <see cref="Key.None"/>.</summary>
+    private static Key KeyFor(string name) => name switch
+    {
+        "SPACE" => Key.Space,
+        [var c] when c is >= 'A' and <= 'Z' => Key.A + (c - 'A'),
+        [var c] when c is >= '0' and <= '9' => Key.D0 + (c - '0'),
+        ['F', .. var n] when int.TryParse(n, out var f) && f is >= 1 and <= 24 => Key.F1 + (f - 1),
+        _ => Punctuation.FirstOrDefault(p => p.Name == name).Key,
+    };
 }

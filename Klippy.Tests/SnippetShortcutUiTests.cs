@@ -375,7 +375,7 @@ public class SnippetShortcutUiTests
         var editor = Edit(f, "Work email");
 
         editor.BeginRecording(KeyField.Hotkey);
-        editor.Press(KeyStroke.From(Key.F6, KeyModifiers.Control));
+        editor.Press(KeyStroke.From(Key.Home, KeyModifiers.Control));
         Assert.True(editor.HotkeyHintIsWarning);   // not a key every platform can register
         Assert.Equal("", editor.Hotkey);
 
@@ -425,6 +425,29 @@ public class SnippetShortcutUiTests
         f.Vm.RequestDeleteCommand.Execute(f.Vm.Filtered.OfType<SnippetViewModel>().Single());
         f.Vm.ConfirmDeleteCommand.Execute(null);
         Assert.Equal(2, raised);
+    }
+
+    [AvaloniaFact]
+    public void TheHotkeyField_TakesPunctuationAndFunctionKeys_ThroughTheRealKeyboard()
+    {
+        var (window, f) = Open(NewVm(Mail));
+        f.Vm.CanRegisterHotkeys = true;
+        var editor = Edit(f, "Work email");
+        Dispatcher.UIThread.RunJobs();
+
+        var field = window.GetVisualDescendantsOf<Button>().Single(b => b.Name == "HotkeyField");
+        Click(window, field);
+        Press(window, Key.OemQuestion, RawInputModifiers.Control | RawInputModifiers.Alt);
+        Assert.Equal("Ctrl+Alt+/", editor.Hotkey);
+        Assert.Equal("Ctrl+Alt+/", editor.HotkeyText);
+
+        Click(window, field);
+        Press(window, Key.F9, RawInputModifiers.Control);
+        Assert.Equal("Ctrl+F9", editor.Hotkey);
+
+        editor.SaveCommand.Execute(null);
+        Assert.Equal(f.Snippet("Work email").Id, Assert.Single(f.Vm.PlannedHotkeys()).SnippetId);
+        Assert.Equal("Ctrl+F9", f.Vm.PlannedHotkeys()[0].Spec.ToString());
     }
 
     [AvaloniaFact]
