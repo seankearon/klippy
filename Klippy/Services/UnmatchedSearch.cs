@@ -103,8 +103,15 @@ public static class UnmatchedSearch
     /// being able to open a file is no reason to lose the way to where it is.</item>
     /// </list>
     ///
+    /// And one thing an item never offers: a value that names a place — a folder, or a file
+    /// that is opened or shown — is also offered as a console there, a file's being the
+    /// folder it is in. Those come after every value, since they are a second way into places
+    /// already on offer rather than places of their own; a program is not one of them, being
+    /// something to run rather than somewhere to be.
+    ///
     /// A value that comes to nothing is left out, and so is one that comes to the same
-    /// thing as a value before it.
+    /// thing as a value before it — which is how a folder and the solution in it come to
+    /// one console between them.
     /// </summary>
     /// <param name="variables">The defines to read the line against — the file in force, for the app.</param>
     /// <param name="alsoOpens">Extra kinds of file and of link to open, as <see cref="ExecutionPolicy.Plan"/> takes them.</param>
@@ -121,6 +128,7 @@ public static class UnmatchedSearch
         var disk = probe ?? PathProbe.Real;
 
         var plans = new List<ExecutionPlan>();
+        var consoles = new List<ExecutionPlan>();
         foreach (var value in variables.ValuesOf((query ?? "").Trim()))
         {
             if (Macros.IsPresent(value)) continue;
@@ -134,7 +142,11 @@ public static class UnmatchedSearch
                 && ExecutionPolicy.Reveal(plan.Target, isFolder: false, os) is var shown
                 && IsThere(shown, verifyPaths, disk))
                 Add(shown);
+
+            if (ConsoleFor(plan, os, disk) is { } console) consoles.Add(console);
         }
+
+        consoles.ForEach(Add);
         return plans;
 
         void Add(ExecutionPlan plan)
@@ -142,6 +154,20 @@ public static class UnmatchedSearch
             if (plan.Kind != ExecutionKind.None && !plans.Exists(p => IsSame(p, plan))) plans.Add(plan);
         }
     }
+
+    /// <summary>
+    /// The console a value's plan may also be offered as, or null for one that names no
+    /// place: a folder's own, and the folder a file is in, whether the file is opened or
+    /// shown. A shown folder — a macOS package, or anything with a dot in its name there —
+    /// is still a folder to start in, so the disk says which it is.
+    /// </summary>
+    private static ExecutionPlan? ConsoleFor(ExecutionPlan plan, ExecutionPlatform os, PathProbe disk) => plan.Kind switch
+    {
+        ExecutionKind.Folder => ExecutionPolicy.ConsoleAt(plan.Target, isFolder: true, os),
+        ExecutionKind.Document => ExecutionPolicy.ConsoleAt(plan.Target, isFolder: false, os),
+        ExecutionKind.Reveal => ExecutionPolicy.ConsoleAt(plan.Target, disk.DirectoryExists(plan.Target), os),
+        _ => null,
+    };
 
     /// <summary>
     /// Whether what a plan points at is there to be offered: always for a link, which has

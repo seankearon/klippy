@@ -32,8 +32,10 @@ clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it
 same as `Enter`. A snippet can also have [keys of its own](snippet-shortcuts.md) — a
 shortcut such as `Ctrl+K, Ctrl+L` while Klippy is up, and a hotkey that works from any
 application. Typing `quit` offers to [close Klippy](quitting.md), and typing a
-[variable's name](variables.md#typing-a-name) offers each value it stands for — above the
-list, where `↑` from the top row reaches them.
+[variable's name](variables.md#typing-a-name) offers each value it stands for, and a
+[console](variables.md#a-console-there) in each place one names — above the list, where
+`↑` from the top row reaches them. With more than one standing there, each carries its
+number, and `Ctrl/⌘+1` to `Ctrl/⌘+9` runs that one straight away, wherever the selection is.
 
 A **confirmation** — deleting a snippet, a [machine control](unmatched-search.md), quitting —
 opens with the keyboard on Cancel, so `Enter` straight away goes back. `Tab` or the arrow

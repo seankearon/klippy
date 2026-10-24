@@ -17,8 +17,9 @@ namespace Klippy.ViewModels;
 /// engine, as running an item marked Execute.
 ///
 /// A line may be offered as more than one thing — a name defined twice in the variables
-/// file is two places to go — so there may be several of these standing above the list at
-/// once, one band each.
+/// file is two places to go, and a place is also somewhere to open a console — so there may
+/// be several of these standing above the list at once, one band each, and then each carries
+/// the number <c>Ctrl/⌘</c> and a digit run it by.
 /// </summary>
 public sealed partial class OfferViewModel : ViewModelBase
 {
@@ -30,6 +31,20 @@ public sealed partial class OfferViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private bool _isSelected;
+
+    /// <summary>
+    /// Which digit runs it with <c>Ctrl</c>, or <c>⌘</c> on a Mac — 1 for the top band, on down
+    /// to 9 — or 0 for none. Only ever set while there is more than one band, since with one
+    /// there is nothing to choose between; <c>MainViewModel</c> numbers them as it puts them up.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NumberHint), nameof(HasNumber))]
+    private int _number;
+
+    /// <summary>The keys that run it, as the band shows them: <c>Ctrl+2</c>, or <c>⌘2</c> on a Mac.</summary>
+    public string NumberHint => Number == 0 ? "" : (OperatingSystem.IsMacOS() ? "⌘" : "Ctrl+") + Number;
+
+    public bool HasNumber => Number > 0;
 
     /// <summary>
     /// Klippy's own quit, which stands where a runnable offer stands and deliberately is
@@ -53,6 +68,7 @@ public sealed partial class OfferViewModel : ViewModelBase
         ExecutionKind.Folder => "Open folder",
         ExecutionKind.Document => "Open file",
         ExecutionKind.Reveal => ShowVerb,
+        ExecutionKind.Console => "Open console",
         ExecutionKind.Script => "Run script",
         ExecutionKind.Application => "Start",
         ExecutionKind.System => Plan.Action.ToString(),

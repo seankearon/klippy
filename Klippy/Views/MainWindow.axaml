@@ -158,6 +158,12 @@
                                   IsVisible="{Binding IsQuit}" />
                           </Grid>
                         </Viewbox>
+                        <!-- The keys that run it, with more than one band to choose between:
+                             outermost, so the numbers line up whichever band wears the badge. -->
+                        <TextBlock DockPanel.Dock="Right" Classes="mono" FontSize="10"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Foreground="{StaticResource Muted2Brush}"
+                                   Text="{Binding NumberHint}" IsVisible="{Binding HasNumber}" />
                         <Border DockPanel.Dock="Right" Classes="enterBadge"
                                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="6,1" VerticalAlignment="Center"

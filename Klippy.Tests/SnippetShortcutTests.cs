@@ -86,6 +86,9 @@ public class SnippetShortcutTests
     [InlineData(Key.Left, KeyModifiers.Control, "the search box")]
     [InlineData(Key.F2, KeyModifiers.None, "Edit")]
     [InlineData(Key.Enter, KeyModifiers.Alt, "Copy")]
+    [InlineData(Key.D1, KeyModifiers.Control, "Run an offer")]
+    [InlineData(Key.D9, KeyModifiers.Control, "Run an offer")]
+    [InlineData(Key.NumPad2, KeyModifiers.Control, "Run an offer")]                 // the number pad's are the same
     public void KlippysOwnKeys_AreNamed(Key key, KeyModifiers modifiers, string owner) =>
         Assert.Equal(owner, KlippyKeys.OwnerOf(KeyStroke.From(key, modifiers), mac: false));
 
@@ -94,6 +97,9 @@ public class SnippetShortcutTests
     [InlineData(Key.L, KeyModifiers.Control | KeyModifiers.Shift)]
     [InlineData(Key.A, KeyModifiers.Control | KeyModifiers.Alt)]   // not exactly the search box's select-all
     [InlineData(Key.F6, KeyModifiers.None)]
+    [InlineData(Key.D1, KeyModifiers.Control | KeyModifiers.Shift)]  // an offer's number is Ctrl and the digit alone
+    [InlineData(Key.D1, KeyModifiers.Control | KeyModifiers.Alt)]
+    [InlineData(Key.D0, KeyModifiers.Control)]                       // the bands are numbered from 1
     public void OtherKeys_AreFree(Key key, KeyModifiers modifiers) =>
         Assert.Null(KlippyKeys.OwnerOf(KeyStroke.From(key, modifiers), mac: false));
 
@@ -103,6 +109,8 @@ public class SnippetShortcutTests
         Assert.Equal("New snippet", KlippyKeys.OwnerOf(KeyStroke.From(Key.N, KeyModifiers.Meta), mac: true));
         Assert.Null(KlippyKeys.OwnerOf(KeyStroke.From(Key.N, KeyModifiers.Control), mac: true));
         Assert.Equal("macOS", KlippyKeys.OwnerOf(KeyStroke.From(Key.Q, KeyModifiers.Meta), mac: true));
+        Assert.Equal("Run an offer", KlippyKeys.OwnerOf(KeyStroke.From(Key.D1, KeyModifiers.Meta), mac: true));
+        Assert.Null(KlippyKeys.OwnerOf(KeyStroke.From(Key.D1, KeyModifiers.Control), mac: true));
     }
 
     // ---- the map ----
