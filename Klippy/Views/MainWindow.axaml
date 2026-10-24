@@ -610,7 +610,7 @@
               <DockPanel>
                 <TextBlock Classes="mono" DockPanel.Dock="Right" FontSize="10"
                            Foreground="{StaticResource MutedBrush}"
-                           Text="↑↓ browse · Esc close" />
+                           Text="↑↓ browse · Del forget · Esc close" />
                 <TextBlock Classes="mono" FontSize="10"
                            Foreground="{StaticResource MutedBrush}" Text="recent" />
               </DockPanel>

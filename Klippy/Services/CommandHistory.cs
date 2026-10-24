@@ -99,6 +99,21 @@ public sealed class CommandHistory
     }
 
     /// <summary>
+    /// Forgets <paramref name="line"/> — a typo, or a line that was never worth keeping — so
+    /// it is not offered again. Returns whether it was there to forget. The comparison is
+    /// exact, as it is for <see cref="Record"/>: forgetting <c>? Cats</c> keeps <c>? cats</c>.
+    /// </summary>
+    public bool Forget(string? line)
+    {
+        int existing = _commands.FindIndex(c => string.Equals(c, line, StringComparison.Ordinal));
+        if (existing < 0) return false;
+
+        _commands.RemoveAt(existing);
+        Save();
+        return true;
+    }
+
+    /// <summary>
     /// The commands <paramref name="typed"/> could still become, newest first. An empty
     /// string matches everything, which is what opening the MRU on an empty search box
     /// asks for.

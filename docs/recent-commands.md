@@ -21,6 +21,11 @@ remembers the lines that did something and offers them back:
   list for anyone who opened it by accident.
 - **A click** takes the line without running it, so a command can be edited before
   `Enter` sends it.
+- **`Delete`** forgets the line you have browsed to — a typo, or something you would
+  rather not have kept — and moves on to the one that takes its place, so a run of presses
+  clears a run of them. Forget the last one on offer and the list closes on what you had
+  typed. While the list is only on offer as you type, with nothing highlighted, `Delete`
+  edits the search box as it always has.
 
 A *command* is a line that did something: whatever was in the search box at the moment a
 snippet was copied or run. Browsing to a row and pressing `Enter` with an empty box

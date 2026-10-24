@@ -27,7 +27,7 @@ Explorer or Finder, `F2` (or `Ctrl/⌘+I`) edit the selected snippet,
 `Ctrl/⌘+N` new snippet, `Ctrl/⌘+D` duplicate the selected snippet, `Ctrl/⌘+F` focus
 search, `Ctrl/⌘+P` toggle the preview pane, `Ctrl/⌘+E` export/import,
 `Ctrl/⌘+,` settings, `↓` on an empty search box opens
-[recent commands](recent-commands.md), `Esc`
+[recent commands](recent-commands.md) (where `Delete` forgets the one you are on), `Esc`
 clears/cancels, `Ctrl/⌘+Enter` saves in the editor. Clicking a row triggers it, the
 same as `Enter`. A snippet can also have [keys of its own](snippet-shortcuts.md) — a
 shortcut such as `Ctrl+K, Ctrl+L` while Klippy is up, and a hotkey that works from any

@@ -98,6 +98,33 @@ public class CommandHistoryTests : IDisposable
     }
 
     [Fact]
+    public void ForgettingACommandDropsThatOneAndNoOther()
+    {
+        var store = CommandHistory.InMemory();
+        store.Record("? cats");
+        store.Record("? Cats");
+        store.Record("dp");
+
+        Assert.True(store.Forget("? Cats"));
+
+        // Exact, as recording is: the other case is a different command and stays.
+        Assert.Equal(new[] { "dp", "? cats" }, store.Commands);
+        Assert.False(store.Forget("? Cats"));
+    }
+
+    [Fact]
+    public void AForgottenCommandStaysForgottenAcrossAReopen()
+    {
+        var store = new CommandHistory(_path);
+        store.Record("? cats");
+        store.Record("dp");
+
+        store.Forget("? cats");
+
+        Assert.Equal(new[] { "dp" }, new CommandHistory(_path).Commands);
+    }
+
+    [Fact]
     public void ACapOfZeroTurnsTheMruOff()
     {
         var store = CommandHistory.InMemory(capacity: 0);
