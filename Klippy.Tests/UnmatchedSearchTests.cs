@@ -503,27 +503,36 @@ public class UnmatchedSearchTests
             {
                 Assert.Equal(ExecutionKind.Folder, folder.Kind);
                 Assert.Equal(@"D:\main\Klippy", folder.Target);
+            },
+            console =>
+            {
+                // After every value, and one between them: the solution's folder is the folder.
+                Assert.Equal(ExecutionKind.Console, console.Kind);
+                Assert.Equal(@"D:\main\Klippy", console.Target);
             });
     }
 
     [Fact]
     public void AName_ReadsTheSameWrittenAsItIsInAnItem()
     {
-        Assert.Equal(2, PlanDefine("%klippy%", Klippy, KlippyOnDisk).Count);
-        Assert.Equal(@"D:\main\Klippy", Assert.Single(PlanDefine("klippy:folder", Klippy, KlippyOnDisk)).Target);
+        Assert.Equal(3, PlanDefine("%klippy%", Klippy, KlippyOnDisk).Count);
+        Assert.Equal(
+            new[] { (ExecutionKind.Folder, @"D:\main\Klippy"), (ExecutionKind.Console, @"D:\main\Klippy") },
+            PlanDefine("klippy:folder", Klippy, KlippyOnDisk).Select(p => (p.Kind, p.Target)));
     }
 
     [Fact]
     public void AValueThatIsNotThere_IsLeftOut_AsATypedPathWouldBe()
     {
-        var plan = Assert.Single(PlanDefine("klippy", Klippy, Probe(folders: [@"D:\main\Klippy"])));
-        Assert.Equal(@"D:\main\Klippy", plan.Target);
+        var plans = PlanDefine("klippy", Klippy, Probe(folders: [@"D:\main\Klippy"]));
+        Assert.Equal(new[] { ExecutionKind.Folder, ExecutionKind.Console }, plans.Select(p => p.Kind));
+        Assert.All(plans, p => Assert.Equal(@"D:\main\Klippy", p.Target));
 
         // Unless paths are not being checked — when, as for a typed line, a trailing
         // separator is the one thing left that still says "folder".
         Assert.Empty(PlanDefine("klippy", Klippy, verifyPaths: false));
-        Assert.Equal(ExecutionKind.Folder,
-            Assert.Single(PlanDefine("k", "k=D:\\main\\Klippy\\", verifyPaths: false)).Kind);
+        Assert.Equal(new[] { ExecutionKind.Folder, ExecutionKind.Console },
+            PlanDefine("k", "k=D:\\main\\Klippy\\", verifyPaths: false).Select(p => p.Kind));
     }
 
     [Fact]
@@ -586,10 +595,10 @@ public class UnmatchedSearchTests
         Assert.Equal(ExecutionKind.Url,
             Assert.Single(PlanDefine("notes", "notes=obsidian://open?vault=work", alsoOpens: ["obsidian:"])).Kind);
 
-        // And a file: link is the folder it spells, there to be opened.
-        var share = Assert.Single(PlanDefine("films", "films=file://nas/media/Films", Probe(folders: [@"\\nas\media\Films"])));
-        Assert.Equal(ExecutionKind.Folder, share.Kind);
-        Assert.Equal(@"\\nas\media\Films", share.Target);
+        // And a file: link is the folder it spells, there to be opened — or a console opened in.
+        var share = PlanDefine("films", "films=file://nas/media/Films", Probe(folders: [@"\\nas\media\Films"]));
+        Assert.Equal(new[] { ExecutionKind.Folder, ExecutionKind.Console }, share.Select(p => p.Kind));
+        Assert.All(share, p => Assert.Equal(@"\\nas\media\Films", p.Target));
     }
 
     [Fact]
@@ -597,8 +606,14 @@ public class UnmatchedSearchTests
     {
         var plans = PlanDefine("notes", "notes=C:\\docs\\notes.pdf", Probe(files: [@"C:\docs\notes.pdf"]));
 
-        Assert.Equal(new[] { ExecutionKind.Document, ExecutionKind.Reveal }, plans.Select(p => p.Kind));
-        Assert.All(plans, p => Assert.Equal(@"C:\docs\notes.pdf", p.Target));
+        Assert.Equal(
+            new[]
+            {
+                (ExecutionKind.Document, @"C:\docs\notes.pdf"),
+                (ExecutionKind.Reveal, @"C:\docs\notes.pdf"),
+                (ExecutionKind.Console, @"C:\docs"), // the folder it is in
+            },
+            plans.Select(p => (p.Kind, p.Target)));
     }
 
     [Fact]
@@ -613,6 +628,7 @@ public class UnmatchedSearchTests
                 (ExecutionKind.Document, @"D:\main\Klippy\Klippy.slnx"),
                 (ExecutionKind.Reveal, @"D:\main\Klippy\Klippy.slnx"),
                 (ExecutionKind.Folder, @"D:\main\Klippy"),
+                (ExecutionKind.Console, @"D:\main\Klippy"),
             },
             plans.Select(p => (p.Kind, p.Target)));
     }
@@ -623,8 +639,8 @@ public class UnmatchedSearchTests
         Assert.Empty(PlanDefine("notes", "notes=C:\\docs\\notes.pdf"));
 
         // Unless paths are not being checked; there is still nothing to show, though.
-        var plan = Assert.Single(PlanDefine("notes", "notes=C:\\docs\\notes.pdf", verifyPaths: false));
-        Assert.Equal(ExecutionKind.Document, plan.Kind);
+        Assert.Equal(new[] { ExecutionKind.Document, ExecutionKind.Console },
+            PlanDefine("notes", "notes=C:\\docs\\notes.pdf", verifyPaths: false).Select(p => p.Kind));
     }
 
     [Fact]
@@ -654,10 +670,11 @@ public class UnmatchedSearchTests
     [Fact]
     public void TheSameThing_IsOfferedOnce()
     {
-        var plan = Assert.Single(PlanDefine("app",
+        var plans = PlanDefine("app",
             "app=D:\\Src\\App\napp:folder=d:\\src\\app",
-            Probe(folders: [@"D:\src\app"])));
-        Assert.Equal(@"D:\Src\App", plan.Target);
+            Probe(folders: [@"D:\src\app"]));
+        Assert.Equal(new[] { ExecutionKind.Folder, ExecutionKind.Console }, plans.Select(p => p.Kind));
+        Assert.All(plans, p => Assert.Equal(@"D:\Src\App", p.Target));
     }
 
     [Fact]
@@ -671,9 +688,9 @@ public class UnmatchedSearchTests
     public void AValue_MayItselfNameTheMachines()
     {
         // As a typed %KLIPPY_TEST_DIR% would, and as the file lets any value.
-        var plan = Assert.Single(PlanDefine("roaming", "roaming=%KLIPPY_TEST_DIR%\\Klippy",
-            Probe(folders: [@"C:\Users\sean\AppData\Roaming\Klippy"])));
-        Assert.Equal(@"C:\Users\sean\AppData\Roaming\Klippy", plan.Target);
+        var plans = PlanDefine("roaming", "roaming=%KLIPPY_TEST_DIR%\\Klippy",
+            Probe(folders: [@"C:\Users\sean\AppData\Roaming\Klippy"]));
+        Assert.Equal(@"C:\Users\sean\AppData\Roaming\Klippy", plans[0].Target);
     }
 
     [Fact]
@@ -687,6 +704,58 @@ public class UnmatchedSearchTests
 
         Assert.Equal(ExecutionKind.Reveal, plan.Kind);
         Assert.Equal(@"D:\main\Klippy\Klippy.slnx", plan.Target);
+    }
+
+    // ---- a console where a value names a place ----
+
+    [Fact]
+    public void APlace_IsOfferedAsAConsoleToo_AfterEveryValue()
+    {
+        // The link, the folder and the file in another folder, each as itself — the last line
+        // first, being what the name means on its own — and then a console in each place, in
+        // the order the values gave them. A link is no place.
+        var plans = PlanDefine("work",
+            "work=D:\\work\nwork=C:\\docs\\notes.txt\nwork=https://wiki.example.com/team",
+            Probe(folders: [@"D:\work"], files: [@"C:\docs\notes.txt"]));
+
+        Assert.Equal(
+            new[]
+            {
+                (ExecutionKind.Url, "https://wiki.example.com/team"),
+                (ExecutionKind.Folder, @"D:\work"),
+                (ExecutionKind.Document, @"C:\docs\notes.txt"),
+                (ExecutionKind.Reveal, @"C:\docs\notes.txt"),
+                (ExecutionKind.Console, @"D:\work"),
+                (ExecutionKind.Console, @"C:\docs"),
+            },
+            plans.Select(p => (p.Kind, p.Target)));
+    }
+
+    [Fact]
+    public void AProgram_IsNotAPlace()
+    {
+        // Something to run rather than somewhere to be: its folder is only where it lives.
+        Assert.DoesNotContain(PlanDefine("tools",
+                "tools=C:\\tools\\deploy.ps1\ntools=C:\\tools\\rider64.exe",
+                Probe(files: [@"C:\tools\deploy.ps1", @"C:\tools\rider64.exe"])),
+            p => p.Kind == ExecutionKind.Console);
+    }
+
+    [Fact]
+    public void AShownFolder_IsStillAFolderToStartIn()
+    {
+        // A folder with a dot in its name is shown in Finder rather than opened, in case it is
+        // a package — but a terminal starts in it, not beside it.
+        var plans = PlanDefine("proj", "proj=/Users/sam/src/my.project",
+            Probe(folders: ["/Users/sam/src/my.project"]), platform: Mac);
+
+        Assert.Equal(
+            new[]
+            {
+                (ExecutionKind.Reveal, "/Users/sam/src/my.project"),
+                (ExecutionKind.Console, "/Users/sam/src/my.project"),
+            },
+            plans.Select(p => (p.Kind, p.Target)));
     }
 
     [Fact]

@@ -115,6 +115,12 @@ public class DefineOfferTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    private static void PressWithCtrl(MainWindow window, Key key, PhysicalKey physical)
+    {
+        window.KeyPress(key, RawInputModifiers.Control, physical, null);
+        Dispatcher.UIThread.RunJobs();
+    }
+
     private static List<Border> Bands(MainWindow window) =>
         window.GetVisualDescendants().OfType<ItemsControl>().Single(c => c.Name == "OfferList")
             .GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("offer")).ToList();
@@ -140,11 +146,19 @@ public class DefineOfferTests
             {
                 Assert.Equal("Open folder", folder.Verb);
                 Assert.Equal(checkout.Folder, folder.Detail);
+            },
+            console =>
+            {
+                // After the values: one console between them, the solution being in the folder.
+                Assert.Equal(ExecutionKind.Console, console.Plan.Kind);
+                Assert.Equal("Open console", console.Verb);
+                Assert.Equal(checkout.Folder, console.Detail);
             });
 
         Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
         Assert.True(f.Vm.Offers[0].IsSelected);
         Assert.False(f.Vm.Offers[1].IsSelected);
+        Assert.False(f.Vm.Offers[2].IsSelected);
     }
 
     [Fact]
@@ -157,7 +171,10 @@ public class DefineOfferTests
 
         f.Vm.FilterText = "%klippy%";
 
-        Assert.Equal(new[] { checkout.Solution, checkout.Folder }, f.Vm.Offers.Select(o => o.Detail));
+        Assert.Equal(
+            new[] { checkout.Solution, checkout.Folder, checkout.Folder },
+            f.Vm.Offers.Select(o => o.Detail));
+        Assert.Equal(ExecutionKind.Console, f.Vm.Offers[2].Plan.Kind);
     }
 
     [Fact]
@@ -168,7 +185,9 @@ public class DefineOfferTests
 
         f.Vm.FilterText = "klippy:folder";
 
-        Assert.Equal(checkout.Folder, Assert.Single(f.Vm.Offers).Detail);
+        // That one value, and a console in it.
+        Assert.Equal(new[] { "Open folder", "Open console" }, f.Vm.Offers.Select(o => o.Verb));
+        Assert.All(f.Vm.Offers, o => Assert.Equal(checkout.Folder, o.Detail));
     }
 
     [Fact]
@@ -236,7 +255,7 @@ public class DefineOfferTests
         f.Vm.FilterText = "klippy";
 
         Assert.Single(f.Vm.Filtered);
-        Assert.Equal(2, f.Vm.Offers.Count);
+        Assert.Equal(3, f.Vm.Offers.Count);
         Assert.Same(f.Vm.Filtered[0], f.Vm.SelectedSnippet);
         Assert.False(f.Vm.IsOfferSelected);
         Assert.DoesNotContain(f.Vm.Offers, o => o.IsSelected);
@@ -250,8 +269,11 @@ public class DefineOfferTests
         f.Vm.FilterText = "klippy";
 
         f.Vm.MoveSelection(-1);
-        Assert.Same(f.Vm.Offers[1], f.Vm.SelectedOffer); // the band nearest the list
+        Assert.Same(f.Vm.Offers[2], f.Vm.SelectedOffer); // the band nearest the list
         Assert.Null(f.Vm.SelectedSnippet);
+
+        f.Vm.MoveSelection(-1);
+        Assert.Same(f.Vm.Offers[1], f.Vm.SelectedOffer);
 
         f.Vm.MoveSelection(-1);
         Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
@@ -259,6 +281,7 @@ public class DefineOfferTests
         f.Vm.MoveSelection(-1);
         Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer); // the top stays the top
 
+        f.Vm.MoveSelection(1);
         f.Vm.MoveSelection(1);
         f.Vm.MoveSelection(1);
         Assert.Same(f.Vm.Filtered[0], f.Vm.SelectedSnippet);
@@ -279,7 +302,7 @@ public class DefineOfferTests
         vm.FilterText = "klippy";
 
         Assert.Equal("Open in Rider", vm.SelectedSnippet?.Label);
-        Assert.Equal(2, vm.Offers.Count);
+        Assert.Equal(3, vm.Offers.Count);
         Assert.False(vm.IsOfferSelected);
     }
 
@@ -321,7 +344,8 @@ public class DefineOfferTests
                 Assert.StartsWith("Show in ", show.Verb);
                 Assert.Equal(checkout.Solution, show.Detail);
             },
-            folder => Assert.Equal(checkout.Folder, folder.Detail));
+            folder => Assert.Equal(checkout.Folder, folder.Detail),
+            console => Assert.Equal(ExecutionKind.Console, console.Plan.Kind));
 
         Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
     }
@@ -352,7 +376,7 @@ public class DefineOfferTests
 
         f.Vm.FilterText = "%klippy%";
 
-        Assert.Equal(3, f.Vm.Offers.Count);
+        Assert.Equal(4, f.Vm.Offers.Count);
         Assert.Same(f.Vm.Offers[0], f.Vm.SelectedOffer);
         Assert.Equal(ExecutionKind.Document, f.Vm.SelectedOffer!.Plan.Kind);
     }
@@ -416,7 +440,7 @@ public class DefineOfferTests
         Dispatcher.UIThread.RunJobs();
 
         var bands = Bands(window);
-        Assert.Equal(2, bands.Count);
+        Assert.Equal(3, bands.Count);
         Assert.True(bands[0].Classes.Contains("selected"));
         Assert.False(bands[1].Classes.Contains("selected"));
 
@@ -472,7 +496,7 @@ public class DefineOfferTests
 
         f.Vm.FilterText = "klippy";
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(2, Bands(window).Count);
+        Assert.Equal(3, Bands(window).Count);
 
         Press(window, Key.Enter, PhysicalKey.Enter, "\n");
 
@@ -483,9 +507,10 @@ public class DefineOfferTests
     [AvaloniaFact]
     public void TheBandsAreDrawn()
     {
-        // A frame for looking at: with solutions on the list to open, three bands over the
-        // one row that uses the name, and ↑ having climbed from that row into the band
-        // nearest it — the list letting go of the selection as it does.
+        // A frame for looking at: with solutions on the list to open, four bands over the
+        // one row that uses the name — the console last, each with its number — and ↑ having
+        // climbed from that row into the band nearest it, the list letting go of the
+        // selection as it does.
         using var checkout = new Checkout();
         var (window, f) = NewWindow(("Open Klippy in Rider", "%r% %klippy:file%"));
         f.Settings.ExecuteOpenExtensions = [".slnx"];
@@ -497,11 +522,138 @@ public class DefineOfferTests
 
         var list = window.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "SnippetList");
         Assert.Null(list.SelectedItem);
-        Assert.Equal(3, Bands(window).Count);
-        Assert.True(Bands(window)[2].Classes.Contains("selected"));
+        var bands = Bands(window);
+        Assert.Equal(4, bands.Count);
+        Assert.True(bands[3].Classes.Contains("selected"));
+        for (int i = 0; i < bands.Count; i++)
+            Assert.Contains(bands[i].GetVisualDescendants().OfType<TextBlock>(),
+                t => t.Text == $"Ctrl+{i + 1}" && t.IsEffectivelyVisible);
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
         frame!.Save(Path.Combine(ArtifactsDir, "screenshot-define-offers.png"));
+    }
+
+    // ---- a console in each place ----
+
+    [Fact]
+    public async Task TheConsole_GoesToTheLauncher_LikeAnyOffer()
+    {
+        using var checkout = new Checkout();
+        var f = NewVm();
+
+        f.Vm.FilterText = "klippy";
+        await f.Vm.RunOfferCommand.ExecuteAsync(f.Vm.Offers[^1]);
+
+        var ran = Assert.Single(f.Ran);
+        Assert.Equal(ExecutionKind.Console, ran.Kind);
+        Assert.Equal(checkout.Folder, ran.Target);
+    }
+
+    [Fact]
+    public void ALinkOnItsOwn_IsNoPlaceForAConsole()
+    {
+        using var checkout = new Checkout("wiki=https://wiki.example.com/team");
+        var f = NewVm();
+
+        f.Vm.FilterText = "wiki";
+
+        Assert.Equal(ExecutionKind.Url, Assert.Single(f.Vm.Offers).Plan.Kind);
+    }
+
+    // ---- the numbers ----
+
+    [Fact]
+    public void WithMoreThanOneBand_EachCarriesItsNumber()
+    {
+        using var checkout = new Checkout();
+        var f = NewVm();
+
+        f.Vm.FilterText = "klippy";
+
+        Assert.Equal(new[] { 1, 2, 3 }, f.Vm.Offers.Select(o => o.Number));
+        Assert.Equal(new[] { "Ctrl+1", "Ctrl+2", "Ctrl+3" }, f.Vm.Offers.Select(o => o.NumberHint));
+    }
+
+    [Fact]
+    public void ABandOnItsOwn_HasNoNumber_ForThereIsNothingToChooseBetween()
+    {
+        using var checkout = new Checkout("wiki=https://wiki.example.com/team");
+        var f = NewVm();
+
+        f.Vm.FilterText = "wiki";
+
+        Assert.False(Assert.Single(f.Vm.Offers).HasNumber);
+        Assert.False(f.Vm.RunNumberedOffer(1)); // Enter does it
+        Assert.Empty(f.Ran);
+    }
+
+    [Fact]
+    public void ByItsNumber_AMachineControlStillAsksFirst()
+    {
+        // What the line already meant comes first, and is numbered first — and the number is
+        // the same gesture as a click, confirmation and all.
+        using var checkout = new Checkout("restart=https://wiki.example.com/restarting");
+        var f = NewVm();
+
+        f.Vm.FilterText = "restart";
+        Assert.Equal(new[] { ExecutionKind.System, ExecutionKind.Url }, f.Vm.Offers.Select(o => o.Plan.Kind));
+
+        Assert.True(f.Vm.RunNumberedOffer(1));
+        Assert.Same(f.Vm.Offers[0], f.Vm.PendingOffer);
+        Assert.Empty(f.Ran);
+
+        f.Vm.CancelOfferCommand.Execute(null);
+        Assert.True(f.Vm.RunNumberedOffer(2));
+        Assert.Equal("https://wiki.example.com/restarting", Assert.Single(f.Ran).Target);
+    }
+
+    [AvaloniaFact]
+    public void CtrlAndADigit_RunsThatBand_WhereverTheSelectionIs()
+    {
+        // The row keeps Enter; Ctrl+3 reaches past it, and past the two bands above the
+        // console, without moving anything first.
+        using var checkout = new Checkout();
+        var (window, f) = NewWindow(("Klippy notes", "Remember the release checklist"));
+        CopyPayload? copied = null;
+        f.Vm.ClipboardWriter = payload => { copied = payload; return Task.CompletedTask; };
+
+        f.Vm.FilterText = "klippy";
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(f.Vm.SelectedSnippet);
+
+        PressWithCtrl(window, Key.D3, PhysicalKey.Digit3);
+
+        var ran = Assert.Single(f.Ran);
+        Assert.Equal(ExecutionKind.Console, ran.Kind);
+        Assert.Equal(checkout.Folder, ran.Target);
+        Assert.Null(copied);
+    }
+
+    [AvaloniaFact]
+    public void TheNumberPad_CountsToo()
+    {
+        using var checkout = new Checkout();
+        var (window, f) = NewWindow();
+
+        f.Vm.FilterText = "klippy";
+        Dispatcher.UIThread.RunJobs();
+        PressWithCtrl(window, Key.NumPad2, PhysicalKey.NumPad2);
+
+        Assert.Equal(ExecutionKind.Folder, Assert.Single(f.Ran).Kind);
+    }
+
+    [AvaloniaFact]
+    public void ADigitPastTheLastBand_DoesNothing()
+    {
+        using var checkout = new Checkout();
+        var (window, f) = NewWindow();
+
+        f.Vm.FilterText = "klippy";
+        Dispatcher.UIThread.RunJobs();
+        PressWithCtrl(window, Key.D4, PhysicalKey.Digit4);
+
+        Assert.Empty(f.Ran);
+        Assert.Equal("klippy", f.Vm.FilterText);
     }
 }

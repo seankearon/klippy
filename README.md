@@ -53,7 +53,9 @@ path first, variables and all: a folder opens, and a file is selected in its fol
 A `variables.txt` file holds local defines that resolve into snippets at trigger time and
 are **never exported** — so a snippet can carry your account number without the export
 carrying it too. One name can hold two flavours, and the item picks the one it needs.
-Type a name on its own and Klippy offers to open or run each value it stands for.
+Type a name on its own and Klippy offers to open or run each value it stands for, and to
+open a console wherever a value is a path — with `Ctrl/⌘+1`, `Ctrl/⌘+2`… running whichever
+of those you want when there is more than one.
 
 → [Variables](https://seankearon.github.io/klippy/variables/)
 
@@ -78,7 +80,7 @@ Everything above, in full:
 | [Running an unmatched search](https://seankearon.github.io/klippy/unmatched-search/) | Typing a line nothing matches, and running it |
 | [Recent commands](https://seankearon.github.io/klippy/recent-commands/) | The MRU, and what stays out of it |
 | [Markdown snippets](https://seankearon.github.io/klippy/markdown-snippets/) | Pasting rich text into editors that accept it |
-| [Variables](https://seankearon.github.io/klippy/variables/) | Local defines, resolution order, arguments, flavours, typing a name to open what it stands for |
+| [Variables](https://seankearon.github.io/klippy/variables/) | Local defines, resolution order, arguments, flavours, typing a name to open what it stands for or a console there |
 | [Clipboard history](https://seankearon.github.io/klippy/clipboard-history/) | Text, files and images on Windows |
 | [Snippet shortcuts](https://seankearon.github.io/klippy/snippet-shortcuts/) | Keys of a snippet's own: in Klippy, chords included, and from any application |
 | [Global hotkeys](https://seankearon.github.io/klippy/global-hotkeys/) | Summoning Klippy from anywhere |

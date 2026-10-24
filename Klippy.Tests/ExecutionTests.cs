@@ -1261,6 +1261,85 @@ public class ExecutionTests
         Assert.Equal(ExecutionKind.Reveal, Plan("/home/sam/a,b.log", platform: ExecutionPlatform.Linux).Kind);
     }
 
+    // ---- a console ----
+
+    [Fact]
+    public void AConsoleStartsInTheFolder_OrInTheFolderAFileIsIn()
+    {
+        var folder = ExecutionPolicy.ConsoleAt(@"D:\work\", isFolder: true, ExecutionPlatform.Windows);
+        Assert.Equal(ExecutionKind.Console, folder.Kind);
+        Assert.Equal(@"D:\work", folder.Target); // the same console as the one beside a file in it
+        Assert.Equal("Opening a console in work", folder.Description);
+
+        Assert.Equal(@"D:\work",
+            ExecutionPolicy.ConsoleAt(@"D:\work\Klippy.slnx", isFolder: false, ExecutionPlatform.Windows).Target);
+
+        // A root keeps its separator: "D:" alone is wherever that drive was last left.
+        Assert.Equal(@"D:\", ExecutionPolicy.ConsoleAt(@"D:\", isFolder: true, ExecutionPlatform.Windows).Target);
+        Assert.Equal("/", ExecutionPolicy.ConsoleAt("/", isFolder: true, ExecutionPlatform.Linux).Target);
+        Assert.Equal("/", ExecutionPolicy.ConsoleAt("/notes.txt", isFolder: false, ExecutionPlatform.Linux).Target);
+        Assert.Equal(@"\\nas\share",
+            ExecutionPolicy.ConsoleAt(@"\\nas\share\", isFolder: true, ExecutionPlatform.Windows).Target);
+
+        // A path rooted at "/" names nothing on Windows to start in.
+        Assert.Equal(ExecutionKind.None,
+            ExecutionPolicy.ConsoleAt("/home/sam", isFolder: true, ExecutionPlatform.Windows).Kind);
+    }
+
+    [Fact]
+    public void OnWindows_AConsoleIsWindowsTerminal_InItsDefaultProfile()
+    {
+        var plan = ExecutionPolicy.ConsoleAt(@"D:\My Work", isFolder: true, ExecutionPlatform.Windows);
+
+        var terminal = ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows, onPath: _ => true)!;
+        Assert.Equal("wt.exe", terminal.FileName);
+        Assert.Equal(new[] { "-d", @"D:\My Work" }, terminal.Arguments); // it ignores where it was started
+        Assert.Equal(@"D:\My Work", terminal.WorkingDirectory);
+        Assert.True(terminal.UseShellExecute); // what finds the Store's alias, and gives a console a window
+    }
+
+    [Fact]
+    public void OnWindows_WithoutWindowsTerminal_PowerShellStartsInTheFolder()
+    {
+        var plan = ExecutionPolicy.ConsoleAt(@"D:\work", isFolder: true, ExecutionPlatform.Windows);
+
+        var pwsh = ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows, onPath: p => p == "pwsh.exe")!;
+        Assert.Equal("pwsh.exe", pwsh.FileName);
+        Assert.Empty(pwsh.Arguments); // told nothing but where to start
+        Assert.Equal(@"D:\work", pwsh.WorkingDirectory);
+        Assert.True(pwsh.UseShellExecute);
+
+        Assert.Equal("powershell.exe",
+            ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows, onPath: _ => false)!.FileName);
+    }
+
+    [Fact]
+    public void WindowsTerminal_IsNotHandedAFolderWithASemicolonInIt()
+    {
+        // It reads a semicolon anywhere on its command line as the start of a second command.
+        var plan = ExecutionPolicy.ConsoleAt(@"D:\a;calc", isFolder: true, ExecutionPlatform.Windows);
+
+        var command = ExecutionPolicy.Resolve(plan, ExecutionPlatform.Windows, onPath: _ => true)!;
+        Assert.Equal("pwsh.exe", command.FileName);
+        Assert.Empty(command.Arguments);
+        Assert.Equal(@"D:\a;calc", command.WorkingDirectory);
+    }
+
+    [Fact]
+    public void OnAMac_TerminalIsHandedTheFolder_AndOnLinux_TheTerminalStartsThere()
+    {
+        var mac = ExecutionPolicy.Resolve(
+            ExecutionPolicy.ConsoleAt("/Users/sam/src", isFolder: true, ExecutionPlatform.MacOS), ExecutionPlatform.MacOS)!;
+        Assert.Equal("open", mac.FileName);
+        Assert.Equal(new[] { "-a", "Terminal", "/Users/sam/src" }, mac.Arguments);
+
+        var linux = ExecutionPolicy.Resolve(
+            ExecutionPolicy.ConsoleAt("/home/sam/src", isFolder: true, ExecutionPlatform.Linux), ExecutionPlatform.Linux)!;
+        Assert.Equal("x-terminal-emulator", linux.FileName);
+        Assert.Empty(linux.Arguments);
+        Assert.Equal("/home/sam/src", linux.WorkingDirectory);
+    }
+
     [Fact]
     public void AMacPackageIsShownInFinder_NeverOpened()
     {

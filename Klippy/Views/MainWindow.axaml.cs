@@ -218,6 +218,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Cmd/Ctrl and a digit: the band carrying that number, whatever holds the selection. Held on its own,
+        // so Ctrl+Shift+1 and Ctrl+Alt+1 stay free for a snippet's keys; the number pad's digits are the same.
+        var stroke = KeyStroke.From(e.Key, e.KeyModifiers);
+        if (stroke.Modifiers == cmdMod && stroke.Key is >= Key.D1 and <= Key.D9
+            && vm.RunNumberedOffer(stroke.Key - Key.D0))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.KeyModifiers.HasFlag(cmdMod))
         {
             switch (e.Key)

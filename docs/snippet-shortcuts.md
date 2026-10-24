@@ -121,9 +121,10 @@ Some keys are refused, with a line saying why:
   A shortcut on plain `K`, or `Shift+K`, would take the letter from the search box. The second press of a
   chord can be any key.
 - **Klippy's own keys.** The first press can't be one Klippy already answers to: `Ctrl/⌘` with `N`, `F`,
-  `E`, `D`, `I`, `P`, `R`, `,` or `Enter` — whatever else is held with it — or `F2`, the arrows, `Enter` and
-  `Esc`. Nor the search box's own editing keys: select all, copy, cut, paste, undo and redo, and moving
-  through the line by word or to either end. The second press of a chord is free of all of these:
+  `E`, `D`, `I`, `P`, `R`, `,` or `Enter` — whatever else is held with it — `Ctrl/⌘` with a digit from `1` to
+  `9` held on its own, which runs [the band carrying that number](unmatched-search.md), or `F2`, the arrows,
+  `Enter` and `Esc`. Nor the search box's own editing keys: select all, copy, cut, paste, undo and redo, and
+  moving through the line by word or to either end. The second press of a chord is free of all of these:
   `Ctrl+K, Ctrl+N` is a chord of its own.
 - **System-wide keys.** A shortcut can't start on a summon key or a snippet's hotkey, since the OS hands
   that press to the hotkey before the window ever sees it — and for the same reason a hotkey can't be where
@@ -152,4 +153,5 @@ Empty, or absent in an older file, means none. A shortcut is written as the edit
 comma between its presses; VS Code's space-separated `ctrl+k ctrl+l` reads too. A hotkey is written as the
 summon keys are. If an edit or an import leaves two snippets with the same keys, the first in the file keeps
 them, and a shortcut that could never fire — one starting on typing, or on one of Klippy's own keys — is
-left unbound.
+left unbound. That includes `Ctrl+1` to `Ctrl+9` on their own, which became Klippy's when the offer bands were
+numbered: a snippet given one of those before keeps it in the file, unbound, until you give it other keys.

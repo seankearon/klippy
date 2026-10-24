@@ -7,10 +7,11 @@ namespace Klippy.Services;
 ///
 /// The window's handler (<c>MainWindow.PreviewKeyDown</c>) sees every press on its way down, before the search
 /// box does, and acts on a fixed set: Ctrl/⌘ with N, F, E, D, I, P, R, comma or Enter — whatever else is held
-/// with it — and F2, the arrows, Enter and Esc. A snippet shortcut that starts on one of those could never be
-/// reached. Nor could one that starts on a key the search box uses for editing, since that box has the
-/// keyboard almost all the time: select all, copy, cut, paste, undo and redo, and moving through the line by
-/// word or to either end.
+/// with it — Ctrl/⌘ with a digit from 1 to 9 held on its own, and F2, the arrows, Enter and Esc. A snippet
+/// shortcut that starts on one of those could never be reached — or, for a digit, could be reached only until
+/// a search put up more than one offer, which is the same surprise arriving later. Nor could one that starts
+/// on a key the search box uses for editing, since that box has the keyboard almost all the time: select all,
+/// copy, cut, paste, undo and redo, and moving through the line by word or to either end.
 ///
 /// Only the <em>first</em> press of a shortcut is checked. The second press of a chord is heard ahead of all
 /// of these, so <c>Ctrl+K, Ctrl+N</c> is free to mean something of its own.
@@ -46,6 +47,10 @@ public static class KlippyKeys
                 _ => null,
             };
             if (name is not null) return name;
+
+            // The numbered offers: Ctrl/⌘+1 runs the top band, and so on down.
+            if (mods == command && stroke.Key is >= Key.D1 and <= Key.D9)
+                return "Run an offer";
 
             // The search box's own editing keys, held exactly as it expects them.
             if (mods == command && stroke.Key is Key.A or Key.C or Key.V or Key.X or Key.Z or Key.Y)

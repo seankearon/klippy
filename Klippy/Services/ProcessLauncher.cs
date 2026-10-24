@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -32,7 +33,7 @@ public static class ProcessLauncher
         if (plan.Kind == ExecutionKind.None)
             return ExecutionResult.Failed(plan.Problem);
 
-        if (ExecutionPolicy.Resolve(plan, ExecutionPolicy.CurrentPlatform, IsExecutable) is not { } command)
+        if (ExecutionPolicy.Resolve(plan, ExecutionPolicy.CurrentPlatform, IsExecutable, OnPath) is not { } command)
             return ExecutionResult.Failed("Klippy cannot run that on this platform.");
 
         // Before the start, and waited for: the whole point is that what runs is the
@@ -55,9 +56,12 @@ public static class ProcessLauncher
             start.ArgumentList.Add(argument);
 
         // A script is written expecting to run from its own folder, and an application
-        // started from its folder is what double-clicking one does.
-        if (plan.Kind is ExecutionKind.Script or ExecutionKind.Application
-            && DirectoryOf(plan.Target) is { } directory)
+        // started from its folder is what double-clicking one does. A console says where
+        // it starts itself, that being the whole of what it is for.
+        if (command.WorkingDirectory is { } workingDirectory)
+            start.WorkingDirectory = workingDirectory;
+        else if (plan.Kind is ExecutionKind.Script or ExecutionKind.Application
+                 && DirectoryOf(plan.Target) is { } directory)
             start.WorkingDirectory = directory;
 
         try
@@ -199,7 +203,7 @@ public static class ProcessLauncher
         ExecutionKind.Document when !File.Exists(plan.Target) =>
             $"File not found: {plan.Target}",
 
-        ExecutionKind.Folder when !Directory.Exists(plan.Target) =>
+        ExecutionKind.Folder or ExecutionKind.Console when !Directory.Exists(plan.Target) =>
             $"Folder not found: {plan.Target}",
 
         // Explorer asked to select what is not there opens a folder of its own choosing and
@@ -210,6 +214,27 @@ public static class ProcessLauncher
 
         _ => null,
     };
+
+    /// <summary>
+    /// Whether <paramref name="program"/> is in one of the folders on <c>PATH</c> — asked only
+    /// to choose a console. The Store puts Windows Terminal's <c>wt.exe</c> in
+    /// <c>WindowsApps</c>, which is on a user's <c>PATH</c> unless something took it off, so
+    /// that folder is looked in either way.
+    /// </summary>
+    private static bool OnPath(string program)
+    {
+        var folders = new List<string>(
+            (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator,
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (OperatingSystem.IsWindows())
+            folders.Add(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps"));
+
+        foreach (var folder in folders)
+            if (File.Exists(Path.Combine(folder.Trim('"'), program)))
+                return true;
+        return false;
+    }
 
     private static bool IsExecutable(string path)
     {

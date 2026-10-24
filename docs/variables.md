@@ -232,21 +232,23 @@ The rest of the rules:
 A define is somewhere to go as well as something to paste. Type its name into the search box
 on its own — `klippy`, or `%klippy%`, which is the same request — and Klippy offers each
 value it stands for, one band apiece above the list, as it offers any
-[line that names something runnable](unmatched-search.md). With the file from the section
-above:
+[line that names something runnable](unmatched-search.md) — and, where a value is a path,
+a [console](#a-console-there) in that place. With the file from the section above:
 
 | Band | Reached by |
 |---|---|
-| **Show in Explorer** `D:\main\Klippy\Klippy.slnx` | `Enter` — this is what `klippy` means on its own |
-| **Open folder** `D:\main\Klippy` | `↓` and then `Enter`, or a click |
+| **Show in Explorer** `D:\main\Klippy\Klippy.slnx` | `Enter` — this is what `klippy` means on its own — or `Ctrl/⌘+1` |
+| **Open folder** `D:\main\Klippy` | `↓` and then `Enter`, `Ctrl/⌘+2`, or a click |
+| **Open console** `D:\main\Klippy` | `↓` twice, or `Ctrl/⌘+3` |
 
 and with `.slnx` among the [kinds of file to open](running-things.md#opening-other-kinds-of-file):
 
 | Band | Reached by |
 |---|---|
-| **Open file** `D:\main\Klippy\Klippy.slnx` | `Enter` — in whatever your machine opens a solution with |
-| **Show in Explorer** `D:\main\Klippy\Klippy.slnx` | `↓` once |
-| **Open folder** `D:\main\Klippy` | `↓` twice |
+| **Open file** `D:\main\Klippy\Klippy.slnx` | `Enter` — in whatever your machine opens a solution with — or `Ctrl/⌘+1` |
+| **Show in Explorer** `D:\main\Klippy\Klippy.slnx` | `↓` once, or `Ctrl/⌘+2` |
+| **Open folder** `D:\main\Klippy` | `↓` twice, or `Ctrl/⌘+3` |
+| **Open console** `D:\main\Klippy` | `↓` three times, or `Ctrl/⌘+4` |
 
 - **The value the name means on its own comes first** and has `Enter`: the last of its
   lines, which is what `%klippy%` in an item reads. Then its other lines, and then each
@@ -262,6 +264,14 @@ and with `.slnx` among the [kinds of file to open](running-things.md#opening-oth
   wants come off, as they do when a marked item runs.
 - **A file that opens is also offered to be shown**, in the band straight after it, since
   being able to open a file is no reason to lose the way to where it is.
+- **A path is also offered as a [console](#a-console-there)** — in the folder, or for a
+  file, in the folder the file is in — after all the values, since it is a second way into
+  places already on offer. A folder and a file in it come to one console between them.
+- **With more than one band, each carries its number**, `Ctrl+1` at the top on down to
+  `Ctrl+9` — `⌘1` and on, on a Mac — and pressing it runs that band as a click would,
+  wherever the selection is: a row that has `Enter` keeps it, and the number reaches past
+  it. A band on its own carries none, since there is nothing to choose between and `Enter`
+  or `↑` gets there. A [machine control](unmatched-search.md) still asks first.
 - **Three things are narrower than for an item**, because this is an offer drawn on a
   keystroke rather than a line someone chose to run. A value with a `%P%` or `%C%` in it is
   a template for an item rather than a place to go, and is left out. A path has to be
@@ -292,6 +302,27 @@ and with `.slnx` among the [kinds of file to open](running-things.md#opening-oth
 
 It goes with the rest of the offers: desktop only, and off when **Run it** is off in
 [Settings](settings.md).
+
+### A console there
+
+A value that is a path — a folder, or a file Klippy would open or show — is also offered as
+**Open console**: a terminal started in that folder, or in the folder the file is in, with
+nothing typed into it. The shell that starts is the one you would have started yourself; none
+of the value runs. A link is no place to open one, and nor is a script or a program: those are
+things to run rather than somewhere to be, and their folder is only where they happen to live.
+
+| Platform | What starts |
+|---|---|
+| Windows | **Windows Terminal**, `wt -d <folder>`, in whatever profile you made its default. Without it, PowerShell — 7 (`pwsh`) where it is installed, Windows PowerShell otherwise — in a window of its own, started in the folder |
+| macOS | `open -a Terminal <folder>` — a Terminal window there |
+| Linux | `x-terminal-emulator` started in the folder: the terminal Debian and Ubuntu let you choose |
+
+It is how [Fido](https://github.com/seankearon/fido)'s Console tool opens a terminal when
+it is left to choose one. Windows Terminal reads a semicolon anywhere on its
+command line as the start of a second command, so a folder with one in its name goes to
+PowerShell instead, which is told nothing but where to start. A folder that is not there
+says so in the toast, as opening one does. **The macOS and Linux commands compile but have
+not been run**, as with the other macOS and Linux commands Klippy carries.
 
 ## Getting at the file
 

@@ -462,7 +462,12 @@ public partial class MainViewModel : ViewModelBase
         if (Offers.Count > 0 || offers.Count > 0)
         {
             Offers.Clear();
-            foreach (var offer in offers) Offers.Add(offer);
+            foreach (var offer in offers)
+            {
+                // Numbered only where there is a choice to make, and only as far as a digit goes.
+                if (offers.Count > 1 && Offers.Count < NumberedOffers) offer.Number = Offers.Count + 1;
+                Offers.Add(offer);
+            }
             OnPropertyChanged(nameof(Offer));
             OnPropertyChanged(nameof(HasOffers));
         }
@@ -473,6 +478,23 @@ public partial class MainViewModel : ViewModelBase
     }
 
     partial void OnSelectedSnippetChanged(RowViewModel? value) => SyncOfferSelection();
+
+    /// <summary>How many offers <c>Ctrl/⌘</c> and a digit reach: the top nine, 1 to 9.</summary>
+    public const int NumberedOffers = 9;
+
+    /// <summary>
+    /// Runs the offer that carries <paramref name="number"/> — <c>Ctrl/⌘+2</c> for the second
+    /// band — exactly as clicking it would, a machine control's confirmation included, and
+    /// whichever band or row holds the selection, which it leaves where it is. False when no
+    /// band carries that number: there is no second band, or only one band and so nothing to
+    /// choose between, and the key is left to whatever else wants it.
+    /// </summary>
+    public bool RunNumberedOffer(int number)
+    {
+        if (number < 1 || Offers.FirstOrDefault(o => o.Number == number) is not { } offer) return false;
+        RunOfferCommand.Execute(offer);
+        return true;
+    }
 
     /// <summary>
     /// Tells each offer whether it is the one holding the selection, after anything that

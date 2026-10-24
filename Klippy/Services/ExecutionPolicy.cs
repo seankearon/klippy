@@ -42,6 +42,14 @@ public enum ExecutionKind
     /// </summary>
     Reveal,
 
+    /// <summary>
+    /// A console opened in a folder: the platform's terminal, started there, with nothing
+    /// typed into it. Only ever offered for a place a variable's value names — see
+    /// <see cref="UnmatchedSearch.PlanDefine"/> — and, like a folder, it runs nothing of the
+    /// value's: the shell that starts is the one you would have started yourself.
+    /// </summary>
+    Console,
+
     /// <summary>A machine-level action: lock, sleep, hibernate or restart.</summary>
     System,
 }
@@ -104,6 +112,7 @@ public sealed record ExecutionPlan
         ExecutionKind.Folder => "Opening " + ExecutionPolicy.FolderName(Target),
         ExecutionKind.Document => "Opening " + ExecutionPolicy.FileNameOf(Target),
         ExecutionKind.Reveal => "Showing " + ExecutionPolicy.FileNameOf(Target),
+        ExecutionKind.Console => "Opening a console in " + ExecutionPolicy.FolderName(Target),
         ExecutionKind.System => Action switch
         {
             SystemAction.Lock => "Locking the screen",
@@ -134,7 +143,13 @@ public sealed record ExecutionPlan
 /// Everything else is started directly, so a macro's value can never be re-read as part
 /// of a command line.
 /// </param>
-public sealed record LaunchCommand(string FileName, string[] Arguments, bool UseShellExecute = false);
+/// <param name="WorkingDirectory">
+/// Where the process starts, when that is the point of starting it — a console, which most
+/// terminals open in the folder they were started in rather than in one they are told. Null
+/// leaves it to <see cref="ProcessLauncher"/>.
+/// </param>
+public sealed record LaunchCommand(
+    string FileName, string[] Arguments, bool UseShellExecute = false, string? WorkingDirectory = null);
 
 /// <summary>
 /// Decides what an item's text means when the user picks Execute, and which process
@@ -529,6 +544,33 @@ public static class ExecutionPolicy
     }
 
     /// <summary>
+    /// What opening a console at a path comes to: a terminal started in the folder, or — for
+    /// a file — in the folder the file is in, which is where anyone wanting a prompt beside a
+    /// solution or a script wants it. Like <see cref="Reveal(string, bool, ExecutionPlatform)"/>,
+    /// whether it is a folder is the caller's answer; nothing here looks.
+    ///
+    /// A folder loses a trailing separator, so <c>D:\work\</c> and the folder
+    /// <c>D:\work\notes.txt</c> is in are one console rather than two — except at a root,
+    /// where <c>D:</c> alone would be drive-relative.
+    /// </summary>
+    public static ExecutionPlan ConsoleAt(string path, bool isFolder, ExecutionPlatform platform)
+    {
+        var folder = isFolder ? WithoutTrailingSeparator(path) : FolderOf(path);
+
+        // A path rooted at "/" names nothing on Windows for a terminal to start in.
+        if (platform == ExecutionPlatform.Windows && !IsWindowsPath(folder))
+            return Nothing($"\"{Ellipsis(folder)}\" is not a Windows path: it has no drive or share.");
+
+        return new ExecutionPlan { Kind = ExecutionKind.Console, Target = folder };
+    }
+
+    private static string WithoutTrailingSeparator(string path)
+    {
+        var trimmed = path.TrimEnd(PathSeparators);
+        return trimmed.Length == 0 || (trimmed.Length == 2 && trimmed[1] == ':') ? path : trimmed;
+    }
+
+    /// <summary>
     /// What showing <paramref name="text"/> in the file manager would mean: the gesture that
     /// asks where a row's file is. Any row may make it, marked or not, since showing
     /// something runs nothing.
@@ -611,8 +653,7 @@ public static class ExecutionPolicy
     {
         // A drive or a share, never a switch. A path rooted at "/" is a Unix path, and names
         // nothing on this machine for Explorer to show.
-        bool drive = path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/';
-        if (!drive && !path.StartsWith(@"\\", StringComparison.Ordinal))
+        if (!IsWindowsPath(path))
             return $"\"{Ellipsis(path)}\" is not a Windows path: it has no drive or share.";
 
         if (path.Contains(',') && !ContainsWhitespace(path))
@@ -620,6 +661,11 @@ public static class ExecutionPolicy
 
         return null;
     }
+
+    /// <summary>Whether a path starts at a drive or a share — the only places a Windows path can start.</summary>
+    private static bool IsWindowsPath(string path) =>
+        (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/')
+        || path.StartsWith(@"\\", StringComparison.Ordinal);
 
     /// <summary>
     /// Whether a macOS folder might be a package — an app, a preference pane, an installer —
@@ -819,10 +865,16 @@ public static class ExecutionPolicy
     /// system so this stays pure. Only consulted for POSIX shell scripts, where an
     /// executable script's <c>#!</c> line should pick its own interpreter.
     /// </param>
+    /// <param name="onPath">
+    /// Whether a program by that name can be found — asked of the caller for the same reason.
+    /// Only consulted for a console on Windows, where Windows Terminal is preferred but not
+    /// always there. Null takes everything asked about as installed.
+    /// </param>
     public static LaunchCommand? Resolve(
         ExecutionPlan plan,
         ExecutionPlatform platform,
-        Func<string, bool>? isExecutable = null) => plan.Kind switch
+        Func<string, bool>? isExecutable = null,
+        Func<string, bool>? onPath = null) => plan.Kind switch
     {
         // A link and a document are the same gesture to the OS: hand it the thing and let
         // the user's own default decide what opens it. Except a browser's own page, which
@@ -853,9 +905,38 @@ public static class ExecutionPolicy
             // be selected in it. The folder it is in opens, which is most of the answer.
             _ => new LaunchCommand("xdg-open", [FolderOf(plan.Target)]),
         },
+        ExecutionKind.Console => ConsoleCommand(plan.Target, platform, onPath ?? (_ => true)),
         ExecutionKind.System => SystemCommand(plan.Action, platform),
         _ => null,
     };
+
+    /// <summary>
+    /// A terminal started in <paramref name="folder"/>, as Fido's Console tool starts one.
+    /// Most terminals open where they were started, so the folder is the working directory
+    /// rather than an argument — except Windows Terminal, which opens in its profile's
+    /// starting folder unless told otherwise with <c>-d</c>, and macOS, where a terminal is
+    /// an application <c>open -a</c> hands the folder to.
+    ///
+    /// On Windows, Windows Terminal in whatever profile you made its default, and failing
+    /// that PowerShell — 7 where it is installed — in a window of its own. Through the shell,
+    /// which is what finds the Store's <c>wt.exe</c> alias and gives a console program a window.
+    /// Windows Terminal reads a semicolon anywhere on its command line as the start of a
+    /// second command, so a folder with one in it goes to PowerShell, which is told nothing
+    /// but where to start.
+    /// </summary>
+    private static LaunchCommand ConsoleCommand(string folder, ExecutionPlatform platform, Func<string, bool> onPath) =>
+        platform switch
+        {
+            ExecutionPlatform.Windows when onPath("wt.exe") && !folder.Contains(';') =>
+                new LaunchCommand("wt.exe", ["-d", folder], UseShellExecute: true, WorkingDirectory: folder),
+            ExecutionPlatform.Windows =>
+                new LaunchCommand(onPath("pwsh.exe") ? "pwsh.exe" : "powershell.exe", [],
+                    UseShellExecute: true, WorkingDirectory: folder),
+            ExecutionPlatform.MacOS => new LaunchCommand("open", ["-a", "Terminal", folder]),
+            // There is no one terminal on Linux; this is the name Debian and Ubuntu give the
+            // one you chose, and it opens where it is started.
+            _ => new LaunchCommand("x-terminal-emulator", [], WorkingDirectory: folder),
+        };
 
     /// <summary>
     /// A path in the separator Explorer expects. <c>D:/media</c> is a path to everything
