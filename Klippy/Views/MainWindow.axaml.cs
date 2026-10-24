@@ -285,6 +285,12 @@ public partial class MainWindow : Window
                 vm.Navigate(-1);
                 e.Handled = true;
                 break;
+            case Key.Delete:
+                // Forgets the command being browsed in the MRU. With none, it is the search
+                // box's, deleting forward as ever.
+                if (e.KeyModifiers == KeyModifiers.None && vm.ForgetSelectedCommand())
+                    e.Handled = true;
+                break;
             case Key.Enter:
                 // A selected row always wins: running an unmatched search is what Enter
                 // falls back to, never what it prefers.

@@ -1175,6 +1175,28 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public void AcceptCommand() => CloseCommands(restore: false);
 
+    /// <summary>
+    /// Delete on the command being browsed: forgets it, and the highlight moves to the
+    /// one that takes its place, so a run of presses clears a run of them. Forgetting the
+    /// last one puts the MRU away and puts back what was typed. Returns false when no
+    /// command is being browsed — the MRU closed, or only on offer while typing — which
+    /// leaves Delete to the search box.
+    /// </summary>
+    public bool ForgetSelectedCommand()
+    {
+        if (!IsCommandsOpen || _commands is null || SelectedCommand is not { } command) return false;
+
+        int index = Commands.IndexOf(command);
+        _commands.Forget(command);
+        Commands.RemoveAt(index);
+
+        if (Commands.Count == 0) CloseCommands(restore: true);
+        else SelectedCommand = Commands[Math.Min(index, Commands.Count - 1)];
+
+        OnPropertyChanged(nameof(SearchWatermark)); // forgetting the last takes "↓ recent" with it
+        return true;
+    }
+
     partial void OnSelectedCommandChanged(string? value)
     {
         // Browsing shows the command in the search box, and so on the row underneath:

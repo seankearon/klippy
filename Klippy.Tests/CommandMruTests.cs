@@ -72,6 +72,7 @@ public class CommandMruTests
             Key.Down => PhysicalKey.ArrowDown,
             Key.Up => PhysicalKey.ArrowUp,
             Key.Enter => PhysicalKey.Enter,
+            Key.Delete => PhysicalKey.Delete,
             _ => PhysicalKey.Escape,
         }, null);
 
@@ -365,6 +366,100 @@ public class CommandMruTests
         Assert.Single(ran);
         Assert.Equal("https://www.google.com/search?q=cats", ran[0].Target);
         // Recalled and run is used again: it stays at the top rather than doubling up.
+        Assert.Equal(new[] { "? cats" }, commands.Commands);
+    }
+
+    // ---- forgetting ----
+
+    [AvaloniaFact]
+    public void DeleteForgetsTheCommandBeingBrowsedAndMovesOnToTheNext()
+    {
+        var (vm, commands) = NewVm("dp", "ooo", "? cats");
+        var window = Open(vm);
+
+        Press(window, Key.Down);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("? cats", vm.FilterText);
+
+        Press(window, Key.Delete);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(new[] { "ooo", "dp" }, commands.Commands);
+        Assert.True(vm.IsCommandsOpen);
+        Assert.Equal(new[] { "ooo", "dp" }, vm.Commands);
+        // The one that took its place is highlighted, and in the box, as an arrow would have it.
+        Assert.Equal("ooo", vm.SelectedCommand);
+        Assert.Equal("ooo", vm.FilterText);
+    }
+
+    [AvaloniaFact]
+    public void ForgettingTheBottomCommandMovesTheHighlightUp()
+    {
+        var (vm, commands) = NewVm("dp", "? cats");
+        var window = Open(vm);
+
+        Press(window, Key.Down);
+        Press(window, Key.Down);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("dp", vm.FilterText);
+
+        Press(window, Key.Delete);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(new[] { "? cats" }, commands.Commands);
+        Assert.Equal("? cats", vm.SelectedCommand);
+        Assert.Equal("? cats", vm.FilterText);
+    }
+
+    [AvaloniaFact]
+    public void ForgettingTheLastOnOfferPutsTheMruAwayAndPutsBackWhatWasTyped()
+    {
+        var (vm, commands) = NewVm("dp", "? cats and dogs");
+        var window = Open(vm);
+
+        vm.FilterText = "? c";
+        Press(window, Key.Down);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("? cats and dogs", vm.FilterText);
+
+        Press(window, Key.Delete);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.IsCommandsOpen);
+        Assert.Equal("? c", vm.FilterText);
+        Assert.Equal(new[] { "dp" }, commands.Commands); // only what was on offer went
+    }
+
+    [AvaloniaFact]
+    public void ForgettingEveryCommandTakesTheKeyOffTheSearchBox()
+    {
+        var (vm, commands) = NewVm("? cats");
+        var window = Open(vm);
+        Assert.Contains("↓ recent", vm.SearchWatermark);
+
+        Press(window, Key.Down);
+        Press(window, Key.Delete);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(commands.Commands);
+        Assert.False(vm.IsCommandsOpen);
+        Assert.Equal("", vm.FilterText);
+        Assert.DoesNotContain("recent", vm.SearchWatermark);
+    }
+
+    [AvaloniaFact]
+    public void WhileTypingWithNothingHighlightedDeleteIsTheSearchBoxs()
+    {
+        var (vm, commands) = NewVm("? cats");
+        var window = Open(vm);
+
+        vm.FilterText = "? c";
+        Assert.True(vm.IsCommandsOpen);
+        Assert.Null(vm.SelectedCommand);
+
+        Press(window, Key.Delete);
+        Dispatcher.UIThread.RunJobs();
+
         Assert.Equal(new[] { "? cats" }, commands.Commands);
     }
 
