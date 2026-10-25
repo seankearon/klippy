@@ -942,7 +942,7 @@ public static class ExecutionPolicy
     /// A path in the separator Explorer expects. <c>D:/media</c> is a path to everything
     /// else on Windows, but <c>/select,</c> finds nothing to select in it.
     /// </summary>
-    private static string ForExplorer(string path) => path.Replace('/', '\\');
+    internal static string ForExplorer(string path) => path.Replace('/', '\\');
 
     /// <summary>
     /// The folder a path is in, cut at either separator for the reason

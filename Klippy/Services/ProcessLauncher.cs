@@ -67,6 +67,12 @@ public static class ProcessLauncher
         try
         {
             using var process = Process.Start(start);
+
+            // Explorer selects the file itself, unless a tab utility moves its window into a
+            // tab first; this sees it selected in whichever tab it lands in.
+            if (plan.Kind == ExecutionKind.Reveal && OperatingSystem.IsWindows())
+                ExplorerSelection.SelectWhenShown(ExecutionPolicy.ForExplorer(plan.Target));
+
             return new ExecutionResult(true, Note(plan.Description, pulled));
         }
         catch (Exception e) when (e is Win32Exception or InvalidOperationException or IOException
