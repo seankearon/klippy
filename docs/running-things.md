@@ -400,7 +400,7 @@ them. If nothing is there, its first word is tried the way a run reads it, so a 
 
 | Platform | What it runs |
 |---|---|
-| Windows | `explorer.exe` with the folder, or `explorer.exe /select, <file>` |
+| Windows | `explorer.exe` with the folder, or `explorer.exe /select, <file>` — and then the file is selected again in each Explorer window or tab showing its folder, so it still ends up selected when a tab utility such as ExplorerTabUtility moves the new window into a tab |
 | macOS | `open <folder>`, or `open -R <file>` — Finder's *Show in Enclosing Folder* |
 | Linux | `xdg-open` with the folder — for a file, the folder it is in, since there is no one file manager to ask for a selection in |
 
