@@ -1,0 +1,12 @@
+i'm releasing klippy using release.ps1 and i get this error: 
+
+<pasted_content id="bbc7">
+Unhandled exception: AvaloniaUI.Licensing.AvaloniaLicensingException: To authenticate Parcel CLI tool, you either need to pass "--license-key" parameter, set "AVALONIA_TOOLS_LICENSE_KEY" env variable, or have an unexpired session in Parcel GUI app.
+   at AvaloniaUI.Parcel.Console.ParcelConsoleAction.<ValidateAuthentication>d__6.MoveNext() + 0x17c
+--- End of stack trace from previous location ---
+   at AvaloniaUI.Parcel.Console.ParcelConsoleAction.<InvokeAsync>d__2.MoveNext() + 0x290
+--- End of stack trace from previous location ---
+   at AvaloniaUI.Parcel.Console.ParcelConsoleAction.<InvokeAsync>d__2.MoveNext() + 0x771
+--- End of stack trace from previous location ---
+   at System.CommandLine.Invocation.InvocationPipeline.<InvokeAsync>d__0.MoveNext() + 0xc5
+</pasted_content id="bbc7">
