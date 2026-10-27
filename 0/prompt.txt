@@ -1,0 +1,2 @@
+I use this explorer utility https://github.com/w4po/ExplorerTabUtility
+could that be the cause
