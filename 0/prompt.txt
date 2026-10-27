@@ -1,0 +1,20 @@
+release failed on a test run: 
+
+<pasted_content id="ecd4">
+Test run for D:\main\klippy\Klippy.Tests\bin\Release\net10.0\Klippy.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+  Failed Klippy.Tests.TransferTests.TransferViewModel_ImportPreview_ThenTagFilteredImport [6 ms]
+  Error Message:
+   System.UnauthorizedAccessException : Access to the path is denied.
+  Stack Trace:
+     at System.IO.FileSystem.MoveFile(String sourceFullPath, String destFullPath, Boolean overwrite)
+   at Klippy.Services.SnippetStore.Save() in D:\main\klippy\Klippy\Services\SnippetStore.cs:line 255
+   at Klippy.Services.SnippetStore.Add(Snippet snippet) in D:\main\klippy\Klippy\Services\SnippetStore.cs:line 78
+   at Klippy.Tests.TransferTests.TransferViewModel_ImportPreview_ThenTagFilteredImport() in D:\main\klippy\Klippy.Tests\TransferTests.cs:line 197
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Failed!  - Failed:     1, Passed:   728, Skipped:     0, Total:   729, Duration: 9 s - Klippy.Tests.dll (net10.0)
+
+[xUnit.net 00:00:00.21]     Klippy.Tests.TransferTests.TransferViewModel_ImportPreview_ThenTagFilteredImport [FAIL]
+</pasted_content id="ecd4">
