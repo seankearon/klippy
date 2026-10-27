@@ -1,0 +1,3 @@
+When I paste a path into Klippy, it offers to show in explorer (i'm on windows here), but the file isn't selected in File Explorer when it opens.  is that my machine, or is there a change needed in Klippy?
+
+C:\Users\sean\AppData\Local\Temp\claude\D--shine-bolddesk-archive\d668a90e-7d01-4cd2-a6b3-922fb6e1318d\scratchpad\prolec-pirform-requests.md.
