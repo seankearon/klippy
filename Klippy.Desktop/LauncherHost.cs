@@ -67,6 +67,13 @@ internal sealed class LauncherHost : IDisposable
             };
         }
 
+        // Signing out, restarting or shutting down asks every app to end — as does Quit from
+        // the macOS app menu — and the lifetime answers by closing the windows. Left to the
+        // handler above, that close would be turned into a hide, the request refused, and
+        // Windows would name Klippy as what is stopping it. So the request is a quit: it
+        // ends what Quit ends, and leaves the closing to the lifetime that asked.
+        _lifetime.ShutdownRequested += OnShutdownRequested;
+
         if (_lifetime.MainWindow is Klippy.Views.MainWindow main)
         {
             main.HideRequested = () => Dismiss(main);
@@ -517,16 +524,36 @@ internal sealed class LauncherHost : IDisposable
 
     private void Quit()
     {
-        // Quitting from the tray with the window up never passes through Dismiss.
+        EndSession();
+        _lifetime.Shutdown();
+    }
+
+    /// <summary>
+    /// The OS, or the macOS app menu, asking Klippy to end. Unless something else has
+    /// already said no, it ends as Quit does — except that the lifetime, which asked, does
+    /// the closing, and on Windows answers the OS once the windows have gone.
+    /// </summary>
+    private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    {
+        if (!e.Cancel) EndSession();
+    }
+
+    /// <summary>
+    /// What every way out does before the lifetime ends: notes where the window is, lets
+    /// its close through, and gives back the hotkeys and the tray icon.
+    /// </summary>
+    private void EndSession()
+    {
+        // Quitting with the window up never passes through Dismiss.
         if (_lifetime.MainWindow is { } window) RememberBounds(window);
 
         _shuttingDown = true;
         Dispose();
-        _lifetime.Shutdown();
     }
 
     public void Dispose()
     {
+        _lifetime.ShutdownRequested -= OnShutdownRequested;
         _hotkey?.Dispose();
         _hotkey = null;
         _historyHotkey?.Dispose();
