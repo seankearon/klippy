@@ -1378,7 +1378,10 @@ public partial class MainViewModel : ViewModelBase
             // Which snippet file is open right now, so a path typed there can say whether
             // it is in force or waiting on a restart. From the store itself rather than
             // from the settings, which are what the screen is about to change.
-            snippetsInUse: _store.FilePath);
+            snippetsInUse: _store.FilePath,
+            // Whatever this platform keeps for starting at login, read afresh each time
+            // Settings opens: Task Manager or System Settings may have changed it since.
+            loginItem: LoginItem.Current);
 
     /// <summary>
     /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns

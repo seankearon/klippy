@@ -7,8 +7,8 @@ description: "Every setting and what it changes."
 
 Three preferences change what a copy puts on the clipboard, all about Markdown, two more
 say whether a copy dismisses the window, one brings a script's folder up to date before it
-runs, a list adds kinds of file and of link to open, three govern running an unmatched search, and one
-says where the window lands when you summon it. Open with the **settings** footer link
+runs, a list adds kinds of file and of link to open, three govern running an unmatched search, one
+starts Klippy when you log in, and one says where the window lands when you summon it. Open with the **settings** footer link
 (`Ctrl/⌘+,`) on desktop, or the sliders button in the mobile header — Android shows no
 window chrome, so there is no footer to reach.
 
@@ -70,6 +70,44 @@ In `settings.json`:
   "ExecuteOpenSchemes": []
 }
 ```
+
+One more, on Windows and macOS, says whether Klippy **starts when you log in**.
+
+| Toggle | On | Off (default) |
+|---|---|---|
+| **Start at login** | Klippy starts as you log in, put away behind its tray or menu-bar icon, so the hotkeys work from the first minute | It starts when you start it |
+
+It comes up the way a dismissed Klippy is — no window, just the icon and the hotkeys —
+since logging in is not asking for a window. The first summons brings the window up, where
+**ON SUMMON** below says. Starting Klippy by hand with `--background` does the same.
+
+There is no key for it in `settings.json`. The setting *is* the platform's own list of what
+starts at login: read when Settings opens and written as the toggle flips, so it never says
+something the next login will not do.
+
+- **Windows** keeps it as a `Klippy` value under
+  `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, holding
+  `"…\Klippy.Desktop.exe" --background`. That is the list Task Manager's **Startup apps** and
+  Settings' **Apps › Startup** show, so Klippy appears there by name. Switched off there, it
+  reads as off here, and turning it on here switches it back on there too. It is per user, so
+  nothing asks for an administrator.
+- **macOS** keeps it as a LaunchAgent,
+  `~/Library/LaunchAgents/com.seankearon.klippy.login.plist`, which runs
+  `open -g -a /Applications/Klippy.app --args --background` at login — through `open`, which
+  is what starts an app as an app, and `-g`, so it does not take the foreground. macOS
+  notes a new one with a notification and lists it under **System Settings › General ›
+  Login Items**. Switching it off *there* leaves the file in place, and macOS gives an app no
+  way to see that switch, so Klippy's toggle goes on reading on; switch it off here instead,
+  which removes the file. A LaunchAgent rather than the newer login-item API because that API
+  needs macOS 13, Klippy runs on 12, and it cannot pass `--background`. **This has not been
+  run on a Mac**, for the same reason as the macOS hotkey: it cannot be tested from Windows.
+
+It names the copy of Klippy that was running when it was turned on. Run a different copy —
+a portable one, or a build of your own — and the line beside the toggle says which copy
+starts at login instead of claiming it is this one; turn it off and on again from the copy
+you want. Uninstalling does not take it away, so turn it off first, or Windows goes on
+listing an entry that starts nothing. Linux desktops each keep their own list, so the toggle
+is not offered there, nor on mobile, which has no login to start at.
 
 One more, desktop only, says where the window lands when a key summons it. Klippy is
 resident, so by default it comes back exactly where you left it — which is worth keeping
