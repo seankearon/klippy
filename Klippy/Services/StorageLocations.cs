@@ -39,6 +39,9 @@ public static class StorageLocations
     /// <inheritdoc cref="HistoryFileName"/>
     public const string CommandsFileName = "command.history.json";
 
+    /// <summary>The launcher window's size and position — see <see cref="WindowBounds"/>.</summary>
+    public const string WindowFileName = "window.json";
+
     /// <summary>What those two were called up to 1.0.20. See <see cref="MigrateLegacyNames"/>.</summary>
     private const string LegacyHistoryFileName = "history.json";
 
@@ -138,6 +141,12 @@ public static class StorageLocations
     /// on uninstall" choice is about snippet data, and this is not that.
     /// </summary>
     public static string CommandsPath => Path.Combine(DefaultDirectory, CommandsFileName);
+
+    /// <summary>
+    /// Where the window was left. Always <see cref="DefaultDirectory"/>: a position is a
+    /// place on this machine's monitors, and means nothing on another machine's.
+    /// </summary>
+    public static string WindowPath => Path.Combine(DefaultDirectory, WindowFileName);
 
     /// <summary>
     /// Where a backup-exempt snippet store would sit, or null when there is no such place

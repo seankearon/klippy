@@ -79,7 +79,7 @@ a screen you have since turned away from.
 
 | Choice | Where the window appears |
 |---|---|
-| **Where it was** (default) | Wherever it last sat — what Klippy has always done |
+| **Where it was** (default) | Wherever it last sat — including across a restart, and centred on the main screen instead if that place is no longer on any screen |
 | **Centre** | Centred on the screen the pointer is on |
 | **Pointer** | Hung from the mouse pointer, dropped far enough that the cursor lands on the search box, and nudged to stay fully on screen |
 
@@ -89,6 +89,14 @@ would otherwise be found rather than summoned: the activate would take you to it
 bringing it to you, which is the opposite of what a hotkey means. Klippy hides it first, and
 the show that follows lands it where you are. Nothing to configure, and nothing to pay on
 the usual path — a dismissed window is already hidden.
+
+Its **size** is remembered whichever you choose: resize the window and it opens that size next
+time, held to the screen it lands on so a window left filling a 4K monitor still fits a
+laptop's. Both are noted each time the window is put away or Klippy quits, in `window.json`
+beside `settings.json` — a file of its own, so the one you edit by hand is never rewritten
+behind your back, and never in the data folder, since where a window sat means nothing on
+another machine's monitors. A window put away minimised or maximised leaves the last normal
+size and place as they were. Delete `window.json` to go back to the defaults.
 
 It applies whenever Klippy comes back to you — the hotkeys, the tray icon, and the first
 appearance at launch — including when the window was left sitting behind whatever you were

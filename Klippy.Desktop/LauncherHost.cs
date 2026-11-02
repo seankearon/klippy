@@ -35,6 +35,9 @@ internal sealed class LauncherHost : IDisposable
 
     private MainViewModel? _watched;
 
+    /// <summary>What window.json holds as far as this run knows, so an Esc that moved nothing writes nothing.</summary>
+    private WindowBounds? _rememberedBounds;
+
     public LauncherHost(IClassicDesktopStyleApplicationLifetime lifetime, AppSettings settings)
     {
         _lifetime = lifetime;
@@ -73,12 +76,32 @@ internal sealed class LauncherHost : IDisposable
             main.QuitRequested = Quit;
         }
 
-        // The first appearance is a summon too. Nothing has been anywhere yet, so there is
-        // nothing for Remembered to remember, and a user who asked for Centre means it from
-        // the start. Before the framework's own Show, so it opens in place: the window is
-        // built by then but not yet shown, and Screens and Width/Height are already good.
-        if (_lifetime.MainWindow is { } startup && PlaceFor(startup) is { } at)
-            startup.Position = at;
+        // The first appearance is a summon too, so a user who asked for Centre means it from
+        // the start. Remembered means where the window was left last time Klippy ran, and its
+        // size is remembered whichever placement is chosen. Before the framework's own Show,
+        // so it opens in place: the window is built by then but not yet shown, and Screens and
+        // Width/Height are already good. Size before PlaceFor, which centres or hangs the
+        // window by it.
+        if (_lifetime.MainWindow is { } startup)
+        {
+            var remembered = RestoreBounds(startup);
+            if ((PlaceFor(startup) ?? remembered) is { } at)
+            {
+                startup.Position = at;
+
+                // And again once it is up, for the reason ShowWindow assigns twice: a window
+                // that opens on a monitor of different scaling from the one it was created on
+                // is answered with a rect of Windows' choosing. The same point twice costs
+                // nothing where the first held.
+                EventHandler? again = null;
+                again = (_, _) =>
+                {
+                    startup.Opened -= again;
+                    startup.Position = at;
+                };
+                startup.Opened += again;
+            }
+        }
 
         InstallAppMenu();
         InstallTray();
@@ -296,12 +319,77 @@ internal sealed class LauncherHost : IDisposable
     /// <summary>
     /// Putting the window away, however it was asked for: its own hotkey pressed twice,
     /// Esc, a copy that asked to be dismissed by, or the close button. What was being
-    /// asked goes with it — see <see cref="MainViewModel.Dismissed"/>.
+    /// asked goes with it — see <see cref="MainViewModel.Dismissed"/>. Where it was and how
+    /// big are noted on the way, so the next launch can put it back.
     /// </summary>
-    private static void Dismiss(Window window)
+    private void Dismiss(Window window)
     {
+        RememberBounds(window);
         (window.DataContext as MainViewModel)?.Dismissed();
         window.Hide();
+    }
+
+    /// <summary>
+    /// Puts the window back to the size it was left at, and says where it was left — fitted
+    /// to the screens there are now, or centred on the primary one when that place is on no
+    /// screen any more. Null when nothing has been remembered yet, which leaves the first
+    /// launch where the OS puts it, as it always was.
+    /// </summary>
+    private PixelPoint? RestoreBounds(Window window)
+    {
+        if (WindowBounds.Load() is not { } saved) return null;
+        _rememberedBounds = saved;
+
+        var minimum = new Size(window.MinWidth, window.MinHeight);
+        try
+        {
+            var all = window.Screens.All;
+            if ((window.Screens.Primary ?? all.FirstOrDefault()) is not { } primary)
+                throw new InvalidOperationException("No screens to place the window on.");
+
+            var (position, size) = PlacementPolicy.Restore(
+                saved, minimum,
+                all.Select(s => new ScreenArea(s.WorkingArea, s.Scaling)).ToList(),
+                new ScreenArea(primary.WorkingArea, primary.Scaling));
+
+            window.Width = size.Width;
+            window.Height = size.Height;
+            return position;
+        }
+        catch (Exception)
+        {
+            // Nothing will say where the screens are (see PlaceFor). The size is still the
+            // size, and the OS can choose where it goes.
+            window.Width = Math.Max(saved.Width, minimum.Width);
+            window.Height = Math.Max(saved.Height, minimum.Height);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Writes down where the window is and how big, for <see cref="RestoreBounds"/> to find
+    /// next launch. Only a window that is up and neither minimised nor maximised: a minimised
+    /// one sits where the OS parks it — -32000 on Windows — and a maximised one is the size
+    /// of its screen, and neither is where anybody left it. A hidden one was noted when it
+    /// was put away.
+    /// </summary>
+    private void RememberBounds(Window window)
+    {
+        if (!window.IsVisible || window.WindowState != WindowState.Normal) return;
+
+        // ClientSize rather than Width/Height, now that it is up and so describes the window:
+        // it is what a resize by hand changes, and Width/Height are set from it.
+        var bounds = new WindowBounds
+        {
+            X = window.Position.X,
+            Y = window.Position.Y,
+            Width = window.ClientSize.Width,
+            Height = window.ClientSize.Height,
+        };
+        if (!bounds.IsUsable || bounds == _rememberedBounds) return;
+
+        bounds.Save();
+        _rememberedBounds = bounds;
     }
 
     /// <summary>Kept for the tray icon, which has no view of its own to ask for.</summary>
@@ -429,6 +517,9 @@ internal sealed class LauncherHost : IDisposable
 
     private void Quit()
     {
+        // Quitting from the tray with the window up never passes through Dismiss.
+        if (_lifetime.MainWindow is { } window) RememberBounds(window);
+
         _shuttingDown = true;
         Dispose();
         _lifetime.Shutdown();
