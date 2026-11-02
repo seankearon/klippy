@@ -35,10 +35,29 @@ internal sealed class LauncherHost : IDisposable
 
     private MainViewModel? _watched;
 
-    public LauncherHost(IClassicDesktopStyleApplicationLifetime lifetime, AppSettings settings)
+    /// <summary>What window.json holds as far as this run knows, so an Esc that moved nothing writes nothing.</summary>
+    private WindowBounds? _rememberedBounds;
+
+    /// <summary>
+    /// The launcher window, held here rather than read off the lifetime each time: a window
+    /// started hidden is taken off the lifetime so that its startup does not show it — see
+    /// <see cref="Start"/> — and it is still the window every hotkey summons.
+    /// </summary>
+    private readonly Window? _window;
+
+    /// <summary>Whether to start put away rather than showing the window — a login start.</summary>
+    private readonly bool _startHidden;
+
+    /// <param name="startHidden">
+    /// Come up behind the tray icon, as if dismissed, rather than with the window showing:
+    /// what a start at login wants, since logging in is not asking for a window.
+    /// </param>
+    public LauncherHost(IClassicDesktopStyleApplicationLifetime lifetime, AppSettings settings, bool startHidden = false)
     {
         _lifetime = lifetime;
         _settings = settings;
+        _window = lifetime.MainWindow;
+        _startHidden = startHidden;
     }
 
     /// <summary>True when the hotkey was actually claimed; false means another app holds it.</summary>
@@ -52,7 +71,7 @@ internal sealed class LauncherHost : IDisposable
 
     public void Start()
     {
-        if (_lifetime.MainWindow is { } window)
+        if (_window is { } window)
         {
             // Closing must not quit: ShutdownMode is OnExplicitShutdown, so without this the
             // window would be destroyed and the hotkey would have nothing left to show.
@@ -64,7 +83,14 @@ internal sealed class LauncherHost : IDisposable
             };
         }
 
-        if (_lifetime.MainWindow is Klippy.Views.MainWindow main)
+        // Signing out, restarting or shutting down asks every app to end — as does Quit from
+        // the macOS app menu — and the lifetime answers by closing the windows. Left to the
+        // handler above, that close would be turned into a hide, the request refused, and
+        // Windows would name Klippy as what is stopping it. So the request is a quit: it
+        // ends what Quit ends, and leaves the closing to the lifetime that asked.
+        _lifetime.ShutdownRequested += OnShutdownRequested;
+
+        if (_window is Klippy.Views.MainWindow main)
         {
             main.HideRequested = () => Dismiss(main);
             // The in-app quit ends exactly where the tray menu's does: closing the window
@@ -73,17 +99,56 @@ internal sealed class LauncherHost : IDisposable
             main.QuitRequested = Quit;
         }
 
-        // The first appearance is a summon too. Nothing has been anywhere yet, so there is
-        // nothing for Remembered to remember, and a user who asked for Centre means it from
-        // the start. Before the framework's own Show, so it opens in place: the window is
-        // built by then but not yet shown, and Screens and Width/Height are already good.
-        if (_lifetime.MainWindow is { } startup && PlaceFor(startup) is { } at)
-            startup.Position = at;
+        // The first appearance is a summon too, so a user who asked for Centre means it from
+        // the start. Remembered means where the window was left last time Klippy ran, and its
+        // size is remembered whichever placement is chosen. Before the framework's own Show,
+        // so it opens in place: the window is built by then but not yet shown, and Screens and
+        // Width/Height are already good. Size before PlaceFor, which centres or hangs the
+        // window by it.
+        if (_window is { } startup)
+        {
+            var remembered = RestoreBounds(startup);
+
+            // Started hidden, the first summons is the first appearance, and places the
+            // window itself — except Remembered, which a summons leaves where it was, and so
+            // has to be put there now.
+            var at = (_startHidden ? null : PlaceFor(startup))
+                     ?? (_settings.ParsedSummonPlacement == LauncherPlacement.Remembered ? remembered : null);
+            if (at is { } here)
+            {
+                startup.Position = here;
+
+                // And again once it is up, for the reason ShowWindow assigns twice: a window
+                // that opens on a monitor of different scaling from the one it was created on
+                // is answered with a rect of Windows' choosing. The same point twice costs
+                // nothing where the first held.
+                EventHandler? again = null;
+                again = (_, _) =>
+                {
+                    startup.Opened -= again;
+                    startup.Position = here;
+                };
+                startup.Opened += again;
+            }
+
+            if (_startHidden && startup is Klippy.Views.MainWindow hidden)
+            {
+                // The lifetime shows its main window as it starts, unconditionally; one it
+                // does not have, it cannot. Nothing else of Avalonia's reads it, and
+                // everything here goes through _window.
+                _lifetime.MainWindow = null;
+
+                // What the window hands the view model as it opens — the clipboard, the
+                // launcher — is wanted before it has ever opened: a snippet's hotkey copies
+                // or runs without bringing the window up at all.
+                hidden.ConnectToPlatform();
+            }
+        }
 
         InstallAppMenu();
         InstallTray();
 
-        if (OperatingSystem.IsMacOS() && _lifetime.MainWindow is { } spaced)
+        if (OperatingSystem.IsMacOS() && _window is { } spaced)
             MacWindow.MoveToActiveSpace(spaced);
 
         // Opening Klippy again while it is running — from Spotlight, Finder or Launchpad —
@@ -107,7 +172,7 @@ internal sealed class LauncherHost : IDisposable
 
         // The snippets' own hotkeys, under the same master switch: the editor offers one only from here on,
         // and every save, delete or import that could change them registers them again.
-        if (GlobalHotkey.IsSupported && _lifetime.MainWindow?.DataContext is MainViewModel vm)
+        if (GlobalHotkey.IsSupported && _window?.DataContext is MainViewModel vm)
         {
             _watched = vm;
             vm.CanRegisterHotkeys = true;
@@ -160,7 +225,7 @@ internal sealed class LauncherHost : IDisposable
     /// </summary>
     private async void TriggerSnippet(Guid id, HotkeySpec spec)
     {
-        if (_lifetime.MainWindow?.DataContext is not MainViewModel vm) return;
+        if (_window?.DataContext is not MainViewModel vm) return;
 
         // Pressed while a key field in the editor is listening: it is the field's, as any other press would be
         // — which is how a combination another snippet holds gets recorded rather than firing.
@@ -182,7 +247,7 @@ internal sealed class LauncherHost : IDisposable
 
         // Its quick-code is in the box waiting for an argument: after the show, as with a summons, since
         // bringing the window forward is what settles where the keyboard goes.
-        if (outcome == TriggerOutcome.AwaitingArguments && _lifetime.MainWindow is Klippy.Views.MainWindow main)
+        if (outcome == TriggerOutcome.AwaitingArguments && _window is Klippy.Views.MainWindow main)
             main.PlaceCaretAtEnd();
     }
 
@@ -203,7 +268,7 @@ internal sealed class LauncherHost : IDisposable
         if (!OperatingSystem.IsMacOS() || Application.Current is not { } app) return;
 
         var about = new NativeMenuItem("About Klippy");
-        about.Click += (_, _) => _ = _lifetime.MainWindow?.Launcher.LaunchUriAsync(DocumentationHome);
+        about.Click += (_, _) => _ = _window?.Launcher.LaunchUriAsync(DocumentationHome);
 
         NativeMenu.SetMenu(app, new NativeMenu { about });
     }
@@ -260,7 +325,7 @@ internal sealed class LauncherHost : IDisposable
     /// </summary>
     private void Toggle(bool history)
     {
-        if (_lifetime.MainWindow is not { } window) return;
+        if (_window is not { } window) return;
 
         var vm = window.DataContext as MainViewModel;
 
@@ -296,12 +361,77 @@ internal sealed class LauncherHost : IDisposable
     /// <summary>
     /// Putting the window away, however it was asked for: its own hotkey pressed twice,
     /// Esc, a copy that asked to be dismissed by, or the close button. What was being
-    /// asked goes with it — see <see cref="MainViewModel.Dismissed"/>.
+    /// asked goes with it — see <see cref="MainViewModel.Dismissed"/>. Where it was and how
+    /// big are noted on the way, so the next launch can put it back.
     /// </summary>
-    private static void Dismiss(Window window)
+    private void Dismiss(Window window)
     {
+        RememberBounds(window);
         (window.DataContext as MainViewModel)?.Dismissed();
         window.Hide();
+    }
+
+    /// <summary>
+    /// Puts the window back to the size it was left at, and says where it was left — fitted
+    /// to the screens there are now, or centred on the primary one when that place is on no
+    /// screen any more. Null when nothing has been remembered yet, which leaves the first
+    /// launch where the OS puts it, as it always was.
+    /// </summary>
+    private PixelPoint? RestoreBounds(Window window)
+    {
+        if (WindowBounds.Load() is not { } saved) return null;
+        _rememberedBounds = saved;
+
+        var minimum = new Size(window.MinWidth, window.MinHeight);
+        try
+        {
+            var all = window.Screens.All;
+            if ((window.Screens.Primary ?? all.FirstOrDefault()) is not { } primary)
+                throw new InvalidOperationException("No screens to place the window on.");
+
+            var (position, size) = PlacementPolicy.Restore(
+                saved, minimum,
+                all.Select(s => new ScreenArea(s.WorkingArea, s.Scaling)).ToList(),
+                new ScreenArea(primary.WorkingArea, primary.Scaling));
+
+            window.Width = size.Width;
+            window.Height = size.Height;
+            return position;
+        }
+        catch (Exception)
+        {
+            // Nothing will say where the screens are (see PlaceFor). The size is still the
+            // size, and the OS can choose where it goes.
+            window.Width = Math.Max(saved.Width, minimum.Width);
+            window.Height = Math.Max(saved.Height, minimum.Height);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Writes down where the window is and how big, for <see cref="RestoreBounds"/> to find
+    /// next launch. Only a window that is up and neither minimised nor maximised: a minimised
+    /// one sits where the OS parks it — -32000 on Windows — and a maximised one is the size
+    /// of its screen, and neither is where anybody left it. A hidden one was noted when it
+    /// was put away.
+    /// </summary>
+    private void RememberBounds(Window window)
+    {
+        if (!window.IsVisible || window.WindowState != WindowState.Normal) return;
+
+        // ClientSize rather than Width/Height, now that it is up and so describes the window:
+        // it is what a resize by hand changes, and Width/Height are set from it.
+        var bounds = new WindowBounds
+        {
+            X = window.Position.X,
+            Y = window.Position.Y,
+            Width = window.ClientSize.Width,
+            Height = window.ClientSize.Height,
+        };
+        if (!bounds.IsUsable || bounds == _rememberedBounds) return;
+
+        bounds.Save();
+        _rememberedBounds = bounds;
     }
 
     /// <summary>Kept for the tray icon, which has no view of its own to ask for.</summary>
@@ -309,7 +439,7 @@ internal sealed class LauncherHost : IDisposable
 
     private void ShowWindow()
     {
-        if (_lifetime.MainWindow is not { } window) return;
+        if (_window is not { } window) return;
 
         // Only a window that is actually coming up gets placed. Switching views with the
         // other hotkey comes through here too, and a window already in front of you should
@@ -429,13 +559,36 @@ internal sealed class LauncherHost : IDisposable
 
     private void Quit()
     {
+        EndSession();
+        _lifetime.Shutdown();
+    }
+
+    /// <summary>
+    /// The OS, or the macOS app menu, asking Klippy to end. Unless something else has
+    /// already said no, it ends as Quit does — except that the lifetime, which asked, does
+    /// the closing, and on Windows answers the OS once the windows have gone.
+    /// </summary>
+    private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    {
+        if (!e.Cancel) EndSession();
+    }
+
+    /// <summary>
+    /// What every way out does before the lifetime ends: notes where the window is, lets
+    /// its close through, and gives back the hotkeys and the tray icon.
+    /// </summary>
+    private void EndSession()
+    {
+        // Quitting with the window up never passes through Dismiss.
+        if (_window is { } window) RememberBounds(window);
+
         _shuttingDown = true;
         Dispose();
-        _lifetime.Shutdown();
     }
 
     public void Dispose()
     {
+        _lifetime.ShutdownRequested -= OnShutdownRequested;
         _hotkey?.Dispose();
         _hotkey = null;
         _historyHotkey?.Dispose();

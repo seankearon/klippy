@@ -66,15 +66,23 @@ public partial class MainWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        if (Vm is { } vm)
-        {
-            vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
-            vm.ClipboardReader = () => Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
-            // Only the desktop head can open a browser or start a script, so this is
-            // where execution is wired in — the shared view model only asks for it.
-            vm.Executor = ProcessLauncher.RunAsync;
-        }
+        ConnectToPlatform();
         SearchBox.Focus();
+    }
+
+    /// <summary>
+    /// Hands the view model what only a window on a desktop has: the clipboard, and the
+    /// launcher that opens a browser or starts a script — the shared view model only asks for
+    /// them. Done as the window opens, and by the desktop head for a window that starts put
+    /// away, whose snippet hotkeys have to work before it has ever been shown. The clipboard
+    /// is read at each use rather than here, so it is whatever the window has by then.
+    /// </summary>
+    public void ConnectToPlatform()
+    {
+        if (Vm is not { } vm) return;
+        vm.ClipboardWriter = payload => RichTextClipboard.WriteAsync(Clipboard, payload);
+        vm.ClipboardReader = () => Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null);
+        vm.Executor = ProcessLauncher.RunAsync;
     }
 
     // ---- preview pane sizing ----

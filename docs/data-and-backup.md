@@ -9,8 +9,8 @@ Snippets are one JSON file in the platform app-data folder — `%APPDATA%\Klippy
 on Windows, `~/.config/Klippy/` on macOS/Linux, and `files/.config/Klippy/` inside the app
 sandbox on Android (mode `0600`, app-private). `variables.txt` sits in the same folder
 unless told otherwise, and the snippets can be pointed elsewhere too; `settings.json`,
-`clipboard.history.json`, `command.history.json` and `clips/` are always there, wherever
-those two go. The whole list is held in memory and each mutation rewrites the file
+`clipboard.history.json`, `command.history.json`, `clips/` and `window.json` (where the window
+was left, and how big) are always there, wherever those two go. The whole list is held in memory and each mutation rewrites the file
 atomically (temp file + replace), so a crash can't corrupt it. A copy also writes, because
 `LastUsedAt` drives recency ranking.
 

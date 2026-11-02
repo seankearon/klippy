@@ -15,6 +15,13 @@ already looking at:
 - **The `quit` footer link**, for when the pointer is already down there.
 - **The tray / menu-bar icon's Quit**, which is where it has always been.
 
+**Signing out, restarting or shutting down** ends it too, as it ends every app. Klippy goes
+without a fuss — it notes where its window was, flushes the clipboard history, and gives back
+its hotkeys — and never stands in the way. Earlier versions turned the close that the system
+asks for into a hide, as they did a click on the close button, so Windows listed Klippy among
+the apps preventing a restart. Logging out of a Mac asks the same way, and gets the same
+answer.
+
 Both of the in-window routes land on the same confirmation, because the search box and a
 footer full of links are places a stray keystroke or click can reach. It opens on
 **Cancel**, so `↵` straight away goes back, as does `Esc`; `Tab` or `→` and then `↵`, or a

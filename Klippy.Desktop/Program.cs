@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
@@ -49,6 +50,10 @@ sealed class Program
         if (OperatingSystem.IsWindows())
             RichTextClipboard.NativeWriter = WindowsClipboardWriter.TryWriteAsync;
 
+        // Start at login, where this platform has a way to keep one: Settings offers the
+        // toggle only when this is set.
+        LoginItem.Current = LoginItemForThisCopy();
+
         using var history = new ClipboardHistoryService(settings);
         ClipboardHistory.Store = settings.HistoryEnabled ? history.Store : null;
 
@@ -61,7 +66,9 @@ sealed class Program
 
         BuildAvaloniaApp().SetupWithLifetime(lifetime);
 
-        using var host = new LauncherHost(lifetime, settings);
+        // A login start comes up put away, behind the tray icon, as if it had been dismissed:
+        // nobody asked for a window just by logging in.
+        using var host = new LauncherHost(lifetime, settings, startHidden: LoginItem.StartsInBackground(args));
         host.Start();
 
         // After the app is up: the flush timer needs Avalonia's dispatcher.
@@ -86,6 +93,25 @@ sealed class Program
                 $"Change \"HistoryHotkey\" in {AppSettings.FilePath} and restart.");
 
         return lifetime.Start(args);
+    }
+
+    /// <summary>
+    /// How this copy would start at login, or null where it cannot say. Not when run through
+    /// the dotnet host — <c>dotnet Klippy.Desktop.dll</c> — since the program then is dotnet
+    /// itself, and a login that started it would start nothing of Klippy's.
+    /// </summary>
+    private static ILoginItem? LoginItemForThisCopy()
+    {
+        var path = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(path) ||
+            string.Equals(Path.GetFileNameWithoutExtension(path), "dotnet", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (OperatingSystem.IsWindows()) return new WindowsLoginItem(path);
+        if (OperatingSystem.IsMacOS())
+            return new LaunchAgentLoginItem(
+                LoginItem.MacPlistPath(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)), path);
+        return null;
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

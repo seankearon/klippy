@@ -33,6 +33,11 @@ public static class ProcessLauncher
         if (plan.Kind == ExecutionKind.None)
             return ExecutionResult.Failed(plan.Problem);
 
+        // Ahead of Resolve, which only says it has nothing to start: this says why. And
+        // ahead of the pull, since there is no point bringing up to date what will not run.
+        if (ExecutionPolicy.WhyNotElevated(plan, ExecutionPolicy.CurrentPlatform) is { } refused)
+            return ExecutionResult.Failed(refused);
+
         if (ExecutionPolicy.Resolve(plan, ExecutionPolicy.CurrentPlatform, IsExecutable, OnPath) is not { } command)
             return ExecutionResult.Failed("Klippy cannot run that on this platform.");
 
@@ -55,6 +60,11 @@ public static class ProcessLauncher
         foreach (var argument in command.Arguments)
             start.ArgumentList.Add(argument);
 
+        // What Explorer's Run as administrator does: the shell puts up the consent prompt,
+        // and what starts has the administrator's token.
+        if (command.Elevated)
+            start.Verb = "runas";
+
         // A script is written expecting to run from its own folder, and an application
         // started from its folder is what double-clicking one does. A console says where
         // it starts itself, that being the whole of what it is for.
@@ -75,6 +85,12 @@ public static class ProcessLauncher
 
             return new ExecutionResult(true, Note(plan.Description, pulled));
         }
+        catch (Win32Exception e) when (command.Elevated && e.NativeErrorCode == ErrorCancelled)
+        {
+            // No on the consent prompt is an answer rather than a failure, and "the
+            // operation was cancelled by the user" says it in the system's words, not ours.
+            return ExecutionResult.Failed($"Not run — {Target(plan)} was not allowed to run as administrator");
+        }
         catch (Exception e) when (e is Win32Exception or InvalidOperationException or IOException
                                       or UnauthorizedAccessException or PlatformNotSupportedException)
         {
@@ -83,6 +99,14 @@ public static class ProcessLauncher
             return ExecutionResult.Failed($"Could not run {command.FileName}: {e.Message}");
         }
     }
+
+    /// <summary>What ShellExecuteEx reports when the consent prompt is answered No.</summary>
+    private const int ErrorCancelled = 1223;
+
+    /// <summary>The script or application a plan starts, named as its toast names it.</summary>
+    private static string Target(ExecutionPlan plan) => plan.Kind == ExecutionKind.Application
+        ? ExecutionPolicy.ApplicationName(plan.Target)
+        : ExecutionPolicy.FileNameOf(plan.Target);
 
     /// <summary>
     /// A pull that worked says nothing: it is what was asked for, and the message already

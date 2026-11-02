@@ -124,4 +124,92 @@ public class PlacementPolicyTests
     [InlineData(null, LauncherPlacement.Remembered)]
     public void Parse_TakesAnythingItRecognises_AndShrugsOffTheRest(string? raw, LauncherPlacement expected) =>
         Assert.Equal(expected, PlacementPolicy.Parse(raw));
+
+    // ---- putting it back where it was left, last time Klippy ran ----
+
+    // MainWindow.axaml's MinWidth/MinHeight.
+    private static readonly Size Minimum = new(460, 360);
+
+    private static readonly ScreenArea Laptop = new(new PixelRect(0, 0, 1920, 1032), 1.0);
+    private static readonly ScreenArea RightHand = new(new PixelRect(1920, 0, 2560, 1400), 1.0);
+
+    private static WindowBounds Left(int x, int y, double width = 680, double height = 560) =>
+        new() { X = x, Y = y, Width = width, Height = height };
+
+    [Fact]
+    public void Restore_PutsItExactlyWhereItWasLeft()
+    {
+        var (position, size) = PlacementPolicy.Restore(Left(100, 80, 900, 700), Minimum, [Laptop], Laptop);
+
+        Assert.Equal(new PixelPoint(100, 80), position);
+        Assert.Equal(new Size(900, 700), size);
+    }
+
+    [Fact]
+    public void Restore_OnTheSecondMonitor_WhileThatMonitorIsStillThere()
+    {
+        var (position, _) = PlacementPolicy.Restore(Left(3000, 200), Minimum, [Laptop, RightHand], Laptop);
+        Assert.Equal(new PixelPoint(3000, 200), position);
+    }
+
+    [Fact]
+    public void Restore_CentresItOnTheFallback_WhenItsMonitorHasGone()
+    {
+        // Left on the right-hand monitor, which has since been unplugged: restored there it would be a window
+        // nobody can see, so it comes back centred where it can be.
+        var (position, size) = PlacementPolicy.Restore(Left(3000, 200), Minimum, [Laptop], Laptop);
+
+        Assert.Equal(PlacementPolicy.Centred(Laptop.WorkingArea, Laptop.Scaling, size), position);
+        Assert.Equal(new Size(680, 560), size);
+    }
+
+    [Fact]
+    public void Restore_NeedsEnoughOfTheTitleStripToTakeHoldOf()
+    {
+        // All but a sliver of it hanging off the right-hand edge: on screen in name only.
+        var sliver = PlacementPolicy.Restore(Left(1920 - 40, 200), Minimum, [Laptop], Laptop);
+        Assert.NotEqual(new PixelPoint(1880, 200), sliver.Position);
+
+        // Enough to grab and drag back is left where it was — that is where it was left.
+        var grip = PlacementPolicy.Restore(Left(1920 - 200, 200), Minimum, [Laptop], Laptop);
+        Assert.Equal(new PixelPoint(1720, 200), grip.Position);
+
+        // Above the top of the screen, the strip is out of reach however much of the rest is on it.
+        var above = PlacementPolicy.Restore(Left(100, -30), Minimum, [Laptop], Laptop);
+        Assert.NotEqual(new PixelPoint(100, -30), above.Position);
+    }
+
+    [Fact]
+    public void Restore_HoldsTheSizeToTheWindowsOwnMinimum()
+    {
+        // A hand-edited window.json can say anything; the XAML's minimum is what the window allows.
+        var (_, size) = PlacementPolicy.Restore(Left(100, 80, 200, 100), Minimum, [Laptop], Laptop);
+        Assert.Equal(Minimum, size);
+    }
+
+    [Fact]
+    public void Restore_FitsAWindowLeftFillingABiggerScreen_AndPullsItBackOnto()
+    {
+        // Left 2400 wide on the big monitor; the same place on a smaller one now. It shrinks to the working
+        // area, and having shrunk it is held inside it rather than left hanging off where its old size reached.
+        var big = new ScreenArea(new PixelRect(0, 0, 1600, 900), 1.0);
+        var (position, size) = PlacementPolicy.Restore(Left(500, 100, 2400, 1300), Minimum, [big], big);
+
+        Assert.Equal(new Size(1600, 900), size);
+        Assert.Equal(new PixelPoint(0, 0), position);
+    }
+
+    [Fact]
+    public void Restore_MeasuresTheTitleStripAtTheScreensOwnScaling()
+    {
+        // On a 2x screen the strip is 68 physical pixels tall, so a window whose top is 40 pixels above the
+        // working area still has 28 of them — less than half, so it is not where anyone can grab it.
+        var hiDpi = new ScreenArea(new PixelRect(0, 0, 3840, 2100), 2.0);
+        var (position, _) = PlacementPolicy.Restore(Left(200, -40), Minimum, [hiDpi], hiDpi);
+        Assert.NotEqual(new PixelPoint(200, -40), position);
+
+        // Twenty above leaves 48 of 68, which is.
+        var (kept, _) = PlacementPolicy.Restore(Left(200, -20), Minimum, [hiDpi], hiDpi);
+        Assert.Equal(new PixelPoint(200, -20), kept);
+    }
 }

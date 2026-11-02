@@ -100,6 +100,14 @@ public sealed record ExecutionPlan
     /// </summary>
     public bool PullFirst { get; init; }
 
+    /// <summary>
+    /// Whether to start the target as administrator. Stamped on by the view model from the
+    /// item's own marker, as <see cref="PullFirst"/> is from a preference: it is a choice
+    /// about how to run something, not about what the text means. Only a script or an
+    /// application on Windows can be — see <see cref="ExecutionPolicy.WhyNotElevated"/>.
+    /// </summary>
+    public bool Elevated { get; init; }
+
     /// <summary>Why nothing can be run, when <see cref="Kind"/> is None. Shown to the user.</summary>
     public string Problem { get; init; } = "";
 
@@ -107,7 +115,9 @@ public sealed record ExecutionPlan
     public string Description => Kind switch
     {
         ExecutionKind.Url => "Opening " + Shorten(Target),
+        ExecutionKind.Script when Elevated => "Running " + ExecutionPolicy.FileNameOf(Target) + " as administrator",
         ExecutionKind.Script => "Running " + ExecutionPolicy.FileNameOf(Target),
+        ExecutionKind.Application when Elevated => "Starting " + ExecutionPolicy.ApplicationName(Target) + " as administrator",
         ExecutionKind.Application => "Starting " + ExecutionPolicy.ApplicationName(Target),
         ExecutionKind.Folder => "Opening " + ExecutionPolicy.FolderName(Target),
         ExecutionKind.Document => "Opening " + ExecutionPolicy.FileNameOf(Target),
@@ -148,8 +158,14 @@ public sealed record ExecutionPlan
 /// terminals open in the folder they were started in rather than in one they are told. Null
 /// leaves it to <see cref="ProcessLauncher"/>.
 /// </param>
+/// <param name="Elevated">
+/// Started with the shell's <c>runas</c> verb, so Windows asks for consent and the process
+/// gets the administrator's token. Always alongside <paramref name="UseShellExecute"/>, since
+/// only the shell can elevate; the arguments are still the same list, quoted the same way.
+/// </param>
 public sealed record LaunchCommand(
-    string FileName, string[] Arguments, bool UseShellExecute = false, string? WorkingDirectory = null);
+    string FileName, string[] Arguments, bool UseShellExecute = false, string? WorkingDirectory = null,
+    bool Elevated = false);
 
 /// <summary>
 /// Decides what an item's text means when the user picks Execute, and which process
@@ -874,7 +890,75 @@ public static class ExecutionPolicy
         ExecutionPlan plan,
         ExecutionPlatform platform,
         Func<string, bool>? isExecutable = null,
-        Func<string, bool>? onPath = null) => plan.Kind switch
+        Func<string, bool>? onPath = null)
+    {
+        // A plan that asks to be elevated and cannot be is not started without it: whoever
+        // marked it meant the script to have the rights it needs, and one that runs halfway
+        // without them is worse than one that never starts. WhyNotElevated says why.
+        if (WhyNotElevated(plan, platform) is not null) return null;
+
+        var command = ResolveAsUser(plan, platform, isExecutable, onPath);
+
+        // The same process, asked of the shell with the runas verb instead — the one thing
+        // that raises the consent prompt. Through the shell, but not through a shell that
+        // reads the line: the arguments are the same list, pasted together by the same
+        // rules, so a .bat's refusals hold exactly as they do unelevated.
+        return plan.Elevated && command is not null
+            ? command with { UseShellExecute = true, Elevated = true }
+            : command;
+    }
+
+    /// <summary>
+    /// Whether this kind of plan can be started as administrator at all: a script or an
+    /// application, the two kinds that start a program of the user's choosing. A link, a
+    /// document or a folder is handed to whatever opens its kind — a browser or Explorer
+    /// elevated would be a browser or Explorer with every right on the machine, which is
+    /// nobody's idea of opening a page.
+    /// </summary>
+    public static bool CanElevate(ExecutionKind kind) =>
+        kind is ExecutionKind.Script or ExecutionKind.Application;
+
+    /// <summary>
+    /// Why <paramref name="plan"/> cannot be started as administrator, or null when it can
+    /// — or does not ask to be. Windows only: macOS and Linux have no consent prompt to hand
+    /// a program to, only <c>sudo</c>-like tools that want a terminal or a command line read
+    /// by a shell, and a shell reading the line is the one thing the run path never does.
+    /// </summary>
+    public static string? WhyNotElevated(ExecutionPlan plan, ExecutionPlatform platform) =>
+        !plan.Elevated || plan.Kind == ExecutionKind.None ? null
+        : platform != ExecutionPlatform.Windows ? "Running as administrator is Windows only."
+        : !CanElevate(plan.Kind) ? "Only a script or an application can run as administrator."
+        : null;
+
+    /// <summary>
+    /// Whether <paramref name="text"/>'s first word names a script or an application — what
+    /// the editor asks once Run as administrator is ticked, so that marking a link or a
+    /// document for it is caught there rather than at Enter. The same first word
+    /// <see cref="LooksExecutable"/> reads, and the same caveats: a macro is taken on trust,
+    /// since what it holds is not known until the item runs.
+    /// </summary>
+    public static bool LooksElevatable(
+        string? text,
+        ExecutionPlatform? platform = null,
+        EnvironmentProbe? environment = null,
+        PathProbe? paths = null,
+        IReadOnlyCollection<string>? alsoOpens = null)
+    {
+        var (promise, word) = Read(text, platform, environment, paths, alsoOpens);
+        if (promise != FirstWord.Runs) return false;
+        if (Macros.IsPresent(word)) return true;
+        if (IsLink(word, alsoOpens) || Opens(word, alsoOpens)) return false;
+
+        return ScriptExtension(word) is not null || ApplicationExtension(word) is not null
+                                                 || BundleOf(word) is not null;
+    }
+
+    /// <summary>The process for <paramref name="plan"/> as the user runs it, before any elevation.</summary>
+    private static LaunchCommand? ResolveAsUser(
+        ExecutionPlan plan,
+        ExecutionPlatform platform,
+        Func<string, bool>? isExecutable,
+        Func<string, bool>? onPath) => plan.Kind switch
     {
         // A link and a document are the same gesture to the OS: hand it the thing and let
         // the user's own default decide what opens it. Except a browser's own page, which

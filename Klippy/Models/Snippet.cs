@@ -36,6 +36,14 @@ public sealed class Snippet : ISearchable
     public bool IsExecutable { get; set; }
 
     /// <summary>
+    /// Whether running this snippet starts it as administrator — Windows' <em>Run as administrator</em>, with
+    /// the consent prompt that goes with it. Only means anything alongside <see cref="IsExecutable"/>, and only
+    /// for a script or an application on Windows: anything else marked so is refused when it is run rather
+    /// than quietly started without it. Absent in older files, which read as false.
+    /// </summary>
+    public bool RunAsAdministrator { get; set; }
+
+    /// <summary>
     /// Keys that trigger the snippet while Klippy's window is up — one press such as <c>Ctrl+Shift+L</c>, or a
     /// two-press chord such as <c>Ctrl+K, Ctrl+L</c>, written with a comma between the presses. Triggering
     /// does what Enter on the row does: a copy, or a run for a snippet marked Execute. Empty for none, which is
