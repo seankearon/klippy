@@ -198,6 +198,26 @@
                 </StackPanel>
 
                 <Border Height="1" Background="{StaticResource HairlineBrush}"
+                        IsVisible="{Binding ShowStartAtLogin}" />
+
+                <!-- Read from, and written to, the platform's own list of what starts at
+                     login, so it says what will actually happen at the next one. -->
+                <StackPanel Spacing="8" IsVisible="{Binding ShowStartAtLogin}">
+                  <TextBlock Classes="mono" Text="AT LOGIN" FontSize="10" LetterSpacing="0.8"
+                             Foreground="{StaticResource MutedBrush}" />
+
+                  <Grid ColumnDefinitions="Auto,8,*">
+                    <ToggleButton Grid.Column="0" Classes="chip" Content="Start at login"
+                                  VerticalAlignment="Top"
+                                  IsChecked="{Binding StartAtLogin}" />
+                    <TextBlock Grid.Column="2" FontSize="11" VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="{Binding StartAtLoginHint}" />
+                  </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{StaticResource HairlineBrush}"
                         IsVisible="{Binding ShowSummonPlacement}" />
 
                 <StackPanel Spacing="8" IsVisible="{Binding ShowSummonPlacement}">

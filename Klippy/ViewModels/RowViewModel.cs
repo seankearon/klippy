@@ -49,6 +49,18 @@ public abstract partial class RowViewModel : ViewModelBase
     /// </summary>
     public virtual bool IsExecutable => false;
 
+    /// <summary>
+    /// Whether running the item starts it as administrator. Only ever true alongside
+    /// <see cref="IsExecutable"/>: the marker belongs to a run, and a copy has no rights to ask for.
+    /// </summary>
+    public virtual bool RunsAsAdministrator => false;
+
+    /// <summary>
+    /// The marker on a row that runs: <c>run</c>, or <c>run as admin</c> where Windows will
+    /// ask first — said on the row so the consent prompt is never a surprise.
+    /// </summary>
+    public string RunMarker => RunsAsAdministrator ? "run as admin" : "run";
+
     private bool? _namesAPath;
 
     /// <summary>
@@ -69,11 +81,14 @@ public abstract partial class RowViewModel : ViewModelBase
     private static readonly string RunHint =
         OperatingSystem.IsMacOS() ? "↵ run · ⌘↵ copy" : "↵ run · Ctrl+↵ copy";
 
+    private static readonly string RunAsAdministratorHint =
+        OperatingSystem.IsMacOS() ? "↵ run as admin · ⌘↵ copy" : "↵ run as admin · Ctrl+↵ copy";
+
     /// <summary>
     /// What the selected row's badge offers. Enter does whatever the item is marked for;
     /// Ctrl/⌘+Enter always copies, which is the way to get a marked item's text.
     /// </summary>
-    public string EnterHint => IsExecutable ? RunHint : "↵ copy";
+    public string EnterHint => RunsAsAdministrator ? RunAsAdministratorHint : IsExecutable ? RunHint : "↵ copy";
 
     /// <summary>First line of the content, for the one-line ellipsized preview.</summary>
     public string Preview

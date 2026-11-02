@@ -41,6 +41,9 @@ spells. Which kinds of file open, beyond pages, PDFs, pictures and macro-free Of
 and which other kinds of link, is yours to add to in Settings — `.slnx`, say, so a solution
 opens in your IDE, or `vscode:`.
 
+On Windows a marked script or application can also be marked **As admin**, and then it
+starts the way *Run as administrator* starts it — Windows asks first, every time.
+
 A snippet or a clip that names a file or folder can also be **shown in Explorer or Finder**
 with `Ctrl/⌘+R` — marked or not, since showing something runs nothing. Klippy resolves the
 path first, variables and all: a folder opens, and a file is selected in its folder.
@@ -83,7 +86,7 @@ Everything above, in full:
 | [Variables](https://seankearon.github.io/klippy/variables/) | Local defines, resolution order, arguments, flavours, typing a name to open what it stands for or a console there |
 | [Clipboard history](https://seankearon.github.io/klippy/clipboard-history/) | Text, files and images on Windows |
 | [Snippet shortcuts](https://seankearon.github.io/klippy/snippet-shortcuts/) | Keys of a snippet's own: in Klippy, chords included, and from any application |
-| [Global hotkeys](https://seankearon.github.io/klippy/global-hotkeys/) | Summoning Klippy from anywhere |
+| [Global hotkeys](https://seankearon.github.io/klippy/global-hotkeys/) | Summoning Klippy from anywhere, and starting it when you log in |
 | [Settings](https://seankearon.github.io/klippy/settings/) | Every setting and what it changes |
 | [Export / import](https://seankearon.github.io/klippy/export-import/) | Moving snippets between machines |
 | [Where data lives](https://seankearon.github.io/klippy/data-and-backup/) | The store, the folder, and backup |

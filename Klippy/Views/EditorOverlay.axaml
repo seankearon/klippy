@@ -114,6 +114,11 @@
                   <DockPanel>
                     <ToggleButton DockPanel.Dock="Left" Classes="chip" Content="Execute"
                                   Margin="0,0,8,0" IsChecked="{Binding IsExecutable}" />
+                    <!-- Qualifies Execute, so it sits beside it and only while it is on. -->
+                    <ToggleButton DockPanel.Dock="Left" Classes="chip" Content="As admin"
+                                  Margin="0,0,8,0" IsChecked="{Binding RunAsAdministrator}"
+                                  IsVisible="{Binding ShowsRunAsAdministrator}"
+                                  ToolTip.Tip="Run as administrator — Windows asks first, every time" />
                     <!-- Two blocks rather than a converter: a marker put on something
                          that cannot run has to read as the warning it is. -->
                     <Panel>

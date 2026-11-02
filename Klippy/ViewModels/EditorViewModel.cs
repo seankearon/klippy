@@ -69,7 +69,33 @@ public partial class EditorViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ExecuteHint))]
     [NotifyPropertyChangedFor(nameof(ExecuteHintIsWarning))]
+    [NotifyPropertyChangedFor(nameof(ShowsRunAsAdministrator))]
     private bool _isExecutable;
+
+    /// <summary>
+    /// Marks an Execute snippet to start as administrator. Kept while Execute is off, so
+    /// toggling Execute off and on again does not lose it, but only saved alongside it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExecuteHint))]
+    [NotifyPropertyChangedFor(nameof(ExecuteHintIsWarning))]
+    private bool _runAsAdministrator;
+
+    /// <summary>
+    /// Whether this machine has a Run as administrator to offer: Windows, whose consent
+    /// prompt a program can be handed to. See <see cref="ExecutionPolicy.WhyNotElevated"/>.
+    /// </summary>
+    private static readonly bool CanRunAsAdministratorHere = OperatingSystem.IsWindows();
+
+    /// <summary>Whether the snippet came in already marked, so a Mac can still take the marker off.</summary>
+    private readonly bool _ranAsAdministrator;
+
+    /// <summary>
+    /// Whether the As admin chip is offered: beside Execute, which it qualifies, and on
+    /// Windows — or anywhere the snippet already carries it, so one marked on a Windows box
+    /// and synced to a Mac can have it taken off there rather than only warned about.
+    /// </summary>
+    public bool ShowsRunAsAdministrator => IsExecutable && (CanRunAsAdministratorHere || _ranAsAdministrator);
 
     private static readonly string CopyKeyHint = OperatingSystem.IsMacOS() ? "⌘+Enter" : "Ctrl+Enter";
 
@@ -80,6 +106,9 @@ public partial class EditorViewModel : ViewModelBase
     /// </summary>
     public string ExecuteHint =>
         !IsExecutable ? "Copied to the clipboard when triggered, as usual"
+        // Whether it can run as administrator, once it can run at all: a snippet that
+        // cannot run is better told that than told about the rights it would have had.
+        : RunAsAdministrator && LooksExecutable ? AdministratorHint
         // A path to a log file marked to run is shown rather than opened, and finding that
         // out here beats finding it out from Explorer. Naming the path is what shows a
         // path with a space and no quotes stopping at the space.
@@ -96,7 +125,24 @@ public partial class EditorViewModel : ViewModelBase
     private static readonly string FileManager = ExecutionPolicy.FileManager(ExecutionPolicy.CurrentPlatform);
 
     public bool ExecuteHintIsWarning =>
-        IsExecutable && !ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment, alsoOpens: AlsoOpens);
+        IsExecutable && (!LooksExecutable || (RunAsAdministrator && !LooksElevatable));
+
+    private bool LooksExecutable =>
+        ExecutionPolicy.LooksExecutable(Content, environment: RunEnvironment, alsoOpens: AlsoOpens);
+
+    /// <summary>Whether the snippet can have what As admin asks for, here and for what it names.</summary>
+    private bool LooksElevatable =>
+        CanRunAsAdministratorHere
+        && ExecutionPolicy.LooksElevatable(Content, environment: RunEnvironment, alsoOpens: AlsoOpens);
+
+    /// <summary>
+    /// What As admin will mean: Windows asking first, or why it will be refused — in the
+    /// launcher's own words, so the editor and the toast never disagree about the rule.
+    /// </summary>
+    private string AdministratorHint =>
+        !CanRunAsAdministratorHere ? "Running as administrator is Windows only, so triggering this here will say so"
+        : LooksElevatable ? $"Run as administrator when triggered, once Windows has asked — {CopyKeyHint} still copies it"
+        : "Only a script or an application can run as administrator, so triggering this will say so";
 
     /// <summary>
     /// What Enter resolves a path against, the variables file in front of the machine. The
@@ -152,6 +198,7 @@ public partial class EditorViewModel : ViewModelBase
             _quickCode = existing.QuickCode;
             _isMarkdown = existing.IsMarkdown;
             _isExecutable = existing.IsExecutable;
+            _runAsAdministrator = _ranAsAdministrator = existing.RunAsAdministrator;
             _shortcut = existing.Shortcut ?? "";
             _hotkey = _originalHotkey = existing.Hotkey ?? "";
         }
@@ -232,6 +279,8 @@ public partial class EditorViewModel : ViewModelBase
         snippet.QuickCode = QuickCode.Trim().ToLowerInvariant();
         snippet.IsMarkdown = IsMarkdown;
         snippet.IsExecutable = IsExecutable;
+        // A copy has no rights to ask for, so the marker is only kept where it means something.
+        snippet.RunAsAdministrator = IsExecutable && RunAsAdministrator;
         snippet.Shortcut = Shortcut;
         snippet.Hotkey = Hotkey;
         _save(snippet, IsNew);

@@ -37,6 +37,23 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>Suppresses saving while the constructor seeds the properties.</summary>
     private readonly bool _loaded;
 
+    /// <summary>What starts Klippy at login on this platform, or null where nothing can — see <see cref="LoginItem"/>.</summary>
+    private readonly ILoginItem? _loginItem;
+
+    /// <summary>What the platform said is registered, last time it was asked.</summary>
+    private LoginRegistration? _loginRegistration;
+
+    /// <summary>Set while the toggle is being moved to match the platform, so that is not taken as a request.</summary>
+    private bool _readingLoginItem;
+
+    /// <summary>
+    /// Whether Klippy starts when you log in. Not kept in settings.json: the platform's own
+    /// record is the setting, so this is read from it and written to it, and switching it off
+    /// in Task Manager or System Settings shows here as off.
+    /// </summary>
+    [ObservableProperty]
+    private bool _startAtLogin;
+
     /// <summary>Whether a Markdown snippet also copies an HTML flavour for rich-text editors.</summary>
     [ObservableProperty]
     private bool _markdownToHtml;
@@ -160,6 +177,22 @@ public partial class SettingsViewModel : ViewModelBase
     public bool ShowCloseAfterCopy => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
 
     /// <summary>
+    /// Whether to offer start at login: only where the desktop head has a way to keep it —
+    /// Windows and macOS. Mobile has no login to start at.
+    /// </summary>
+    public bool ShowStartAtLogin => _loginItem is not null;
+
+    /// <summary>
+    /// What the toggle means, and — when what starts at login is another copy of Klippy,
+    /// a portable one or a build that has since moved — which, since on would otherwise be
+    /// a claim about this copy that is not true.
+    /// </summary>
+    public string StartAtLoginHint =>
+        _loginRegistration is { IsThisCopy: false } other
+            ? $"Starts {other.Program} — not this copy. Turn it off and on again to start this one instead."
+            : "Start Klippy when you log in, put away behind its icon and ready for the hotkey.";
+
+    /// <summary>
     /// Whether to offer the placement choice. Only the desktop launcher has a window to
     /// place; on mobile the app fills the screen, so there is nothing to move.
     /// </summary>
@@ -222,16 +255,22 @@ public partial class SettingsViewModel : ViewModelBase
     /// from the one in force. Null where nothing is known, which is a screen that
     /// promises nothing rather than one claiming a restart is needed.
     /// </param>
+    /// <param name="loginItem">
+    /// What keeps start at login on this platform. Null hides the toggle.
+    /// </param>
     public SettingsViewModel(
         AppSettings settings,
         Action close,
         bool canExecuteUnmatched = false,
         Func<ExecutionPlan, Task<ExecutionResult>>? executor = null,
-        string? snippetsInUse = null)
+        string? snippetsInUse = null,
+        ILoginItem? loginItem = null)
     {
         _settings = settings;
         _close = close;
         _executor = executor;
+        _loginItem = loginItem;
+        ReadLoginItem();
         ShowExecuteUnmatched = canExecuteUnmatched;
         _markdownToHtml = settings.MarkdownToHtml;
         _markdownDoubleSpaced = settings.MarkdownDoubleSpaced;
@@ -405,6 +444,41 @@ public partial class SettingsViewModel : ViewModelBase
         #   klippy=D:\main\Klippy\Klippy.slnx
 
         """;
+
+    /// <summary>
+    /// Registers or unregisters, then reads back what the platform now says rather than
+    /// trusting the click: a registry that refused the write leaves the toggle where it was,
+    /// with the reason in the status line.
+    /// </summary>
+    partial void OnStartAtLoginChanged(bool value)
+    {
+        if (!_loaded || _readingLoginItem || _loginItem is not { } item) return;
+
+        try
+        {
+            if (value) item.Register();
+            else item.Unregister();
+            StatusText = null;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Could not {(value ? "set Klippy to start" : "stop Klippy starting")} at login: {ex.Message}";
+        }
+
+        ReadLoginItem();
+    }
+
+    /// <summary>Moves the toggle, and its hint, to whatever the platform has registered.</summary>
+    private void ReadLoginItem()
+    {
+        _loginRegistration = _loginItem?.Read();
+
+        _readingLoginItem = true;
+        StartAtLogin = _loginRegistration is not null;
+        _readingLoginItem = false;
+
+        OnPropertyChanged(nameof(StartAtLoginHint));
+    }
 
     partial void OnExecutePullFirstChanged(bool value)
     {

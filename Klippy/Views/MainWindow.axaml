@@ -230,7 +230,7 @@
                             <!-- what Enter will do, said on the row rather than found out
                                  by pressing it -->
                             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
-                                       Foreground="{StaticResource AccentBrush}" Text="run"
+                                       Foreground="{StaticResource AccentBrush}" Text="{Binding RunMarker}"
                                        IsVisible="{Binding IsExecutable}" />
                             <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
                                        Foreground="{StaticResource Muted2Brush}" Text="md"

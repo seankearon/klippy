@@ -15,7 +15,9 @@ like a link and should therefore be launched.
 Marked rows show a small amber `run` marker, the way Markdown ones show `md`, and their
 primary hover action becomes **▷** rather than the copy glyph. `Ctrl/⌘+Enter` always
 copies, marker or not, so a snippet you usually run can still be put on the clipboard
-when you want the text — the row's badge says both: `↵ run · Ctrl+↵ copy`.
+when you want the text — the row's badge says both: `↵ run · Ctrl+↵ copy`. On Windows a
+marked script or application can also [run as administrator](#running-as-administrator),
+and its row says `run as admin`.
 
 What a marked snippet can run is a short allow-list, checked against its first word,
 once any environment variable in it has resolved:
@@ -356,6 +358,9 @@ Running a snippet is running code, so the edges are drawn deliberately tightly:
   pair around the whole word is the one safe case and comes off first, since that is how a
   *Copy as path* paste and a variable written for a shell both arrive; a Windows path
   cannot contain a quote at all, which is what makes both rules sound.
+- **Nothing runs as administrator unless it is marked to**, and then only a script or an
+  application, only on Windows, and only once Windows has asked you — see
+  [Running as administrator](#running-as-administrator).
 - `-File` rather than `-Command` for PowerShell, for the same reason: the arguments stay
   arguments instead of being parsed as more PowerShell. `-ExecutionPolicy Bypass` goes
   with it, since the script is one you keep in Klippy and have just asked for by name.
@@ -455,3 +460,40 @@ waited for and its exit code read, which a shell prefix could not offer.
 Off by default: it only makes sense where the things you run are kept in a checkout, it
 costs a round trip to the remote on every run, and it is a network call made on your
 behalf. In `settings.json` the key is `ExecutePullFirst`.
+
+## Running as administrator
+
+Some scripts only do their job with the administrator's rights: a `.ps1` that restarts a
+service, a `.bat` that edits the hosts file, `regedit.exe` itself. On Windows a snippet marked
+**Execute** can also be marked **As admin** — the chip appears beside Execute once Execute is
+on — and then triggering it starts it the way Explorer's *Run as administrator* does. Windows
+puts up its consent prompt each time, and what starts has the administrator's rights. Its row
+says `run as admin`, and its badge `↵ run as admin · Ctrl+↵ copy`, so the prompt is never a
+surprise.
+
+It is the same launch with one word changed. The script still goes to the same interpreter —
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File`, `cmd.exe /c` — with the same
+arguments, kept as arguments, and the `.bat` refusals above hold exactly as they do without
+the marker. What changes is that the process is handed to the shell with the `runas` verb,
+which is the one thing that raises the prompt. [Pull first](#pull-first) still runs as you,
+before the prompt, since bringing a checkout up to date needs no rights it did not already
+have.
+
+- **Only a script or an application.** A link, a document or a folder is opened by whatever
+  opens its kind, and a browser or Explorer with every right on the machine is nobody's idea of
+  opening a page. One marked anyway is refused when it is triggered — *Only a script or an
+  application can run as administrator* — rather than quietly opened without the rights, and
+  the editor says so as you tick the chip.
+- **Only on Windows.** macOS and Linux have no consent prompt to hand a program to, only
+  `sudo`-like tools that want a terminal, or a command line read by a shell, and a shell
+  reading the line is the one thing the run path never does. A snippet marked on Windows and
+  [synced](data-and-backup.md#choosing-where-the-files-go-desktop) to a Mac is refused there
+  — *Running as administrator is Windows only* — and the editor still shows the chip on that
+  snippet, so it can be taken off.
+- **Saying No is an answer.** Declining the prompt leaves nothing started, and the toast says
+  that it was not allowed to run as administrator rather than reporting an error.
+- **Only beside Execute.** Taking Execute off takes **As admin** with it on save: a copy has no
+  rights to ask for.
+
+In `snippets.json` the marker is `"RunAsAdministrator": true`, beside `"IsExecutable"`. Older
+files have neither, and read as off.

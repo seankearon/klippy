@@ -792,7 +792,14 @@ public partial class MainViewModel : ViewModelBase
             row.Arguments,
             await ReadClipboardForAsync(text),
             environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real),
-            alsoOpens: _prefs.AlsoOpens));
+            alsoOpens: _prefs.AlsoOpens)) with
+        {
+            // The item's own marker, unlike the preferences: whether this one needs the
+            // administrator's rights is a fact about it. Whether it can have them — a
+            // script or an application, on Windows — is the launcher's to judge, and a
+            // plan that cannot is refused there rather than started without them.
+            Elevated = row.RunsAsAdministrator,
+        };
 
         if (plan.Kind == ExecutionKind.None)
         {
@@ -1371,7 +1378,10 @@ public partial class MainViewModel : ViewModelBase
             // Which snippet file is open right now, so a path typed there can say whether
             // it is in force or waiting on a restart. From the store itself rather than
             // from the settings, which are what the screen is about to change.
-            snippetsInUse: _store.FilePath);
+            snippetsInUse: _store.FilePath,
+            // Whatever this platform keeps for starting at login, read afresh each time
+            // Settings opens: Task Manager or System Settings may have changed it since.
+            loginItem: LoginItem.Current);
 
     /// <summary>
     /// Esc: close whichever overlay is open, then the MRU, then clear the filter. Returns

@@ -12,6 +12,10 @@ launching Klippy again just tells you it is already resident; on macOS, opening 
 from Spotlight, Finder or Launchpad brings the window up, as the menu-bar icon's
 **Show Klippy** does.
 
+On Windows and macOS it can also start itself when you log in — **Start at login** in
+[Settings](settings.md) — coming up put away behind its icon, so the hotkeys work from the
+start without a window appearing over your desktop.
+
 On macOS Klippy is a menu-bar app, with no Dock icon and no place in the `⌘-Tab`
 switcher: the hotkeys and the menu-bar icon are how you reach it. A window left open on
 another Space comes to the one you are on when summoned, rather than taking you to it.

@@ -35,6 +35,9 @@ public partial class SnippetViewModel : RowViewModel
     /// <summary>Whether triggering the row runs the snippet instead of copying it.</summary>
     public override bool IsExecutable => Model.IsExecutable;
 
+    /// <summary>Whether running the row starts it as administrator — never without the Execute marker.</summary>
+    public override bool RunsAsAdministrator => Model.IsExecutable && Model.RunAsAdministrator;
+
     /// <summary>
     /// The variables file first, as a copy applies it, so a flavour like
     /// <c>%app:folder%</c> is read the way the file means it and not as a machine name.
