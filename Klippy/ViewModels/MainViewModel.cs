@@ -792,7 +792,14 @@ public partial class MainViewModel : ViewModelBase
             row.Arguments,
             await ReadClipboardForAsync(text),
             environment: KlippyVariables.Current.Ahead(EnvironmentProbe.Real),
-            alsoOpens: _prefs.AlsoOpens));
+            alsoOpens: _prefs.AlsoOpens)) with
+        {
+            // The item's own marker, unlike the preferences: whether this one needs the
+            // administrator's rights is a fact about it. Whether it can have them — a
+            // script or an application, on Windows — is the launcher's to judge, and a
+            // plan that cannot is refused there rather than started without them.
+            Elevated = row.RunsAsAdministrator,
+        };
 
         if (plan.Kind == ExecutionKind.None)
         {

@@ -41,6 +41,9 @@ spells. Which kinds of file open, beyond pages, PDFs, pictures and macro-free Of
 and which other kinds of link, is yours to add to in Settings — `.slnx`, say, so a solution
 opens in your IDE, or `vscode:`.
 
+On Windows a marked script or application can also be marked **As admin**, and then it
+starts the way *Run as administrator* starts it — Windows asks first, every time.
+
 A snippet or a clip that names a file or folder can also be **shown in Explorer or Finder**
 with `Ctrl/⌘+R` — marked or not, since showing something runs nothing. Klippy resolves the
 path first, variables and all: a folder opens, and a file is selected in its folder.
