@@ -1,0 +1,5 @@
+in the clipboard manager, when we show an image, add the ability to preview the image (shown via klippy), add the ability to save the image to a folder and open the folder, add the ability to save the image to a folder and put the path of the image file onto the clipboard
+
+---
+
+that looks good.  pr please
