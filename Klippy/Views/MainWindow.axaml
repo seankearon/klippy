@@ -481,6 +481,41 @@
                                 </Grid>
                               </Viewbox>
                             </Button>
+                            <!-- a picture: look at it full size, or save it as a file and
+                                 either show it in its folder or copy its path -->
+                            <Button Classes="icon" IsVisible="{Binding IsImage}"
+                                    ToolTip.Tip="Preview"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).PreviewImageCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconEye}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon" IsVisible="{Binding IsImage}"
+                                    ToolTip.Tip="Save and show in folder"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).SaveImageAndShowCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconFolder}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
+                            <Button Classes="icon" IsVisible="{Binding IsImage}"
+                                    ToolTip.Tip="Save and copy path"
+                                    Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).SaveImageAndCopyPathCommand}"
+                                    CommandParameter="{Binding}">
+                              <Viewbox Width="12" Height="12">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconLink}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                            </Button>
                             <Button Classes="icon" IsVisible="{Binding !IsImage}"
                                     Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).PromoteToSnippetCommand}"
                                     CommandParameter="{Binding}">
@@ -588,10 +623,25 @@
                            Text="No snippet selected"
                            IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNull}}" />
 
+                <!-- a picture clip has no text: show the picture, fitted to the pane; a
+                     click opens it full size -->
+                <Border Padding="14,10" IsVisible="{Binding IsSelectedImage}"
+                        Background="Transparent" Cursor="Hand"
+                        ToolTip.Tip="Open full size"
+                        Tapped="SelectedImageTapped">
+                  <Image Source="{Binding SelectedImage}" HorizontalAlignment="Left"
+                         Stretch="Uniform" StretchDirection="DownOnly" />
+                </Border>
+
                 <ScrollViewer Padding="14,10"
                               HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Auto"
-                              IsVisible="{Binding SelectedSnippet, Converter={x:Static ObjectConverters.IsNotNull}}">
+                              VerticalScrollBarVisibility="Auto">
+                  <ScrollViewer.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="SelectedSnippet" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                      <Binding Path="!IsSelectedImage" />
+                    </MultiBinding>
+                  </ScrollViewer.IsVisible>
                   <TextBlock Classes="mono" FontSize="11" LineHeight="17.6"
                              Foreground="{StaticResource Muted3Brush}"
                              Text="{Binding SelectedSnippet.Content}" TextWrapping="Wrap" />
@@ -673,6 +723,7 @@
     </Border>
 
     <views:EditorOverlay />
+    <views:ImagePreviewOverlay />
     <views:ConfirmOverlay />
     <views:OfferConfirmOverlay />
     <views:TransferOverlay />

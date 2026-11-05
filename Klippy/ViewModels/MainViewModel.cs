@@ -477,7 +477,11 @@ public partial class MainViewModel : ViewModelBase
         SyncOfferSelection();
     }
 
-    partial void OnSelectedSnippetChanged(RowViewModel? value) => SyncOfferSelection();
+    partial void OnSelectedSnippetChanged(RowViewModel? value)
+    {
+        SyncOfferSelection();
+        UpdateSelectedImage();
+    }
 
     /// <summary>How many offers <c>Ctrl/⌘</c> and a digit reach: the top nine, 1 to 9.</summary>
     public const int NumberedOffers = 9;
@@ -1390,6 +1394,7 @@ public partial class MainViewModel : ViewModelBase
     public bool HandleEscape()
     {
         if (Editor is not null) { Editor = null; return true; }
+        if (ImagePreview is not null) { CloseImagePreview(); return true; }
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
         if (PendingOffer is not null) { PendingOffer = null; return true; }
         if (Transfer is not null) { Transfer = null; return true; }

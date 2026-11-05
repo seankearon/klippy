@@ -54,6 +54,23 @@ speak DIB will not see it.
 
 Per-clip actions, on row hover: **pin** (exempt from eviction), **save as snippet**
 (opens the editor prefilled — the clip stays put), **delete**, and **copy**.
+
+An image clip swaps **save as snippet** for three of its own:
+
+- **Preview** (the eye) opens the picture full size over the Klippy window, scaled down to
+  fit and never up. `Esc` or a click beside it closes it; its buttons copy the image or
+  do either of the two below. With the preview pane open (`Ctrl/⌘+P`) the selected
+  picture is shown there too, and clicking it opens the full-size view.
+- **Save and show in folder** (the folder) writes the picture out as a file and shows it
+  selected in Explorer or Finder.
+- **Save and copy path** (the link) writes it out the same way and puts the file's full
+  path on the clipboard as text — for an upload box, a terminal or a chat that wants a
+  file rather than pasted pixels. It dismisses the window when copying a clip would.
+
+Both save into `Pictures/Klippy` unless **SAVED IMAGES** in [Settings](settings.md#files)
+(`ImageSaveFolder` in `settings.json`) names another folder. The file is named for when
+the clip was captured, `klippy-2026-11-05-143012.png`; saving the same clip again gives
+back the file already there rather than a second copy. A BMP clip is saved as PNG.
 A clip carries no
 [Execute marker](running-things.md), so the history
 always copies; save a clip as a snippet and mark that if you want to run it. Deleting a
@@ -99,6 +116,7 @@ In `settings.json`, next to the hotkey:
   "HistoryCaptureImages": true,
   "HistoryCaptureFiles": true,
   "HistoryImageLimitMb": 16,
+  "ImageSaveFolder": "",
   "HistoryExcludedApps": ["keepass", "some-other-app"]
 }
 ```

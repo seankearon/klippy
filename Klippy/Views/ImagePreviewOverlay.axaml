@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.ImagePreviewOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <!-- An image clip full size, inside Klippy: the row's thumbnail is enough to recognise a
+       picture, not to read one. Fills the window less a margin, the picture scaled down to
+       fit and never up, so a small icon stays crisp rather than turning to mush. -->
+  <Panel x:Name="Overlay"
+         IsVisible="{Binding ImagePreview, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border Margin="20"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="12">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="2,0,0,10">
+          <TextBlock DockPanel.Dock="Right" Classes="mono" FontSize="10" VerticalAlignment="Center"
+                     Foreground="{StaticResource MutedBrush}" Text="Esc close" />
+          <TextBlock Classes="mono" FontSize="11" VerticalAlignment="Center"
+                     Foreground="{StaticResource Muted3Brush}"
+                     Text="{Binding ImagePreview.Label}" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+          <Button Classes="subtle" Content="Save &amp; show in folder"
+                  Command="{Binding SaveImageAndShowCommand}"
+                  CommandParameter="{Binding ImagePreview}" />
+          <Button Classes="subtle" Content="Save &amp; copy path"
+                  Command="{Binding SaveImageAndCopyPathCommand}"
+                  CommandParameter="{Binding ImagePreview}" />
+          <Button Classes="subtle" Content="Close"
+                  Command="{Binding CloseImagePreviewCommand}" />
+          <Button x:Name="CopyButton" Classes="primary" Content="Copy image"
+                  Command="{Binding CopyPreviewedImageCommand}" />
+        </StackPanel>
+
+        <Border Background="{StaticResource CodeBgBrush}" CornerRadius="6"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" ClipToBounds="True">
+          <Image Source="{Binding ImagePreviewBitmap}" Margin="8"
+                 Stretch="Uniform" StretchDirection="DownOnly" />
+        </Border>
+      </DockPanel>
+    </Border>
+  </Panel>
+</UserControl>
