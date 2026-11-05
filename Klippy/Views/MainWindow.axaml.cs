@@ -340,7 +340,7 @@ public partial class MainWindow : Window
     /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings — has the window.</summary>
     private static bool IsOverlayOpen(MainViewModel vm) =>
         vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
-        || vm.Settings is not null || vm.PendingOffer is not null;
+        || vm.Settings is not null || vm.PendingOffer is not null || vm.ImagePreview is not null;
 
     /// <summary>
     /// A press that neither Klippy's own keys nor the search box wanted, offered to the snippet shortcuts: a
@@ -399,4 +399,8 @@ public partial class MainWindow : Window
             vm.ActivateCommand.Execute(row);
         }
     }
+
+    /// <summary>A click on the picture in the preview pane opens it full size.</summary>
+    private void SelectedImageTapped(object? sender, TappedEventArgs e) =>
+        Vm?.PreviewSelectedImageCommand.Execute(null);
 }

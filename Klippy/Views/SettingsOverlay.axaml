@@ -330,6 +330,30 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+
+                  <!-- Not one of Klippy's files: where a picture from the history goes
+                       when it is saved to be shown or to have its path copied. -->
+                  <StackPanel Spacing="4">
+                    <TextBlock Classes="mono" Text="SAVED IMAGES" FontSize="10" LetterSpacing="0.8"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="Where a picture from the clipboard history is saved when you show it in its folder or copy its path." />
+
+                    <Grid ColumnDefinitions="*,8,Auto">
+                      <TextBox Grid.Column="0" Classes="mono" FontSize="11"
+                               Watermark="{Binding ImageFolderWatermark}"
+                               Text="{Binding ImageFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                      <Button Grid.Column="2" Classes="chip" Content="Open"
+                              IsVisible="{Binding CanOpenFiles}"
+                              Command="{Binding OpenImageFolderCommand}" />
+                    </Grid>
+
+                    <TextBlock Classes="mono" FontSize="10" TextWrapping="Wrap"
+                               Foreground="{StaticResource DangerBrush}"
+                               Text="{Binding ImageFolderStatusText}"
+                               IsVisible="{Binding ImageFolderStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
                 </StackPanel>
 
                 <DockPanel Margin="0,4,0,0">

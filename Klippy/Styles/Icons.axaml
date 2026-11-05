@@ -30,5 +30,9 @@
   <!-- copy glyph with a plus in the front sheet (duplicate) -->
   <StreamGeometry x:Key="IconDuplicate">M 11,9 L 18,9 A 2,2 0 0 1 20,11 L 20,18 A 2,2 0 0 1 18,20 L 11,20 A 2,2 0 0 1 9,18 L 9,11 A 2,2 0 0 1 11,9 Z M 5,15 L 5,5 A 2,2 0 0 1 7,3 L 17,3 M 14.5,11.5 L 14.5,17.5 M 11.5,14.5 L 17.5,14.5</StreamGeometry>
   <!-- tabbed folder: show what a row names in Explorer or Finder -->
+  <StreamGeometry x:Key="IconEye">M 2,12 C 5,6 9,4.5 12,4.5 C 15,4.5 19,6 22,12 C 19,18 15,19.5 12,19.5 C 9,19.5 5,18 2,12 Z M 15,12 A 3,3 0 1 0 9,12 A 3,3 0 1 0 15,12</StreamGeometry>
+
+  <StreamGeometry x:Key="IconLink">M 10,13.5 A 4.5,4.5 0 0 0 16.4,14 L 19.4,11 A 4.5,4.5 0 0 0 13,4.6 L 11.5,6.1 M 14,10.5 A 4.5,4.5 0 0 0 7.6,10 L 4.6,13 A 4.5,4.5 0 0 0 11,19.4 L 12.5,17.9</StreamGeometry>
+
   <StreamGeometry x:Key="IconFolder">M 4,20 L 20,20 A 2,2 0 0 0 22,18 L 22,9 A 2,2 0 0 0 20,7 L 12,7 L 10,4 L 4,4 A 2,2 0 0 0 2,6 L 2,18 A 2,2 0 0 0 4,20 Z</StreamGeometry>
 </ResourceDictionary>

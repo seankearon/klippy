@@ -174,6 +174,11 @@ happened on this machine, and the data folder is a thing people aim at a synced 
 log of everything you have copied should not end up there as a side effect of moving your
 snippets.
 
+Last comes **SAVED IMAGES**: the folder a picture from the clipboard history is written
+to when you [show it in its folder or copy its path](clipboard-history.md#text-files-and-images).
+Empty means `Pictures/Klippy`; **Open** opens it, creating it first if nothing has been
+saved there yet. It is read at each save, so a change needs no restart.
+
 For the two files that are settable, a bare name is another file in the data folder — a
 work set beside a personal one. An absolute path is taken as given, and environment
 variables and a leading `~` are expanded in both.

@@ -52,6 +52,13 @@ public sealed class AppSettings
     public int HistoryImageLimitMb { get; set; } = 16;
 
     /// <summary>
+    /// Where an image clip is saved when asked to be — to show it in its folder, or to put
+    /// its path on the clipboard. Empty is a Klippy folder in Pictures; environment
+    /// variables and a leading <c>~</c> are expanded. See <see cref="ImageExport"/>.
+    /// </summary>
+    public string ImageSaveFolder { get; set; } = "";
+
+    /// <summary>
     /// Applications never recorded from, by process name ("keepass"). Password managers
     /// already mark their own clipboard writes and those are honoured regardless — this
     /// is for anything else the user would rather not have kept.

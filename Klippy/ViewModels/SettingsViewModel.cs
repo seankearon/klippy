@@ -107,6 +107,23 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _dataFolder;
 
+    /// <summary>
+    /// Where an image clip is saved to be shown in its folder or have its path copied.
+    /// Empty for a Klippy folder in Pictures. Read per save, so a change applies to the next one.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ImageFolderStatusText))]
+    private string _imageFolder;
+
+    /// <summary>What an empty image folder box means, shown in it while it is empty.</summary>
+    public string ImageFolderWatermark => ImageExport.DefaultFolder;
+
+    /// <summary>What is wrong with the typed image folder, or empty while it is fine.</summary>
+    public string ImageFolderStatusText =>
+        string.IsNullOrWhiteSpace(ImageFolder) || StorageLocations.IsUsableDirectory(ImageFolder, out var problem)
+            ? ""
+            : problem;
+
     /// <summary>Why the typed folder is unusable, or null while it is fine.</summary>
     private string? _dataFolderProblem;
 
@@ -303,6 +320,7 @@ public partial class SettingsViewModel : ViewModelBase
 
         _dataFolder = settings.DataDirectory;
         RereadDataFolder();
+        _imageFolder = settings.ImageSaveFolder ?? "";
 
         Snippets = new StorageFileViewModel(
             "SNIPPETS", StorageLocations.FileName,
@@ -409,6 +427,35 @@ public partial class SettingsViewModel : ViewModelBase
         if (_executor is not { } run) return;
 
         var result = await run(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = DataFolderPath });
+        StatusText = result.Started ? null : result.Message;
+    }
+
+    partial void OnImageFolderChanged(string value)
+    {
+        if (!_loaded) return;
+        _settings.ImageSaveFolder = value?.Trim() ?? "";
+        Save();
+    }
+
+    /// <summary>Opens the image folder, making it first: nothing may have been saved there yet.</summary>
+    [RelayCommand]
+    private async Task OpenImageFolder()
+    {
+        if (_executor is not { } run) return;
+
+        var folder = ImageExport.ResolveFolder(ImageFolder);
+        try
+        {
+            System.IO.Directory.CreateDirectory(folder);
+        }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException
+                                    or ArgumentException or NotSupportedException)
+        {
+            StatusText = $"Could not create {folder}: {e.Message}";
+            return;
+        }
+
+        var result = await run(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = folder });
         StatusText = result.Started ? null : result.Message;
     }
 
