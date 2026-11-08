@@ -1,0 +1,102 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Klippy.ViewModels"
+             x:Class="Klippy.Views.HistoryPickerOverlay"
+             x:DataType="vm:MainViewModel">
+
+  <!-- The clipboard history over whatever overlay has the window, summoned by the history key. Above every
+       other overlay, since it is opened from one of them; picking a clip copies it and hands the keyboard
+       back to where it was, so the paste is the next keystroke. -->
+  <Panel x:Name="Overlay"
+         IsVisible="{Binding HistoryPicker, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <!-- Unlike the editor's, a click beside this one closes it: nothing typed here is worth keeping. -->
+    <Border Background="{StaticResource ScrimBrush}" PointerPressed="ScrimPressed" />
+
+    <Border Margin="28" MaxWidth="560"
+            Background="{StaticResource SurfaceBrush}"
+            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+            CornerRadius="8" Padding="0,12,0,0">
+      <ContentControl Content="{Binding HistoryPicker}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="vm:HistoryPickerViewModel">
+            <DockPanel>
+              <DockPanel DockPanel.Dock="Top" Margin="14,0,14,8">
+                <TextBlock DockPanel.Dock="Right" Classes="mono" FontSize="10" VerticalAlignment="Center"
+                           Foreground="{StaticResource MutedBrush}" Text="↑↓ choose · ↵ copy · Esc close" />
+                <TextBlock FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}" Text="Clipboard history" />
+              </DockPanel>
+
+              <TextBox DockPanel.Dock="Top" x:Name="PickerFilter" Classes="field" FontSize="12"
+                       Loaded="FilterLoaded"
+                       Margin="14,0,14,10" Watermark="Filter clipboard history"
+                       Text="{Binding FilterText}" />
+
+              <Border DockPanel.Dock="Bottom" Padding="14,6"
+                      BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
+                <TextBlock Classes="mono" FontSize="10" Foreground="{StaticResource MutedBrush}"
+                           Text="{Binding CountText}" />
+              </Border>
+
+              <ListBox Classes="snips desktop" ItemsSource="{Binding Clips}"
+                       SelectedItem="{Binding Selected}" SelectionMode="Single"
+                       AutoScrollToSelectedItem="True" Focusable="False"
+                       BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ClipViewModel">
+                    <Border BorderBrush="{StaticResource RowDividerBrush}" BorderThickness="0,0,0,1"
+                            Background="Transparent" Tapped="RowTapped">
+                      <DockPanel>
+                        <Rectangle Classes="selBar" DockPanel.Dock="Left" Width="2" />
+                        <Border Classes="rowSurface" Padding="12,8,14,8">
+                          <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12"
+                                        Margin="12,0,0,0" VerticalAlignment="Center">
+                              <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                         Foreground="{StaticResource Muted2Brush}"
+                                         Text="{Binding KindMarker}" IsVisible="{Binding HasKindMarker}" />
+                              <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                         Foreground="{StaticResource Muted2Brush}"
+                                         Text="{Binding SourceApp}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Classes="mono" FontSize="10" VerticalAlignment="Center"
+                                         Foreground="{StaticResource Muted2Brush}" Text="{Binding Age}" />
+                              <Border Classes="enterBadge"
+                                      BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                                      CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                                <TextBlock Classes="mono" FontSize="10"
+                                           Foreground="{StaticResource AccentBrush}" Text="↵ copy" />
+                              </Border>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                              <Border IsVisible="{Binding IsImage}"
+                                      Background="{StaticResource CodeBgBrush}"
+                                      BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                      CornerRadius="4" Padding="1" VerticalAlignment="Center">
+                                <Image Source="{Binding Thumbnail}" Height="26" MaxWidth="48"
+                                       Stretch="Uniform" />
+                              </Border>
+                              <Viewbox Width="13" Height="13" VerticalAlignment="Center"
+                                       IsVisible="{Binding IsFiles}">
+                                <Grid Width="24" Height="24">
+                                  <Path Data="{StaticResource IconFiles}" Stroke="{StaticResource Muted3Brush}"
+                                        StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" />
+                                </Grid>
+                              </Viewbox>
+                              <TextBlock Classes="rowPreview mono" FontSize="12" VerticalAlignment="Center"
+                                         Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                          </DockPanel>
+                        </Border>
+                      </DockPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+  </Panel>
+</UserControl>

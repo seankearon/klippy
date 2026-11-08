@@ -334,6 +334,23 @@ internal sealed class LauncherHost : IDisposable
         var summon = history ? _settings.ParsedHistoryHotkey : _settings.ParsedHotkey;
         if (summon is not null && vm?.OfferHotkeyToRecorder(summon) == true) return;
 
+        // The history key with an overlay up — a snippet half-written in the editor, say: the history comes
+        // up over it rather than switching the list behind it, where it could not be seen, and the overlay is
+        // still there once a clip has been picked. Pressed again, it puts the picker away — unless the window
+        // has gone behind another app, when the picker is what is being asked for and is brought back.
+        if (history && vm is not null)
+        {
+            var inFront = window.IsVisible && window.IsActive;
+            if ((vm.HistoryPicker is not null && !inFront) || vm.ToggleHistoryPicker())
+            {
+                if (vm.HistoryPicker is null) return;
+
+                if (!inFront) ShowWindow();
+                if (window is Klippy.Views.MainWindow picking) picking.FocusHistoryPicker();
+                return;
+            }
+        }
+
         if (window.IsVisible && window.IsActive && vm?.IsHistoryMode == history)
         {
             Dismiss(window);

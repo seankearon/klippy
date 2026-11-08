@@ -728,5 +728,6 @@
     <views:OfferConfirmOverlay />
     <views:TransferOverlay />
     <views:SettingsOverlay />
+    <views:HistoryPickerOverlay x:Name="HistoryPicker" />
   </Panel>
 </Window>

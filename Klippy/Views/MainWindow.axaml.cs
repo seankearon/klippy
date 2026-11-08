@@ -193,6 +193,42 @@ public partial class MainWindow : Window
         // A key field in the editor is listening: every press is its own, Esc and Cmd/Ctrl+Enter included.
         if (vm.Editor is { IsRecording: true }) return;
 
+        var stroke = KeyStroke.From(e.Key, e.KeyModifiers);
+
+        // The history picker, over whatever overlay it was opened from: its keys are the list's, and nothing
+        // underneath — the editor's Ctrl+Enter save, above all — hears them. Everything else is the filter's.
+        if (vm.HistoryPicker is { } picker)
+        {
+            switch (e.Key)
+            {
+                case Key.Escape:
+                    vm.CloseHistoryPickerCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+                case Key.Down:
+                    picker.Navigate(1);
+                    e.Handled = true;
+                    break;
+                case Key.Up:
+                    picker.Navigate(-1);
+                    e.Handled = true;
+                    break;
+                case Key.Enter:
+                    vm.PickClipCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+                default:
+                    if (vm.IsHistoryHotkey(stroke))
+                    {
+                        vm.ToggleHistoryPicker();
+                        e.Handled = true;
+                        _swallowTextInput = true;
+                    }
+                    break;
+            }
+            return;
+        }
+
         // The second press of a chord, heard ahead of everything — so it is the chord's alone, and the N of
         // Ctrl+K, Ctrl+N doesn't also open a new snippet. A modifier going down is only the run-up to it.
         if (vm.IsChordPending)
@@ -212,7 +248,14 @@ public partial class MainWindow : Window
         // as Cancel — see ConfirmFocus.
         if (IsOverlayOpen(vm))
         {
-            if (e.Key == Key.Escape)
+            // The history key, where it reaches the window at all — see IsHistoryHotkey. Registered
+            // system-wide, the launcher answers it the same way before the window ever sees it.
+            if (vm.IsHistoryHotkey(stroke) && vm.ToggleHistoryPicker())
+            {
+                e.Handled = true;
+                _swallowTextInput = true;
+            }
+            else if (e.Key == Key.Escape)
             {
                 vm.HandleEscape();
                 e.Handled = true;
@@ -226,9 +269,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        // The history key at the main window, where it reaches it (see above): the history, as it means.
+        if (vm.IsHistoryHotkey(stroke) && vm.HasHistory && !vm.IsHistoryMode)
+        {
+            vm.ShowHistory();
+            if (vm.FilterText.Length > 0) SelectSearchText();
+            e.Handled = true;
+            _swallowTextInput = true;
+            return;
+        }
+
         // Cmd/Ctrl and a digit: the band carrying that number, whatever holds the selection. Held on its own,
         // so Ctrl+Shift+1 and Ctrl+Alt+1 stay free for a snippet's keys; the number pad's digits are the same.
-        var stroke = KeyStroke.From(e.Key, e.KeyModifiers);
         if (stroke.Modifiers == cmdMod && stroke.Key is >= Key.D1 and <= Key.D9
             && vm.RunNumberedOffer(stroke.Key - Key.D0))
         {
@@ -337,10 +389,17 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings — has the window.</summary>
+    /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings, the history picker — has the window.</summary>
     private static bool IsOverlayOpen(MainViewModel vm) =>
         vm.Editor is not null || vm.DeleteTarget is not null || vm.Transfer is not null
-        || vm.Settings is not null || vm.PendingOffer is not null || vm.ImagePreview is not null;
+        || vm.Settings is not null || vm.PendingOffer is not null || vm.ImagePreview is not null
+        || vm.HistoryPicker is not null;
+
+    /// <summary>
+    /// Hands the keyboard to the history picker's filter — for the launcher, once bringing the window forward
+    /// has settled where focus goes.
+    /// </summary>
+    public void FocusHistoryPicker() => HistoryPicker.FocusFilter();
 
     /// <summary>
     /// A press that neither Klippy's own keys nor the search box wanted, offered to the snippet shortcuts: a
