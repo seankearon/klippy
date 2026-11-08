@@ -29,6 +29,10 @@ dismiss to, so the pair is hidden there.
 | **Close on clip** (default on) | Copying from the clipboard history hides the window, so the app you are pasting into comes straight back to the front | The list stays up |
 | **Close on snippet** (default off) | Copying a snippet hides the window too | The list stays up for the next copy |
 
+Neither applies to a clip picked from the history brought up
+[over the editor](global-hotkeys.md) — that clip is wanted in the dialog underneath, so the
+window stays where it is.
+
 One, desktop only, says whether running a script or an application
 [pulls its folder first](running-things.md#pull-first) — where what you run is kept in a checkout, this is
 what keeps it current.

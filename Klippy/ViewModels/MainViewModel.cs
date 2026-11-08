@@ -1393,6 +1393,8 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public bool HandleEscape()
     {
+        // First: it sits over whichever overlay it was opened from, and Esc must not throw that away.
+        if (HistoryPicker is not null) { HistoryPicker = null; return true; }
         if (Editor is not null) { Editor = null; return true; }
         if (ImagePreview is not null) { CloseImagePreview(); return true; }
         if (DeleteTarget is not null) { DeleteTarget = null; return true; }
@@ -1420,6 +1422,7 @@ public partial class MainViewModel : ViewModelBase
         // this is for. Ahead of the clear, which fires nothing when the box is already empty.
         CloseCommands(restore: false);
         CancelChord(); // a chord half-pressed when the window went away is not one to finish later
+        HistoryPicker = null; // a question too, and its filter with it; the overlay under it is work, and stays
         FilterText = "";
     }
 

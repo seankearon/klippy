@@ -225,10 +225,10 @@ public partial class MainViewModel
         return TriggerOutcome.AwaitingArguments;
     }
 
-    /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings — is up.</summary>
+    /// <summary>Whether an overlay — the editor, a confirmation, export/import, settings, the history picker — is up.</summary>
     private bool IsOverlayOpen =>
         Editor is not null || DeleteTarget is not null || Transfer is not null || Settings is not null
-        || PendingOffer is not null || ImagePreview is not null;
+        || PendingOffer is not null || ImagePreview is not null || HistoryPicker is not null;
 
     /// <summary>
     /// A registered system-wide hotkey was pressed while one of the editor's key fields is listening — so the

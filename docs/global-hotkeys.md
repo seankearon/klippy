@@ -38,6 +38,14 @@ the filter and any overlay are cleared. Switching views keeps what is in the sea
 you are looking for the same thing either way, and the other half of the answer should be
 one keystroke away rather than one keystroke and a retype.
 
+With something open over the list — the editor, most often, but Settings, export/import or a
+confirmation too — the history key brings the clipboard history up **over** it instead, since
+switching the list underneath would show nothing. Filter, `↑`/`↓`, and `Enter` or a click copies
+the clip and puts the picker away, handing the keyboard back to the field you were in, so
+`Ctrl/⌘+V` pastes it straight in. The window stays up whatever closing after a copy says, and
+the editor keeps everything typed in it. `Esc`, a click beside it or the history key again
+closes the picker alone.
+
 Switching a window that is already up hands that line back **selected**: the next
 keystroke replaces it, and `→` or `End` drops the selection to carry on typing where you
 left off — the same question gets a keystroke, a new one gets a keystroke. Being
@@ -59,7 +67,9 @@ Stored in `settings.json`, in Klippy's app-data folder (Settings shows the path)
 }
 ```
 
-`HotkeyEnabled` is the master switch for both. Setting `HistoryHotkey` to `""` turns off
+`HotkeyEnabled` is the master switch for both. With it off, `HistoryHotkey` still works
+inside the Klippy window — the history from the list, the picker from over the editor —
+since the window then sees the key itself. Setting `HistoryHotkey` to `""` turns off
 just that one — it is not filled back in with the default, since that would re-register a
 key you had just removed.
 

@@ -58,6 +58,11 @@ CONTENT field more room, and it reopens at that size. Clicking the dimmed area b
 it does nothing on purpose — leaving an edit takes `Esc` or Cancel, so a stray click
 cannot discard it.
 
+Mid-edit, the [history key](global-hotkeys.md) (`Ctrl+Alt+J` / `⌥⌘J`) brings the
+clipboard history up over the dialog: pick a clip and it is copied, the history goes away,
+and the keyboard is back in the field you left, ready for `Ctrl/⌘+V`. `Esc` there closes
+the history, not the edit.
+
 A snippet carries a single **tag**, and the editor shows the tags already in use under
 the TAG field (EXISTING TAGS) so a snippet joins one of them rather than quietly coining
 `wrk` beside `work` — a typo there costs a chip in the filter row and hides the snippet
