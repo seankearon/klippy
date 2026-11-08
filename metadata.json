@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M6XKSKXBNMFGTXF2YCKPKC53",
+  "strategy": "manual-commit",
+  "branch": "history-picker-over-overlays",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Klippy.Desktop/LauncherHost.cs",
+    "Klippy.Tests/HistoryPickerTests.cs",
+    "Klippy/ViewModels/HistoryPickerViewModel.cs",
+    "Klippy/ViewModels/MainViewModel.HistoryPicker.cs",
+    "Klippy/ViewModels/MainViewModel.Shortcuts.cs",
+    "Klippy/ViewModels/MainViewModel.cs",
+    "Klippy/Views/HistoryPickerOverlay.axaml",
+    "Klippy/Views/HistoryPickerOverlay.axaml.cs",
+    "Klippy/Views/MainWindow.axaml",
+    "Klippy/Views/MainWindow.axaml.cs",
+    "docs/clipboard-history.md",
+    "docs/global-hotkeys.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 86,
+    "cache_creation_tokens": 143844,
+    "cache_read_tokens": 5869517,
+    "output_tokens": 37672,
+    "api_call_count": 43
+  },
+  "redaction": {
+    "replacements": 21,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 21,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

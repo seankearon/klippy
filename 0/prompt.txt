@@ -1,0 +1,5 @@
+when we're working in klippy, say editing a new task, we sometimes need access to the clipboard history, but our shortcut key Ctrl + Alt + J isn't available.  I think a good approach would be to allow the clipboard history to be presented modally by using the keyboard shortcut from inside klippy.  obviously if we're in the main window then that doesn't apply and the key shortcut should jus tgo to the clipboard history.
+
+---
+
+make sure the docs are up to date, then PR please
