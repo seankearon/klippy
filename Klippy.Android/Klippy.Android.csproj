@@ -10,17 +10,12 @@
     <AndroidPackageFormat>apk</AndroidPackageFormat>
   </PropertyGroup>
 
-  <!-- Release: profiled AOT (fast startup without full-AOT size cost) + full trimming. -->
+  <!-- Release: full trimming. From .NET 11 the app runs on CoreCLR, and the Android SDK turns on
+       composite ReadyToRun for a trimmed Release publish by itself. The Mono AOT properties this
+       used to set (RunAOTCompilation and friends) are now an error, XA1044, whatever their value. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <RunAOTCompilation>true</RunAOTCompilation>
-    <AndroidEnableProfiledAot>true</AndroidEnableProfiledAot>
-    <AndroidStripILAfterAOT>true</AndroidStripILAfterAOT>
     <TrimMode>full</TrimMode>
     <InvariantGlobalization>true</InvariantGlobalization>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
   </PropertyGroup>
 
   <ItemGroup>

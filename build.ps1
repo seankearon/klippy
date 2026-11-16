@@ -42,7 +42,7 @@ param(
     [switch] $Test,
 
     # Desktop: trimmed + ReadyToRun instead of NativeAOT (no C++ toolchain required).
-    # Android: skips Mono AOT compilation, which is much faster to iterate on.
+    # Android: skips ReadyToRun compilation, which is faster to iterate on.
     [switch] $NoAot,
 
     # Build the Android head instead of the Windows desktop head.
@@ -52,7 +52,7 @@ param(
     [ValidateSet('android-arm64', 'android-arm', 'android-x64', 'android-x86')]
     [string] $Abi = 'android-arm64',
 
-    # Android configuration. Release turns on profiled AOT and full trimming.
+    # Android configuration. Release turns on ReadyToRun and full trimming.
     [ValidateSet('Release', 'Debug')]
     [string] $Configuration = 'Release',
 
@@ -148,7 +148,7 @@ if ($Android) {
     foreach ($package in $stale) { Remove-Item $package.FullName -Force }
     Write-Ok "removed $($stale.Count) previous package(s)"
 
-    $aotLabel = if ($NoAot) { 'no AOT' } elseif ($Configuration -eq 'Release') { 'profiled AOT + full trim' } else { 'no AOT (Debug)' }
+    $aotLabel = if ($NoAot) { 'no ReadyToRun' } elseif ($Configuration -eq 'Release') { 'ReadyToRun + full trim' } else { 'no ReadyToRun (Debug)' }
     Write-Step "Publishing $Abi $Configuration ($aotLabel)"
 
     $publishArgs = @(
@@ -157,16 +157,11 @@ if ($Android) {
         "-p:RuntimeIdentifier=$Abi",
         '--nologo'
     )
-    # Clearing RunAOTCompilation alone is not enough: the csproj turns on profiled AOT
-    # for Release, and Microsoft.Android.Sdk.Aot.targets imports the MonoAOTCompiler SDK
-    # off the back of that, so the build fails at evaluation time when the AOT workload
-    # pack is missing. Both flags have to go, along with the IL strip that follows AOT.
+    # On CoreCLR (the Android runtime from .NET 11) ReadyToRun is the AOT step, on by
+    # default for Release. RunAOTCompilation is Mono's switch: setting it to anything,
+    # false included, fails the build with XA1044.
     if ($NoAot) {
-        $publishArgs += @(
-            '-p:RunAOTCompilation=false',
-            '-p:AndroidEnableProfiledAot=false',
-            '-p:AndroidStripILAfterAOT=false'
-        )
+        $publishArgs += '-p:PublishReadyToRun=false'
     }
     if ($Output) { $publishArgs += @('-o', $Output) }
 

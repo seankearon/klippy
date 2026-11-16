@@ -675,15 +675,12 @@ let buildKlippy () =
                 "--verbosity minimal"
                 $"--output {publishDir |> doubleQuote}"
 
-                // The escape hatch for the machine where the Mono AOT workload will not
-                // resolve. Clearing RunAOTCompilation alone is not enough - the csproj turns
-                // on profiled AOT for Release and the Android SDK imports the MonoAOTCompiler
-                // SDK off the back of that, which fails at evaluation time. See build.ps1,
-                // which carries the same three flags for the same reason.
+                // Skips ReadyToRun, which the Android SDK turns on for a CoreCLR Release
+                // publish: a smaller APK that starts more slowly. Not RunAOTCompilation=false -
+                // that is Mono's switch, and on CoreCLR the SDK fails with XA1044 if it is set
+                // to anything at all. build.ps1 -NoAot passes the same flag.
                 if hasArg "android-no-aot" then
-                    "-p:RunAOTCompilation=false"
-                    "-p:AndroidEnableProfiledAot=false"
-                    "-p:AndroidStripILAfterAOT=false"
+                    "-p:PublishReadyToRun=false"
             ]
 
             // The unsigned APK sits beside this one; -Signed is the installable artifact.
