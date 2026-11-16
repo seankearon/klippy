@@ -65,7 +65,7 @@ public class ConfirmFocusTests
     private static Fixture Open(Dialog dialog)
     {
         var vm = new MainViewModel(
-            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-confirm-{Guid.NewGuid():N}.json")),
+            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-confirm-{Guid.NewGuid():N}")),
             settings: new AppSettings());
         var window = new MainWindow { DataContext = vm };
         window.Show();
@@ -229,7 +229,7 @@ public class ConfirmFocusTests
     public void TheMobileScreenOpensItsDeleteConfirmationOnCancelToo()
     {
         var vm = new MainViewModel(
-            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-confirm-{Guid.NewGuid():N}.json")));
+            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-confirm-{Guid.NewGuid():N}")));
         var window = new Window
         {
             Width = 390,

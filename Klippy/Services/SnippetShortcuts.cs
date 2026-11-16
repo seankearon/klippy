@@ -178,12 +178,12 @@ public sealed class ChordMatcher
 /// <summary>
 /// The system-wide hotkeys the snippets ask for (<see cref="Snippet.Hotkey"/>), worked out before anything is
 /// registered: each one parsed, any that is one of Klippy's own summon keys left out, and a combination two
-/// snippets both carry given to the first — so a clash in the file reads as the clash it is rather than as
+/// snippets both carry given to the first in creation order — so a clash in the snippets reads as the clash it is rather than as
 /// "another application holds it".
 /// </summary>
 public static class SnippetHotkeys
 {
-    /// <summary>The (snippet, hotkey) pairs to register, in file order.</summary>
+    /// <summary>The (snippet, hotkey) pairs to register, in the store's creation order — the first of two claiming one keeps it.</summary>
     public static IReadOnlyList<(Guid SnippetId, HotkeySpec Spec)> Plan(
         IEnumerable<Snippet> snippets, IEnumerable<HotkeySpec?> summonKeys)
     {

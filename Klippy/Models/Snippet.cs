@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 
 namespace Klippy.Models;
 
@@ -76,6 +77,33 @@ public sealed class Snippet : ISearchable
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Last time the snippet was copied; used to rank recent items first.</summary>
+    /// <summary>
+    /// When this version of the snippet was saved, in UTC. Stamped by the store on every add, edit and
+    /// import, and what settles which of two versions wins when a sync client has kept both — see
+    /// <c>SnippetStore</c>. Absent in older files, which read as the earliest possible time and so lose to
+    /// any version that has one; <see cref="ModifiedAtOrCreated"/> is the value to compare.
+    /// </summary>
+    public DateTimeOffset ModifiedAt { get; set; }
+
+    /// <summary>
+    /// The machine that saved this version — <see cref="Environment.MachineName"/>. Only ever read by a
+    /// person: it is what says, of the two versions a sync conflict left behind, which one came from where.
+    /// Empty in older files.
+    /// </summary>
+    public string ModifiedBy { get; set; } = "";
+
+    /// <summary>
+    /// Last time the snippet was copied or run on <em>this</em> machine; ranks recent items first. Held in
+    /// memory and in the export, but never in the snippet's own file in the shared folder: it changes on
+    /// every copy, and a file that changes on every copy is one two machines are forever rewriting over each
+    /// other. The store keeps it in a file of its own beside settings.json instead.
+    /// </summary>
     public DateTimeOffset LastUsedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// <see cref="ModifiedAt"/>, or <see cref="CreatedAt"/> for a snippet from before it was stamped: a
+    /// snippet nobody has edited since it was made was last modified when it was made.
+    /// </summary>
+    [JsonIgnore]
+    public DateTimeOffset ModifiedAtOrCreated => ModifiedAt == default ? CreatedAt : ModifiedAt;
 }

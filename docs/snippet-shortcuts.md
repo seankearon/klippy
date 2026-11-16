@@ -137,7 +137,7 @@ as it does its quick-code.
 
 ## In the file
 
-Both are stored on the snippet, in the snippets file and in an [export](export-import.md), so they travel
+Both are stored on the snippet, in its file and in an [export](export-import.md), so they travel
 with it:
 
 ```json
@@ -151,7 +151,7 @@ with it:
 
 Empty, or absent in an older file, means none. A shortcut is written as the editor shows it, a chord with a
 comma between its presses; VS Code's space-separated `ctrl+k ctrl+l` reads too. A hotkey is written as the
-summon keys are. If an edit or an import leaves two snippets with the same keys, the first in the file keeps
-them, and a shortcut that could never fire — one starting on typing, or on one of Klippy's own keys — is
+summon keys are. If an edit, an import or a sync from another machine leaves two snippets with the same keys,
+the older one — the snippets are kept in [creation order](data-and-backup.md) — keeps them, and a shortcut that could never fire — one starting on typing, or on one of Klippy's own keys — is
 left unbound. That includes `Ctrl+1` to `Ctrl+9` on their own, which became Klippy's when the offer bands were
-numbered: a snippet given one of those before keeps it in the file, unbound, until you give it other keys.
+numbered: a snippet given one of those before keeps it in its file, unbound, until you give it other keys.

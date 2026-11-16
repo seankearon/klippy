@@ -334,7 +334,7 @@ $stopwatch.Stop()
 $publishDir = if ($Output) {
     $Output
 } else {
-    Join-Path $root "Klippy.Desktop\bin\Release\net10.0\$Runtime\publish"
+    Join-Path $root "Klippy.Desktop\bin\Release\net11.0\$Runtime\publish"
 }
 
 Write-Step 'Result'

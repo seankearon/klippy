@@ -75,7 +75,7 @@ public class ExecuteTests
     private static Fixture NewVm(bool executable = true, string? clipboard = null, params Snippet[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var snippet in snippets.Length > 0 ? snippets : new[] { GoogleSearch, DockerPrune })
             store.Add(snippet);
 
@@ -388,7 +388,7 @@ public class ExecuteTests
         history.Add(new ClipEntry { Text = "https://github.com/seankearon/Klippy", SourceApp = "chrome" });
 
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}"), seedIfEmpty: false);
         var vm = new MainViewModel(store, history);
         vm.ShowHistory();
 
@@ -451,7 +451,7 @@ public class ExecuteTests
     [AvaloniaFact]
     public void TheMarkerSurvivesARoundTripThroughTheStore()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"klippy-exec-{Guid.NewGuid():N}");
         var store = new SnippetStore(path, seedIfEmpty: false);
         store.Add(new Snippet { Label = "Google search", Content = SearchUrl, IsExecutable = true });
         store.Add(new Snippet { Label = "Docker prune", Content = "docker system prune" });

@@ -1,1 +1,1 @@
-dotnet build && dotnet run --project ./Klippy.Desktop/Klippy.Desktop.csproj 
+dotnet run --project ./Klippy.Desktop/Klippy.Desktop.csproj

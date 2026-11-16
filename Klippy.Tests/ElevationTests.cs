@@ -166,7 +166,7 @@ public class ElevationTests
     private static (MainViewModel Vm, List<ExecutionPlan> Ran) NewVm(params Snippet[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-elevation-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-elevation-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var snippet in snippets) store.Add(snippet);
 
         var ran = new List<ExecutionPlan>();
@@ -323,7 +323,7 @@ public class ElevationTests
     [AvaloniaFact]
     public void TheMarkerSurvivesARoundTripThroughTheStore()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"klippy-elevation-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"klippy-elevation-{Guid.NewGuid():N}");
         var store = new SnippetStore(path, seedIfEmpty: false);
         store.Add(Deploy());
         store.Add(Deploy(administrator: false, label: "Deploy, as me"));

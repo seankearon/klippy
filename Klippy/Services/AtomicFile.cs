@@ -29,4 +29,25 @@ public static class AtomicFile
             }
         }
     }
+
+    /// <summary>
+    /// Deletes <paramref name="path"/>, retried as <see cref="Replace"/> is and for the same reason: a sync
+    /// client or the indexer briefly holding a file is a reason to wait a moment, not to fail. A file that
+    /// is already gone is not an error.
+    /// </summary>
+    public static void Delete(string path)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Delete(path);
+                return;
+            }
+            catch (Exception e) when (e is UnauthorizedAccessException or IOException && attempt < Attempts)
+            {
+                Thread.Sleep(20 * attempt);
+            }
+        }
+    }
 }

@@ -103,7 +103,7 @@ The policy is a pure function with no Win32 in it, so the security-critical half
 capture is something the tests pin down rather than something you have to trust.
 
 That said, **the history is a plaintext record of what you copied**, protected by the
-same `%APPDATA%` permissions as `snippets.json` and nothing more. If that is not a trade
+same `%APPDATA%` permissions as the snippets and nothing more. If that is not a trade
 you want, `"HistorySessionOnly": true` keeps it in memory and never writes it to disk.
 
 ## Settings
@@ -134,7 +134,7 @@ have been pointed, since a record of what this machine copied has no business sy
 another — written on a two-second timer and on exit rather than per copy: history changes on *every* copy anywhere on the system, and
 rewriting the file each time would be the wrong shape entirely. The cost is that a hard
 crash loses the last couple of seconds — the right trade for data that is itself
-transient, and a real difference from `snippets.json`, which is atomic per mutation.
+transient, and a real difference from the snippets, each of whose files is written atomically as it changes.
 
 **Not yet done:** paste-back. Selecting a clip copies it; it does not paste it into the
 window you came from, which is the thing that makes Ditto feel fast. That needs

@@ -12,17 +12,22 @@ public class BackupLocationTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"klippy-backup-{Guid.NewGuid():N}");
     private readonly string _originalDir = StorageLocations.Directory;
+    private readonly string _originalDefaultDir = StorageLocations.DefaultDirectory;
     private readonly string? _originalExempt = StorageLocations.BackupExemptDirectory;
 
     public BackupLocationTests()
     {
         StorageLocations.Directory = Path.Combine(_root, "appdata", "Klippy");
+        // The app's own store keeps its usage in the app-data folder, and a test must not write the
+        // developer's.
+        StorageLocations.DefaultDirectory = StorageLocations.Directory;
         StorageLocations.BackupExemptDirectory = Path.Combine(_root, "no_backup", "Klippy");
     }
 
     public void Dispose()
     {
         StorageLocations.Directory = _originalDir;
+        StorageLocations.DefaultDirectory = _originalDefaultDir;
         StorageLocations.BackupExemptDirectory = _originalExempt;
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
@@ -34,8 +39,8 @@ public class BackupLocationTests : IDisposable
         store.Add(new Snippet { Label = "a", Content = "x" });
 
         Assert.True(store.IsIncludedInBackup);
-        Assert.Equal(StorageLocations.BackedUpPath, store.FilePath);
-        Assert.True(File.Exists(StorageLocations.BackedUpPath));
+        Assert.Equal(StorageLocations.BackedUpFolder, store.FolderPath);
+        Assert.Single(Directory.GetFiles(StorageLocations.BackedUpFolder, "*.json"));
     }
 
     [Fact]
@@ -47,8 +52,8 @@ public class BackupLocationTests : IDisposable
         store.SetBackupParticipation(false);
 
         Assert.False(store.IsIncludedInBackup);
-        Assert.True(File.Exists(StorageLocations.BackupExemptPath!));
-        Assert.False(File.Exists(StorageLocations.BackedUpPath)); // no copy left behind to be backed up
+        Assert.Single(Directory.GetFiles(StorageLocations.BackupExemptFolder!, "*.json"));
+        Assert.False(Directory.Exists(StorageLocations.BackedUpFolder)); // no copy left behind to be backed up
         Assert.Equal("secret", Assert.Single(store.Entries).Item.Label);
     }
 
@@ -61,8 +66,8 @@ public class BackupLocationTests : IDisposable
         store.SetBackupParticipation(true);
 
         Assert.True(store.IsIncludedInBackup);
-        Assert.True(File.Exists(StorageLocations.BackedUpPath));
-        Assert.False(File.Exists(StorageLocations.BackupExemptPath!));
+        Assert.Single(Directory.GetFiles(StorageLocations.BackedUpFolder, "*.json"));
+        Assert.False(Directory.Exists(StorageLocations.BackupExemptFolder!));
     }
 
     [Fact]
@@ -84,7 +89,7 @@ public class BackupLocationTests : IDisposable
         var store = new SnippetStore(seedIfEmpty: false);
         store.Add(new Snippet { Label = "a", Content = "x" });
         store.SetBackupParticipation(true);   // already included
-        Assert.True(File.Exists(StorageLocations.BackedUpPath));
+        Assert.Single(Directory.GetFiles(StorageLocations.BackedUpFolder, "*.json"));
         Assert.Single(store.Entries);
     }
 
@@ -98,7 +103,57 @@ public class BackupLocationTests : IDisposable
         store.SetBackupParticipation(false);
 
         Assert.True(store.IsIncludedInBackup);
-        Assert.Equal(StorageLocations.BackedUpPath, store.FilePath);
+        Assert.Equal(StorageLocations.BackedUpFolder, store.FolderPath);
+    }
+
+    [Fact]
+    public void AnOlderStoreLeftInTheExemptLocation_IsStillTheOneOpened()
+    {
+        // Someone who opted out on 1.0.33 has snippets.json in no_backup. The choice is read from where the
+        // store is, and an upgrade must not quietly start a fresh one in the backed-up folder instead.
+        Directory.CreateDirectory(StorageLocations.BackupExemptDirectory!);
+        File.WriteAllText(
+            Path.Combine(StorageLocations.BackupExemptDirectory!, StorageLocations.LegacySnippetsFileName),
+            """[{"Id":"11111111-1111-1111-1111-111111111111","Label":"kept","Content":"x"}]""");
+
+        var store = new SnippetStore(seedIfEmpty: false);
+
+        Assert.False(store.IsIncludedInBackup);
+        Assert.Equal("kept", Assert.Single(store.Entries).Item.Label);
+        Assert.False(Directory.Exists(StorageLocations.BackedUpFolder));
+    }
+
+    [Fact]
+    public void OptingOut_TakesTheCarriedForwardCopyAlong()
+    {
+        // snippets.migrated.json is every snippet an older Klippy had. Left in the backed-up folder, a
+        // "wipe on uninstall" would wipe nothing.
+        Directory.CreateDirectory(StorageLocations.Directory);
+        File.WriteAllText(
+            Path.Combine(StorageLocations.Directory, StorageLocations.LegacySnippetsFileName),
+            """[{"Id":"11111111-1111-1111-1111-111111111111","Label":"secret","Content":"DE44 5001"}]""");
+        var store = new SnippetStore(seedIfEmpty: false);
+        Assert.True(File.Exists(Path.Combine(StorageLocations.Directory, "snippets.migrated.json")));
+
+        store.SetBackupParticipation(false);
+
+        Assert.False(File.Exists(Path.Combine(StorageLocations.Directory, "snippets.migrated.json")));
+        Assert.True(File.Exists(Path.Combine(StorageLocations.BackupExemptDirectory!, "snippets.migrated.json")));
+    }
+
+    [Fact]
+    public void Moving_LeavesAFileItCouldNotRead_WhereItWas()
+    {
+        // Never treat a file it cannot read as one it can throw away: the move deletes only what it carried.
+        var store = new SnippetStore(seedIfEmpty: false);
+        store.Add(new Snippet { Label = "a", Content = "x" });
+        var stray = Path.Combine(StorageLocations.BackedUpFolder, "not-a-snippet.json");
+        File.WriteAllText(stray, "{ half written");
+
+        store.SetBackupParticipation(false);
+
+        Assert.True(File.Exists(stray));
+        Assert.Single(Directory.GetFiles(StorageLocations.BackupExemptFolder!, "*.json"));
     }
 }
 

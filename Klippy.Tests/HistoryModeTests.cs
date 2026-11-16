@@ -21,7 +21,7 @@ namespace Klippy.Tests;
 public class HistoryModeTests
 {
     private static SnippetStore NewSnippetStore() =>
-        new(Path.Combine(Path.GetTempPath(), $"klippy-hist-ui-{Guid.NewGuid():N}.json"));
+        new(Path.Combine(Path.GetTempPath(), $"klippy-hist-ui-{Guid.NewGuid():N}"));
 
     private static (MainViewModel Vm, ClipHistoryStore History) NewVm(params string[] clips)
     {

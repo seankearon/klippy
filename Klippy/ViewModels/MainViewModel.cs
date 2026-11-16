@@ -273,8 +273,12 @@ public partial class MainViewModel : ViewModelBase
 
     // The MRU is built here rather than defaulted in the constructor below so that a
     // caller handing in its own store — a test — never gets a file-backed one by accident.
+    // The folder watcher likewise: only the app's own store is worth following.
     public MainViewModel() : this(new SnippetStore(), ClipboardHistory.Store, null,
-        PlatformCommandHistory()) { }
+        PlatformCommandHistory())
+    {
+        WatchSnippetFolder();
+    }
 
     /// <summary>
     /// The command MRU where the platform has a command line to recall into, null
@@ -574,7 +578,10 @@ public partial class MainViewModel : ViewModelBase
 
     private SnippetViewModel RowFor(Snippet snippet)
     {
-        if (!_rowCache.TryGetValue(snippet.Id, out var row))
+        // A row is kept only while it is showing the snippet the store holds. The store swaps one in when
+        // it reads a newer version from the folder, and swaps it back when an editor opened on the older one
+        // saves — and a row still showing the other would show the wrong edit.
+        if (!_rowCache.TryGetValue(snippet.Id, out var row) || !ReferenceEquals(row.Model, snippet))
             _rowCache[snippet.Id] = row = new SnippetViewModel(snippet);
         return row;
     }
@@ -1315,11 +1322,12 @@ public partial class MainViewModel : ViewModelBase
         // Keys go to the snippet saved last: whatever had them gives them up, as the editor said it would.
         TakeKeysFromOthers(snippet);
 
+        var setAside = false;
         if (isNew)
             _store.Add(snippet);
         else
         {
-            _store.Update(snippet);
+            setAside = _store.Update(snippet);
             if (_rowCache.TryGetValue(snippet.Id, out var row))
                 row.NotifyModelChanged();
         }
@@ -1328,6 +1336,12 @@ public partial class MainViewModel : ViewModelBase
         Refresh();
         OnSnippetsChanged();
         ReportUnclaimedHotkey(snippet);
+
+        // The snippet changed on another machine while it was open here. This save wins, since it is the one
+        // just asked for — and the other is not lost, which is worth saying, since it is someone's edit.
+        if (setAside)
+            ShowToast($"“{snippet.Label}” had changed on another machine while you were editing it. " +
+                      $"Saved yours; the other is in {_store.ConflictsFolderPath}", isError: true);
     }
 
     private void CloseEditor() => Editor = null;
@@ -1379,10 +1393,10 @@ public partial class MainViewModel : ViewModelBase
             // The head's own launcher, so Settings can open a folder exactly where a
             // marked item can and nowhere it cannot.
             executor: Executor,
-            // Which snippet file is open right now, so a path typed there can say whether
+            // Which snippets folder is open right now, so a path typed there can say whether
             // it is in force or waiting on a restart. From the store itself rather than
             // from the settings, which are what the screen is about to change.
-            snippetsInUse: _store.FilePath,
+            snippetsInUse: _store.FolderPath,
             // Whatever this platform keeps for starting at login, read afresh each time
             // Settings opens: Task Manager or System Settings may have changed it since.
             loginItem: LoginItem.Current);

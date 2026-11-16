@@ -202,18 +202,18 @@ public sealed class AppSettings
     public string SummonPlacement { get; set; } = nameof(LauncherPlacement.Remembered);
 
     /// <summary>
-    /// The folder the snippets and the variables file live in, unless those name a path
-    /// of their own. Empty means the platform's own app-data folder, which is what it has
+    /// The folder the snippets folder and the variables file live in, unless those name a
+    /// path of their own. Empty means the platform's own app-data folder, which is what it has
     /// always been. Environment variables and a leading <c>~</c> are expanded, so
     /// <c>"%OneDrive%\\Klippy"</c> is a legitimate way to write it.
     ///
-    /// Not the clipboard history, the command MRU or the clip images: those are the
-    /// record of what happened on this machine and stay beside settings.json, because
+    /// Not the clipboard history, the command MRU, the snippet usage or the clip images:
+    /// those are the record of what happened on this machine and stay beside settings.json, because
     /// this is a setting people point at a synced drive and a log of everything copied
     /// must not follow the snippets there as a side effect of moving them.
     ///
     /// Read once at startup, since a store that changed folder mid-session would have to
-    /// decide what to do with the file it already had open. Nothing is moved for you:
+    /// decide what to do with the files it already had open. Nothing is moved for you:
     /// copy the files across first, and note that the old folder is left exactly as it
     /// was, so setting this back gets you back.
     ///
@@ -223,21 +223,48 @@ public sealed class AppSettings
     public string DataDirectory { get; set; } = "";
 
     /// <summary>
-    /// The snippet store. Empty is <c>snippets.json</c> in <see cref="DataDirectory"/>,
-    /// which is what it has always been; a bare name is another file in that folder; an
-    /// absolute path is taken as given, and is the point of the setting — the snippets
-    /// can sit in a synced folder while everything about *this* machine stays on it.
+    /// The snippet store — a folder holding one file per snippet. Empty is <c>snippets</c> in
+    /// <see cref="DataDirectory"/>; a bare name is another folder in that one; an absolute
+    /// path is taken as given, and is the point of the setting — the snippets can sit in a
+    /// synced folder while everything about *this* machine stays on it.
     ///
-    /// It and <see cref="VariablesFile"/> are the only two files worth pointing
-    /// anywhere. The history and the command MRU are records of what happened here, so
-    /// they stay in the folder above; settings.json is the note saying where the
+    /// A folder rather than a file because a file rewritten whole on every change is one
+    /// two machines sharing it are forever writing over each other: each edit writes only
+    /// that snippet's file, so snippets added on two machines are two different files.
+    ///
+    /// It and <see cref="VariablesFile"/> are the only two things worth pointing anywhere.
+    /// The history, the command MRU and the snippet usage are records of what happened here,
+    /// so they stay beside settings.json; settings.json is the note saying where the
     /// snippets went, so it cannot follow them.
     ///
-    /// Read once at startup, for the reason <see cref="DataDirectory"/> is, and nothing
-    /// is moved for you either: copy the file across first, and the old one is left
-    /// exactly where it was, so setting this back gets you back.
+    /// Read once at startup, for the reason <see cref="DataDirectory"/> is, and nothing is
+    /// moved for you either: copy the folder across first, and the old one is left exactly
+    /// where it was, so setting this back gets you back.
     /// </summary>
-    public string SnippetsFile { get; set; } = "";
+    public string SnippetsFolder { get; set; } = "";
+
+    /// <summary>
+    /// What the snippet store was called when it was a single file. Still read — a
+    /// settings.json from before the folder names the store this way — but never written
+    /// unless it was there to begin with: while <see cref="SnippetsFolder"/> is blank, this
+    /// file's path without its <c>.json</c> is the folder, and this file is the one its
+    /// snippets are carried forward from. See <see cref="StorageLocations.FolderForLegacyFile"/>.
+    /// Settings clears it the first time the snippets box is changed, since the folder then
+    /// says everything it did.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SnippetsFile { get; set; }
+
+    /// <summary>
+    /// The snippets folder as a person would write it: <see cref="SnippetsFolder"/>, or the
+    /// folder an older <see cref="SnippetsFile"/> stands for while that is all there is.
+    /// What the Settings box shows, so an upgrade does not appear to have forgotten the setting.
+    /// </summary>
+    [JsonIgnore]
+    public string EffectiveSnippetsFolder =>
+        !string.IsNullOrWhiteSpace(SnippetsFolder) ? SnippetsFolder
+        : !string.IsNullOrWhiteSpace(SnippetsFile) ? StorageLocations.FolderForLegacyFile(SnippetsFile)
+        : "";
 
     /// <summary>
     /// The local variables file: <c>%name%</c> defines an item expands on the way to the

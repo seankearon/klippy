@@ -89,7 +89,7 @@ Everything above, in full:
 | [Global hotkeys](https://seankearon.github.io/klippy/global-hotkeys/) | Summoning Klippy from anywhere, and starting it when you log in |
 | [Settings](https://seankearon.github.io/klippy/settings/) | Every setting and what it changes |
 | [Export / import](https://seankearon.github.io/klippy/export-import/) | Moving snippets between machines |
-| [Where data lives](https://seankearon.github.io/klippy/data-and-backup/) | The store, the folder, and backup |
+| [Where data lives](https://seankearon.github.io/klippy/data-and-backup/) | The store, the folder, sharing it between machines, and backup |
 | [Building](https://seankearon.github.io/klippy/building/) | Building, publishing and packaging |
 | [Design](https://seankearon.github.io/klippy/design/) | The visual language and its fonts |
 

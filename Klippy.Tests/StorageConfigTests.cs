@@ -7,7 +7,7 @@ namespace Klippy.Tests;
 
 /// <summary>
 /// Where Klippy keeps its files, and the settings that say so: <c>DataDirectory</c> for
-/// the folder, and <c>SnippetsFile</c> and <c>VariablesFile</c> for the two that may name
+/// the folder, and <c>SnippetsFolder</c> and <c>VariablesFile</c> for the two that may name
 /// their way out of it.
 /// </summary>
 [Collection("storage-locations")] // mutates StorageLocations statics
@@ -16,14 +16,16 @@ public class StorageConfigTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"klippy-config-{Guid.NewGuid():N}");
     private readonly string _originalDir = StorageLocations.Directory;
     private readonly string _originalVariablesFile = AppSettings.Current.VariablesFile;
-    private readonly string _originalSnippetsFile = StorageLocations.SnippetsFile;
+    private readonly string _originalSnippetsFolder = StorageLocations.SnippetsFolder;
+    private readonly string _originalLegacySnippetsFile = StorageLocations.LegacySnippetsFile;
     private readonly string _originalDefaultDir = StorageLocations.DefaultDirectory;
 
     public void Dispose()
     {
         StorageLocations.Directory = _originalDir;
         StorageLocations.DefaultDirectory = _originalDefaultDir;
-        StorageLocations.SnippetsFile = _originalSnippetsFile;
+        StorageLocations.SnippetsFolder = _originalSnippetsFolder;
+        StorageLocations.LegacySnippetsFile = _originalLegacySnippetsFile;
         AppSettings.Current.VariablesFile = _originalVariablesFile;
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
@@ -50,7 +52,8 @@ public class StorageConfigTests : IDisposable
         // Both empty: a setting left alone asks for the usual name in the usual folder,
         // not for no file at all.
         Assert.Equal("", fresh.DataDirectory);
-        Assert.Equal("", fresh.SnippetsFile);
+        Assert.Equal("", fresh.SnippetsFolder);
+        Assert.Null(fresh.SnippetsFile); // the name it had when it was a file, only ever read
         Assert.Equal("", fresh.VariablesFile);
         Assert.Equal(StorageLocations.DefaultDirectory, _originalDir);
     }
@@ -79,18 +82,21 @@ public class StorageConfigTests : IDisposable
         // so the assertion is about the folder rather than about the test harness.
         AppSettings.Current.VariablesFile = KlippyVariables.DefaultFileName;
 
-        Assert.Equal(Path.Combine(_root, "snippets.json"), StorageLocations.BackedUpPath);
+        Assert.Equal(Path.Combine(_root, "snippets"), StorageLocations.BackedUpFolder);
         Assert.Equal(Path.Combine(_root, KlippyVariables.DefaultFileName), KlippyVariables.CurrentPath);
         Assert.True(Directory.Exists(_root)); // created, so the first save has somewhere to land
 
-        // But not the history or the MRU: those are about this machine and stay with the
-        // settings, whatever the data folder is doing.
+        // But not the history, the MRU or the usage: those are about this machine and stay
+        // with the settings, whatever the data folder is doing.
         Assert.Equal(
             Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.HistoryFileName),
             StorageLocations.HistoryPath);
         Assert.Equal(
             Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.CommandsFileName),
             StorageLocations.CommandsPath);
+        Assert.Equal(
+            Path.Combine(StorageLocations.DefaultDirectory, StorageLocations.UsageFileName),
+            StorageLocations.UsagePath);
     }
 
     [Fact]
@@ -104,6 +110,7 @@ public class StorageConfigTests : IDisposable
 
         Assert.Equal(Path.Combine(appData, "clipboard.history.json"), StorageLocations.HistoryPath);
         Assert.Equal(Path.Combine(appData, "command.history.json"), StorageLocations.CommandsPath);
+        Assert.Equal(Path.Combine(appData, "snippet.usage.json"), StorageLocations.UsagePath);
         Assert.Equal(Path.Combine(appData, "settings.json"), StorageLocations.SettingsPath);
     }
 
@@ -191,30 +198,45 @@ public class StorageConfigTests : IDisposable
         new AppSettings
         {
             DataDirectory = _root,
-            SnippetsFile = "/shared/snippets.json",
+            SnippetsFolder = "/shared/snippets",
             VariablesFile = "work.vars",
         }.Save(path);
 
         var loaded = AppSettings.Load(path);
         Assert.Equal(_root, loaded.DataDirectory);
-        Assert.Equal("/shared/snippets.json", loaded.SnippetsFile);
+        Assert.Equal("/shared/snippets", loaded.SnippetsFolder);
         Assert.Equal("work.vars", loaded.VariablesFile);
     }
 
-    // ---- the snippets and variables files ----
+    [Fact]
+    public void TheOldFileSetting_IsNotWrittenUnlessItWasThere()
+    {
+        // It is read, so an older settings.json keeps working, but a fresh file must not invite anyone to
+        // set the name the store had when it was a file.
+        var path = Path.Combine(_root, "settings.json");
+        Directory.CreateDirectory(_root);
+
+        new AppSettings().Save(path);
+        Assert.DoesNotContain("SnippetsFile", File.ReadAllText(path));
+
+        new AppSettings { SnippetsFile = "work-snippets.json" }.Save(path);
+        Assert.Equal("work-snippets.json", AppSettings.Load(path).SnippetsFile);
+    }
+
+    // ---- the snippets folder and the variables file ----
 
     [Fact]
     public void TheSnippetsCanBeSharedWhileEverythingElseStaysPut()
     {
         // The point of the whole arrangement: one snippet store shared between a Mac and a
         // Windows box, while the files that are about *this* machine stay on it.
-        var shared = Path.Combine(_root, "OneDrive", "snippets.json");
+        var shared = Path.Combine(_root, "OneDrive", "snippets");
         Assert.True(StorageLocations.TryApply(
-            new AppSettings { DataDirectory = _root, SnippetsFile = shared },
+            new AppSettings { DataDirectory = _root, SnippetsFolder = shared },
             out var problem));
         Assert.Equal("", problem);
 
-        Assert.Equal(shared, StorageLocations.BackedUpPath);
+        Assert.Equal(shared, StorageLocations.BackedUpFolder);
 
         // Neither the data folder nor the synced one: the history and the MRU are about
         // this machine, so they sit with the settings.
@@ -227,15 +249,74 @@ public class StorageConfigTests : IDisposable
     }
 
     [Fact]
-    public void ABareFileName_LandsInTheDataFolder()
+    public void ABareFolderName_LandsInTheDataFolder()
     {
-        // A name without a path is the second file in the same folder — a work set beside
+        // A name without a path is the second set in the same folder — a work set beside
         // a personal one — rather than a path relative to who-knows-what.
         StorageLocations.TryApply(
-            new AppSettings { DataDirectory = _root, SnippetsFile = "work-snippets.json" },
+            new AppSettings { DataDirectory = _root, SnippetsFolder = "work-snippets" },
             out _);
 
-        Assert.Equal(Path.Combine(_root, "work-snippets.json"), StorageLocations.BackedUpPath);
+        Assert.Equal(Path.Combine(_root, "work-snippets"), StorageLocations.BackedUpFolder);
+    }
+
+    [Fact]
+    public void AnOlderSnippetsFileSetting_StillNamesTheSamePlace()
+    {
+        // settings.json from before the folder names the store as a file. The folder is that path
+        // without its .json, and the file is what its snippets are carried forward from.
+        var shared = Path.Combine(_root, "OneDrive", "Klippy", "snippets.json");
+        StorageLocations.TryApply(new AppSettings { DataDirectory = _root, SnippetsFile = shared }, out _);
+
+        Assert.Equal(Path.Combine(_root, "OneDrive", "Klippy", "snippets"), StorageLocations.BackedUpFolder);
+        Assert.Equal(shared, StorageLocations.LegacyFileFor(StorageLocations.BackedUpFolder));
+    }
+
+    [Fact]
+    public void TwoSetsThatSatSideBySide_StaySideBySide()
+    {
+        // A work set beside a personal one must not be poured into the same folder on the way.
+        StorageLocations.TryApply(
+            new AppSettings { DataDirectory = _root, SnippetsFile = "work-snippets.json" }, out _);
+
+        Assert.Equal(Path.Combine(_root, "work-snippets"), StorageLocations.BackedUpFolder);
+        Assert.Equal(Path.Combine(_root, "work-snippets.json"),
+            StorageLocations.LegacyFileFor(StorageLocations.BackedUpFolder));
+    }
+
+    [Fact]
+    public void AnOldFileNameWithoutJson_GetsAFolderThatCannotCollideWithIt()
+    {
+        StorageLocations.TryApply(new AppSettings { DataDirectory = _root, SnippetsFile = "klippy-data" }, out _);
+
+        Assert.Equal(Path.Combine(_root, "klippy-data.snippets"), StorageLocations.BackedUpFolder);
+        Assert.Equal(Path.Combine(_root, "klippy-data"),
+            StorageLocations.LegacyFileFor(StorageLocations.BackedUpFolder));
+    }
+
+    [Fact]
+    public void TheFolderSetting_OverrulesTheOldFileOne()
+    {
+        StorageLocations.TryApply(new AppSettings
+        {
+            DataDirectory = _root, SnippetsFolder = "team", SnippetsFile = "old.json",
+        }, out _);
+
+        Assert.Equal(Path.Combine(_root, "team"), StorageLocations.BackedUpFolder);
+        Assert.Equal(Path.Combine(_root, "team.json"),
+            StorageLocations.LegacyFileFor(StorageLocations.BackedUpFolder));
+    }
+
+    [Fact]
+    public void TheDefaultStore_CarriesForwardTheFileBesideIt()
+    {
+        // snippets.json beside snippets/, which is exactly where 1.0.33 kept it.
+        StorageLocations.TryApply(new AppSettings { DataDirectory = _root }, out _);
+
+        Assert.Equal(Path.Combine(_root, "snippets.json"),
+            StorageLocations.LegacyFileFor(StorageLocations.BackedUpFolder));
+        Assert.Equal(Path.Combine(_root, "conflicts"),
+            StorageLocations.ConflictsFolderFor(StorageLocations.BackedUpFolder));
     }
 
     [Fact]
@@ -245,8 +326,8 @@ public class StorageConfigTests : IDisposable
         Environment.SetEnvironmentVariable(name, _root);
         try
         {
-            StorageLocations.TryApply(new AppSettings { SnippetsFile = $"%{name}%/team.json" }, out _);
-            Assert.Equal(Path.Combine(_root, "team.json"), StorageLocations.BackedUpPath);
+            StorageLocations.TryApply(new AppSettings { SnippetsFolder = $"%{name}%/team" }, out _);
+            Assert.Equal(Path.Combine(_root, "team"), StorageLocations.BackedUpFolder);
         }
         finally
         {
@@ -259,25 +340,25 @@ public class StorageConfigTests : IDisposable
     {
         // A mistyped folder costs that one preference. An absolute path elsewhere never
         // depended on it, so it must survive the refusal intact.
-        var elsewhere = Path.Combine(_root, "shared", "snippets.json");
+        var elsewhere = Path.Combine(_root, "shared", "snippets");
 
         Assert.False(StorageLocations.TryApply(
-            new AppSettings { DataDirectory = "klippy-data", SnippetsFile = elsewhere },
+            new AppSettings { DataDirectory = "klippy-data", SnippetsFolder = elsewhere },
             out var problem));
         Assert.Contains("not an absolute path", problem);
 
-        Assert.Equal(elsewhere, StorageLocations.BackedUpPath);
+        Assert.Equal(elsewhere, StorageLocations.BackedUpFolder);
         Assert.Equal(_originalDir, StorageLocations.Directory);
     }
 
     [Fact]
     public void ClearingTheSnippetsSetting_PutsItBackWhereItStarted()
     {
-        StorageLocations.TryApply(new AppSettings { DataDirectory = _root, SnippetsFile = "away.json" }, out _);
-        Assert.Equal(Path.Combine(_root, "away.json"), StorageLocations.BackedUpPath);
+        StorageLocations.TryApply(new AppSettings { DataDirectory = _root, SnippetsFolder = "away" }, out _);
+        Assert.Equal(Path.Combine(_root, "away"), StorageLocations.BackedUpFolder);
 
         StorageLocations.TryApply(new AppSettings { DataDirectory = _root }, out _);
-        Assert.Equal(Path.Combine(_root, StorageLocations.FileName), StorageLocations.BackedUpPath);
+        Assert.Equal(Path.Combine(_root, StorageLocations.SnippetsFolderName), StorageLocations.BackedUpFolder);
     }
 
     // ---- VariablesFile ----

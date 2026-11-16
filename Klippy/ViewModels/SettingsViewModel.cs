@@ -268,7 +268,7 @@ public partial class SettingsViewModel : ViewModelBase
     /// anything a marked item could not.
     /// </param>
     /// <param name="snippetsInUse">
-    /// The snippet file the running app has open, so a path typed here can be told apart
+    /// The snippets folder the running app has open, so a path typed here can be told apart
     /// from the one in force. Null where nothing is known, which is a screen that
     /// promises nothing rather than one claiming a restart is needed.
     /// </param>
@@ -323,13 +323,17 @@ public partial class SettingsViewModel : ViewModelBase
         _imageFolder = settings.ImageSaveFolder ?? "";
 
         Snippets = new StorageFileViewModel(
-            "SNIPPETS", StorageLocations.FileName,
-            "Everything you have saved. Point it into a synced folder to share one set between machines — copy the file there yourself, Klippy moves nothing.",
-            read: () => _settings.SnippetsFile,
-            write: value => { _settings.SnippetsFile = value; Save(); },
+            "SNIPPETS", StorageLocations.SnippetsFolderName,
+            "Everything you have saved, one file per snippet. Point it into a synced folder to share one set between machines — copy the folder there yourself, Klippy moves nothing.",
+            // As written, or as an older SnippetsFile stood for it: an upgrade must not look as
+            // though it forgot where the snippets were.
+            read: () => _settings.EffectiveSnippetsFolder,
+            // The folder now says everything the old file name did, so that one goes.
+            write: value => { _settings.SnippetsFolder = value; _settings.SnippetsFile = null; Save(); },
             report: Report,
             executor: executor,
-            inUse: () => snippetsInUse);
+            inUse: () => snippetsInUse,
+            isFolder: true);
 
         Variables = new StorageFileViewModel(
             "VARIABLES FILE", KlippyVariables.DefaultFileName,

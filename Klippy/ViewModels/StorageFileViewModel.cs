@@ -10,7 +10,9 @@ namespace Klippy.ViewModels;
 /// <summary>
 /// One of Klippy's files on the Settings screen: a box holding the path, the line under
 /// it saying what that path resolves to and what is there, and the buttons that open the
-/// file or the folder it is in.
+/// file or the folder it is in. The snippets are a folder rather than a file — one file
+/// per snippet, so two machines sharing them never rewrite the same one — and a row can
+/// stand for a folder too, when it then opens the folder itself.
 ///
 /// One row per file rather than one folder for all of them, because the files want
 /// different answers. A snippet store is worth syncing between a Mac and a Windows box;
@@ -28,6 +30,7 @@ public partial class StorageFileViewModel : ViewModelBase
     private readonly Func<string, string>? _describe;
     private readonly Func<string?>? _inUse;
     private readonly string? _template;
+    private readonly bool _isFolder;
     private readonly Func<ExecutionPlan, Task<ExecutionResult>>? _executor;
     private readonly Action<string?> _report;
 
@@ -60,12 +63,15 @@ public partial class StorageFileViewModel : ViewModelBase
     /// <summary>What is at that path, in a few words: the state the row is reporting.</summary>
     public string Summary { get; private set; } = "";
 
-    /// <summary>Whether the file is there, which decides what the open button offers to do.</summary>
+    /// <summary>Whether the file — or the folder, for a row that stands for one — is there, which decides what the open button offers to do.</summary>
     public bool FileExists { get; private set; }
 
+    /// <summary>Whether this row stands for a folder, the snippets', rather than a file.</summary>
+    public bool IsFolder => _isFolder;
+
     /// <summary>
-    /// Whether the running app has a different file of this kind open. Every file here but
-    /// the variables one is read at startup, because a store that changed file mid-session
+    /// Whether the running app has a different file of this kind open. Everything here but
+    /// the variables file is read at startup, because a store that changed folder mid-session
     /// would have to decide what to do with the one it already had open — so a path typed
     /// here is a promise about the next launch, and saying so beats appearing to do nothing.
     /// </summary>
@@ -96,8 +102,11 @@ public partial class StorageFileViewModel : ViewModelBase
     /// </summary>
     public bool CanOpen => _executor is not null && (FileExists || _template is not null);
 
-    /// <summary>Whether the folder button can do anything. The launcher again.</summary>
-    public bool CanOpenFolder => _executor is not null;
+    /// <summary>
+    /// Whether the folder button can do anything. The launcher again — and not on a row that
+    /// is a folder, whose own Open already opens it.
+    /// </summary>
+    public bool CanOpenFolder => _executor is not null && !_isFolder;
 
     /// <param name="defaultName">What an empty box means — the usual name in the data folder.</param>
     /// <param name="read">The setting as stored, which is what the box starts out showing.</param>
@@ -111,6 +120,7 @@ public partial class StorageFileViewModel : ViewModelBase
     /// file, which is re-read as it changes, and a history that is switched off).
     /// </param>
     /// <param name="template">What to write when the file is not there yet, or null for no Create button.</param>
+    /// <param name="isFolder">The row stands for a folder: Open opens it, and it is there when the folder is.</param>
     /// <param name="report">Where a failure to open or write goes — the one status line the screen has.</param>
     public StorageFileViewModel(
         string label,
@@ -122,7 +132,8 @@ public partial class StorageFileViewModel : ViewModelBase
         Func<ExecutionPlan, Task<ExecutionResult>>? executor = null,
         Func<string, string>? describe = null,
         Func<string?>? inUse = null,
-        string? template = null)
+        string? template = null,
+        bool isFolder = false)
     {
         Label = label;
         Hint = hint;
@@ -133,6 +144,7 @@ public partial class StorageFileViewModel : ViewModelBase
         _describe = describe;
         _inUse = inUse;
         _template = template;
+        _isFolder = isFolder;
 
         _file = read();
         Reread();
@@ -147,13 +159,14 @@ public partial class StorageFileViewModel : ViewModelBase
     public void Reread()
     {
         Path = StorageLocations.ResolveFile(File, _defaultName);
-        FileExists = Exists(Path);
+        FileExists = _isFolder ? FolderExists(Path) : Exists(Path);
         NeedsRestart = _inUse?.Invoke() is { } open && !SamePath(open, Path);
 
         Summary =
             _describe is { } describe ? describe(Path)
             : NeedsRestart ? "takes effect on restart"
             : FileExists ? "in use"
+            : _isFolder ? "no folder yet"
             : "no file yet";
 
         OnPropertyChanged(nameof(Path));
@@ -167,7 +180,7 @@ public partial class StorageFileViewModel : ViewModelBase
 
     /// <summary>
     /// An empty box means the default name rather than no file, since there is no such
-    /// thing as "no snippets file": one that is not there is one Klippy writes on the next
+    /// thing as "no snippets folder": one that is not there is one Klippy writes on the next
     /// save. Saved as typed otherwise, so the box keeps showing what was written rather
     /// than rewriting it under the cursor.
     /// </summary>
@@ -190,6 +203,12 @@ public partial class StorageFileViewModel : ViewModelBase
     [RelayCommand]
     private async Task Open()
     {
+        if (_isFolder)
+        {
+            await Launch(new ExecutionPlan { Kind = ExecutionKind.Folder, Target = Path });
+            return;
+        }
+
         if (!FileExists && !TryWriteTemplate()) return;
 
         await Launch(new ExecutionPlan { Kind = ExecutionKind.Document, Target = Path });
@@ -245,6 +264,19 @@ public partial class StorageFileViewModel : ViewModelBase
         try
         {
             return System.IO.File.Exists(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc cref="Exists"/>
+    private static bool FolderExists(string path)
+    {
+        try
+        {
+            return Directory.Exists(path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

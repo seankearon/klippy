@@ -495,5 +495,5 @@ have.
 - **Only beside Execute.** Taking Execute off takes **As admin** with it on save: a copy has no
   rights to ask for.
 
-In `snippets.json` the marker is `"RunAsAdministrator": true`, beside `"IsExecutable"`. Older
+In a snippet's file the marker is `"RunAsAdministrator": true`, beside `"IsExecutable"`. Older
 files have neither, and read as off.

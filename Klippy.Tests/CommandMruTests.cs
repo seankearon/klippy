@@ -35,7 +35,7 @@ public class CommandMruTests
     }
 
     private static SnippetStore NewStore() =>
-        new(Path.Combine(Path.GetTempPath(), $"klippy-mru-{Guid.NewGuid():N}.json"));
+        new(Path.Combine(Path.GetTempPath(), $"klippy-mru-{Guid.NewGuid():N}"));
 
     private static (MainViewModel Vm, CommandHistory Commands) NewVm(params string[] remembered)
     {
