@@ -34,6 +34,40 @@
       "shell_stdin": 0
     }
   },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01GsJwL3TCiV9kviFKXuQbs4",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "agent-protocol:handoff"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "e267b0677bad",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 130,
+        "end": 131,
+        "entry_ids": [
+          "657f77bd-556f-442b-aed0-d4531d9413cb"
+        ],
+        "tool_use_id": "toolu_01GsJwL3TCiV9kviFKXuQbs4"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01GsJwL3TCiV9kviFKXuQbs4"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: agent-protocol:handoff",
+        "default_collapsed": true
+      }
+    }
+  ],
   "session_metrics": {
     "turn_count": 1
   }
