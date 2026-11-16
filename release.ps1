@@ -31,11 +31,10 @@
 .PARAMETER Force
     Skips the confirmation prompt. Intended for unattended use.
 
-.PARAMETER AndroidAot
-    Builds the APK with Mono AOT. Off by default: the MonoAOTCompiler SDK does not resolve
-    on this machine, and with AOT on the Android stage fails at evaluation time - after the
-    slow Windows and macOS packaging, but before anything is published. The APK is
-    identical bar a slower cold start. Pass this once the workload is fixed.
+.PARAMETER AndroidNoAot
+    Builds the APK without ReadyToRun, the CoreCLR AOT step the Android SDK applies to a
+    Release publish by default. The APK is smaller (about 14 MB against 20 MB) but starts
+    more slowly. For a machine where the ReadyToRun compiler will not resolve.
 
 .PARAMETER NoDocs
     Releases without building or publishing the documentation. For a machine that has no
@@ -66,8 +65,8 @@ param(
     # Skip the confirmation prompt.
     [switch] $Force,
 
-    # Build the APK with Mono AOT. See .PARAMETER AndroidAot above.
-    [switch] $AndroidAot,
+    # Build the APK without ReadyToRun. See .PARAMETER AndroidNoAot above.
+    [switch] $AndroidNoAot,
 
     # Release without building or publishing the docs. See .PARAMETER NoDocs above.
     [switch] $NoDocs
@@ -203,9 +202,8 @@ else {
         Write-Warn 'AndroidSigning__* keys to appbuild.env to fix that.'
     }
 
-    if (-not $AndroidAot) {
-        Write-Warn 'The APK is built without Mono AOT, so it starts more slowly than it should.'
-        Write-Warn 'Pass -AndroidAot once the MonoAOTCompiler workload resolves again.'
+    if ($AndroidNoAot) {
+        Write-Warn 'The APK is built without ReadyToRun, so it starts more slowly than it should.'
     }
 }
 
@@ -230,7 +228,7 @@ $buildArgs = @('run', '--project', (Join-Path $root 'Klippy.Build'), '-c', 'Rele
 
 if (-not $DryRun) { $buildArgs += 'release' }
 if ($Version) { $buildArgs += "version:$Version" }
-if (-not $AndroidAot) { $buildArgs += 'android-no-aot' }
+if ($AndroidNoAot) { $buildArgs += 'android-no-aot' }
 if ($NoDocs) { $buildArgs += 'nodocs' }
 
 Write-Step "Running the build$(if ($DryRun) { ' (dry run)' })"
