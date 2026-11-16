@@ -27,7 +27,7 @@ public class SnippetStoreTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var dir in new[] { _data, _data + "-appdata" })
+        foreach (var dir in new[] { _data, _data + "-appdata", _data + "-moved" })
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
     }
 
@@ -363,7 +363,7 @@ public class SnippetStoreTests : IDisposable
         var store = Open();
         store.Add(New("a"));
         var moved = _data + "-moved";
-        Directory.Move(_data, moved);
+        MoveDirectory(_data, moved);
         try
         {
             Assert.False(store.Rescan().Any);
@@ -371,7 +371,27 @@ public class SnippetStoreTests : IDisposable
         }
         finally
         {
-            Directory.Move(moved, _data);
+            MoveDirectory(moved, _data);
+        }
+    }
+
+    /// <summary>
+    /// Directory.Move, retried briefly: a file just written can be held open for a moment by something
+    /// outside the test — an antivirus or indexer scan — and the rename is then denied.
+    /// </summary>
+    private static void MoveDirectory(string from, string to)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                Directory.Move(from, to);
+                return;
+            }
+            catch (IOException) when (attempt < 20)
+            {
+                System.Threading.Thread.Sleep(50);
+            }
         }
     }
 
