@@ -232,21 +232,23 @@ public class VariablesSettingsTests : IDisposable
         Assert.True(vm.Variables.CanOpen);              // nothing there yet, and still offered
         Assert.Equal("Create", vm.Variables.OpenVerb);
 
-        // The snippets file is not offered while it is missing — there is no button that
+        // The snippets folder is not offered while it is missing — there is no button that
         // could honestly say "Create" when only the store knows what goes in it.
-        vm.Snippets.File = Path.Combine(_root, "not-there.json");
+        vm.Snippets.File = Path.Combine(_root, "not-there");
         Assert.False(vm.Snippets.CanOpen);
 
         // Once it is there, though, it opens like anything else: the verb follows the
-        // file, and a snippets.json you can read is worth a button.
-        var written = Path.Combine(_root, "written.json");
-        File.WriteAllText(written, "[]");
+        // folder, and a folder of snippets you can browse is worth a button.
+        var written = Path.Combine(_root, "written");
+        Directory.CreateDirectory(written);
         vm.Snippets.File = written;
         Assert.True(vm.Snippets.CanOpen);
         Assert.Equal("Open", vm.Snippets.OpenVerb);
 
-        // The folder is somewhere to look either way.
-        Assert.All(vm.Files, file => Assert.True(file.CanOpenFolder));
+        // The folder a file is in is somewhere to look either way. The snippets folder's own
+        // Open already is that.
+        Assert.True(vm.Variables.CanOpenFolder);
+        Assert.False(vm.Snippets.CanOpenFolder);
     }
 
     // ---- what "open a document" means to the launcher ----

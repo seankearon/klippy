@@ -40,7 +40,7 @@ public class HistoryPickerTests
             Path.Combine(Path.GetTempPath(), $"klippy-picker-settings-{Guid.NewGuid():N}.json"));
         settings.CloseAfterClipboardCopy = true;
 
-        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-picker-{Guid.NewGuid():N}.json"));
+        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-picker-{Guid.NewGuid():N}"));
         var f = new Fixture { Vm = new MainViewModel(store, history, settings) };
         f.Vm.ClipboardWriter = payload => { f.Copied = payload; return Task.CompletedTask; };
         f.Vm.CloseRequested += () => f.Closes++;
@@ -94,7 +94,7 @@ public class HistoryPickerTests
     [AvaloniaFact]
     public void WithNoHistory_ThereIsNoPicker()
     {
-        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-picker-{Guid.NewGuid():N}.json"));
+        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-picker-{Guid.NewGuid():N}"));
         var vm = new MainViewModel(store, history: null);
         vm.NewCommand.Execute(null);
 

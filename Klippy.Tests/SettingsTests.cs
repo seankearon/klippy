@@ -246,7 +246,7 @@ public class SettingsTests
 
     private static MainViewModel CopyVm(AppSettings settings, out ClipHistoryStore history)
     {
-        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}.json"));
+        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}"));
         history = ClipHistoryStore.InMemory();
         history.Add(new ClipEntry { Text = "a captured clip" });
 
@@ -582,7 +582,7 @@ public class SettingsTests
         {
             var settings = AppSettings.Load(path);
             var vm = new MainViewModel(
-                new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}.json")),
+                new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}")),
                 settings: settings);
             var window = new MainWindow { DataContext = vm };
             window.Show();
@@ -616,7 +616,7 @@ public class SettingsTests
     [Fact]
     public void MainViewModel_OpenAndEscapeCloseTheSettingsOverlay()
     {
-        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}.json"));
+        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-{Guid.NewGuid():N}"));
         var vm = new MainViewModel(store);
 
         Assert.Null(vm.Settings);

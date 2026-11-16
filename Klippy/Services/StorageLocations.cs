@@ -17,16 +17,42 @@ namespace Klippy.Services;
 /// The active location is inferred from where the file actually is, so the choice needs
 /// no separate settings file that could disagree with reality.
 ///
-/// Two files name themselves out of that folder: the snippets and the variables file.
-/// That pair is the whole point — one snippet store can be shared between a Mac and a
-/// Windows box exactly because the variables file that translates it stays on each
-/// machine. Nothing else is worth pointing anywhere: the history, the command MRU and
-/// settings.json are records of what happened on *this* machine, so they stay in the
-/// platform's own app-data folder even when the data folder is somewhere else.
+/// Two things name themselves out of that folder: the snippets folder and the variables
+/// file. That pair is the whole point — one snippet store can be shared between a Mac and
+/// a Windows box exactly because the variables file that translates it stays on each
+/// machine. Nothing else is worth pointing anywhere: the history, the command MRU, the
+/// snippet usage and settings.json are records of what happened on *this* machine, so
+/// they stay in the platform's own app-data folder even when the data folder is somewhere
+/// else.
 /// </summary>
 public static class StorageLocations
 {
-    public const string FileName = "snippets.json";
+    /// <summary>
+    /// The snippet store: a folder holding one <c>&lt;id&gt;.json</c> per snippet, so that two machines
+    /// sharing it through a sync client never rewrite the same file as part of normal use — see
+    /// <see cref="SnippetStore"/>.
+    /// </summary>
+    public const string SnippetsFolderName = "snippets";
+
+    /// <summary>
+    /// What the store was up to 1.0.33: every snippet in one file, rewritten whole on every change. Read
+    /// once, by <see cref="SnippetStore"/>, to carry its snippets into the folder, and then renamed aside.
+    /// </summary>
+    public const string LegacySnippetsFileName = "snippets.json";
+
+    /// <summary>
+    /// Beside the snippets folder: where the losing version goes when a sync client has kept two of one
+    /// snippet. Beside it rather than in it, so that nothing in it is ever taken for a snippet.
+    /// </summary>
+    public const string ConflictsFolderName = "conflicts";
+
+    /// <summary>
+    /// When each snippet was last copied or run on this machine — the recency the list is ranked by. Its own
+    /// file, beside settings.json, because it changes on every copy and is about this machine alone: kept in
+    /// the shared folder it would be the very thing two machines were forever writing over each other.
+    /// </summary>
+    public const string UsageFileName = "snippet.usage.json";
+
     public const string SettingsFileName = "settings.json";
 
     /// <summary>
@@ -59,7 +85,8 @@ public static class StorageLocations
     /// The platform's own app-data folder for Klippy: <c>%APPDATA%\Klippy</c> on Windows,
     /// <c>~/.config/Klippy</c> elsewhere. Where Klippy looks before it is told otherwise,
     /// and where the files that are about this machine stay whatever it is told —
-    /// <see cref="SettingsPath"/>, <see cref="HistoryPath"/> and <see cref="CommandsPath"/>.
+    /// <see cref="SettingsPath"/>, <see cref="HistoryPath"/>, <see cref="CommandsPath"/> and
+    /// <see cref="UsagePath"/>.
     ///
     /// Settable for the reason <see cref="BackupExemptDirectory"/> is: a platform head may
     /// know a different app-data root, and the test suite points it at a throwaway folder
@@ -78,19 +105,28 @@ public static class StorageLocations
     public static string Directory { get; set; } = DefaultDirectory;
 
     /// <summary>
-    /// The snippet store, as settings name it. Blank is <see cref="FileName"/> in
-    /// <see cref="Directory"/>, a bare name is another file in that folder, and an
-    /// absolute path is taken as given.
+    /// The snippets folder, as settings name it. Blank is <see cref="SnippetsFolderName"/> in
+    /// <see cref="Directory"/>, a bare name is another folder in that one, and an absolute
+    /// path is taken as given.
     ///
-    /// A setting of its own rather than just the folder, because the snippets want a
+    /// A setting of its own rather than just the data folder, because the snippets want a
     /// different answer from everything beside them: they are worth syncing between two
     /// machines, and the variables file — the one that says where <c>%ws%</c> is on
     /// *this* one — is precisely what must not follow them there.
     ///
-    /// Set once at startup by <see cref="TryApply"/>, since a store that changed file
+    /// Set once at startup by <see cref="TryApply"/>, since a store that changed folder
     /// mid-session would have to decide what to do with the one it already had open.
     /// </summary>
-    public static string SnippetsFile { get; set; } = "";
+    public static string SnippetsFolder { get; set; } = "";
+
+    /// <summary>
+    /// The <c>SnippetsFile</c> setting from before the store was a folder, as written. Only consulted while
+    /// <see cref="SnippetsFolder"/> is blank, and then for two things: the folder, which is that file's
+    /// path without its <c>.json</c> (see <see cref="FolderForLegacyFile"/>), and the file to carry the
+    /// snippets forward from (<see cref="LegacyFileFor"/>). So a setting that pointed at
+    /// <c>%OneDrive%\Klippy\snippets.json</c> goes on pointing at the same place.
+    /// </summary>
+    public static string LegacySnippetsFile { get; set; } = "";
 
     /// <summary>
     /// Directory the platform excludes from backup, or null if it has no such concept.
@@ -100,14 +136,70 @@ public static class StorageLocations
 
     /// <summary>
     /// Whether this platform can offer the "wipe on uninstall" choice at all — and
-    /// whether there is still a choice to make. Naming the snippets file settles where it
-    /// lives, so the toggle would have nowhere to move it to that the setting would not
+    /// whether there is still a choice to make. Naming the snippets folder settles where
+    /// it lives, so the toggle would have nowhere to move it to that the setting would not
     /// immediately name back.
     /// </summary>
-    public static bool SupportsBackupOptOut => BackupExemptPath is not null;
+    public static bool SupportsBackupOptOut => BackupExemptFolder is not null;
 
-    /// <summary>The snippet store: <see cref="SnippetsFile"/> resolved.</summary>
-    public static string BackedUpPath => ResolveFile(SnippetsFile, FileName);
+    /// <summary>
+    /// The snippets folder as configured: <see cref="SnippetsFolder"/>, or the folder a
+    /// <see cref="LegacySnippetsFile"/> stands for while that is all there is, or blank for the default.
+    /// </summary>
+    private static string ConfiguredSnippetsFolder =>
+        !string.IsNullOrWhiteSpace(SnippetsFolder) ? SnippetsFolder
+        : !string.IsNullOrWhiteSpace(LegacySnippetsFile) ? FolderForLegacyFile(LegacySnippetsFile)
+        : "";
+
+    /// <summary>The snippet store: <see cref="SnippetsFolder"/> resolved.</summary>
+    public static string BackedUpFolder => ResolveFile(ConfiguredSnippetsFolder, SnippetsFolderName);
+
+    /// <summary>
+    /// The folder a <c>SnippetsFile</c> setting stands for now that the store is a folder: the same path
+    /// without its <c>.json</c>, so <c>snippets.json</c> becomes <c>snippets</c> and a work set's
+    /// <c>work-snippets.json</c> becomes <c>work-snippets</c> beside it — two sets that sat side by side as
+    /// files go on sitting side by side as folders, rather than being poured into one. A name that does not
+    /// end in <c>.json</c> gets <c>.snippets</c> on the end instead, since a folder cannot share a name with
+    /// the file still sitting there. Works on the text as written, shorthands and all, so it can be shown
+    /// in the Settings box as the user would have typed it.
+    /// </summary>
+    public static string FolderForLegacyFile(string written)
+    {
+        var trimmed = written.Trim();
+        return trimmed.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+            ? trimmed[..^".json".Length]
+            : trimmed + ".snippets";
+    }
+
+    /// <summary>
+    /// The single file the store in <paramref name="folder"/> carries its snippets forward from: the one a
+    /// <see cref="LegacySnippetsFile"/> names, when that is what decided the folder, and otherwise the
+    /// folder's own name with <c>.json</c> on the end — <c>snippets.json</c> beside <c>snippets</c>, which is
+    /// exactly where 1.0.33 kept it.
+    /// </summary>
+    public static string LegacyFileFor(string folder)
+    {
+        if (string.IsNullOrWhiteSpace(SnippetsFolder) && !string.IsNullOrWhiteSpace(LegacySnippetsFile) &&
+            string.Equals(folder, BackedUpFolder, StringComparison.OrdinalIgnoreCase))
+            return Resolve(LegacySnippetsFile);
+
+        return Path.TrimEndingDirectorySeparator(folder) + ".json";
+    }
+
+    /// <summary>
+    /// Where the store in <paramref name="folder"/> puts the losing side of a sync conflict:
+    /// <see cref="ConflictsFolderName"/> beside it, which is <c>&lt;DataDirectory&gt;/conflicts</c> for the
+    /// usual layout. Beside rather than inside, so it is never mistaken for snippets — and still in the
+    /// synced folder, so the machine that made the losing edit can find it too.
+    /// </summary>
+    public static string ConflictsFolderFor(string folder)
+    {
+        var trimmed = Path.TrimEndingDirectorySeparator(folder);
+        var parent = Path.GetDirectoryName(trimmed);
+        return string.IsNullOrEmpty(parent)
+            ? Path.Combine(trimmed, ConflictsFolderName)
+            : Path.Combine(parent, ConflictsFolderName);
+    }
 
     /// <summary>
     /// Preferences live in <see cref="DefaultDirectory"/>, never the backup-exempt one and
@@ -149,20 +241,32 @@ public static class StorageLocations
     public static string WindowPath => Path.Combine(DefaultDirectory, WindowFileName);
 
     /// <summary>
+    /// When each snippet was last used here. Always <see cref="DefaultDirectory"/>, for the
+    /// reason the command MRU is — and for a sharper one: it is written on every copy, and
+    /// the store is split into a file per snippet precisely so that a copy writes nothing to
+    /// a folder another machine is also writing to. See <see cref="UsageFileName"/>.
+    /// </summary>
+    public static string UsagePath => Path.Combine(DefaultDirectory, UsageFileName);
+
+    /// <summary>
     /// Where a backup-exempt snippet store would sit, or null when there is no such place
-    /// or no longer any point: a <see cref="SnippetsFile"/> that names a path has already
+    /// or no longer any point: a <see cref="SnippetsFolder"/> that names a path has already
     /// answered the question this directory exists to ask.
     /// </summary>
-    public static string? BackupExemptPath =>
-        BackupExemptDirectory is { } dir && string.IsNullOrWhiteSpace(SnippetsFile)
-            ? Path.Combine(dir, FileName)
+    public static string? BackupExemptFolder =>
+        BackupExemptDirectory is { } dir && string.IsNullOrWhiteSpace(ConfiguredSnippetsFolder)
+            ? Path.Combine(dir, SnippetsFolderName)
             : null;
 
     /// <summary>
-    /// The file to open: the backup-exempt copy when one exists, otherwise the normal one.
+    /// The folder to open: the backup-exempt one when there is a store there — as a folder,
+    /// or as the single file an older Klippy left there to be carried forward — otherwise
+    /// the normal one.
     /// </summary>
-    public static string ActivePath =>
-        BackupExemptPath is { } exempt && File.Exists(exempt) ? exempt : BackedUpPath;
+    public static string ActiveFolder =>
+        BackupExemptFolder is { } exempt && (System.IO.Directory.Exists(exempt) || File.Exists(LegacyFileFor(exempt)))
+            ? exempt
+            : BackedUpFolder;
 
     /// <summary>
     /// Resolves a configured file name: a bare name (or relative path) lands in
@@ -178,10 +282,10 @@ public static class StorageLocations
     }
 
     /// <summary>
-    /// Resolves one of the configured file names, falling back to
+    /// Resolves one of the configured names, falling back to
     /// <paramref name="defaultName"/> when nothing is set. There is no such thing as "no
-    /// snippets file": a setting left alone asks for the usual name in the usual folder,
-    /// not for no file at all.
+    /// snippets folder": a setting left alone asks for the usual name in the usual folder,
+    /// not for nothing at all.
     /// </summary>
     public static string ResolveFile(string? configured, string defaultName) =>
         Resolve(string.IsNullOrWhiteSpace(configured) ? defaultName : configured);
@@ -284,18 +388,19 @@ public static class StorageLocations
 
     /// <summary>
     /// Points Klippy at what <paramref name="settings"/> name: the folder first, then the
-    /// snippets file, which may name its way out of it. Called once at startup, before
+    /// snippets folder, which may name its way out of it. Called once at startup, before
     /// anything opens a file.
     ///
     /// Returns false, with <paramref name="problem"/> saying why, when the folder is
     /// unusable — a mistyped folder must cost that preference and not the snippets. The
-    /// file name cannot fail here: a name only becomes a path when something opens it,
-    /// and a file that will not open is reported by whatever wanted it rather than
+    /// snippets name cannot fail here: a name only becomes a path when something opens it,
+    /// and a folder that will not open is reported by whatever wanted it rather than
     /// costing the rest of the layout.
     /// </summary>
     public static bool TryApply(AppSettings settings, out string problem)
     {
-        SnippetsFile = settings.SnippetsFile;
+        SnippetsFolder = settings.SnippetsFolder ?? "";
+        LegacySnippetsFile = settings.SnippetsFile ?? "";
 
         problem = "";
         return string.IsNullOrWhiteSpace(settings.DataDirectory)

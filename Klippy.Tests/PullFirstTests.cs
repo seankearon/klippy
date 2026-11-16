@@ -136,7 +136,7 @@ public class PullFirstTests
     private static SnippetStore NewStore(params Snippet[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-pull-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-pull-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var snippet in snippets) store.Add(snippet);
         return store;
     }

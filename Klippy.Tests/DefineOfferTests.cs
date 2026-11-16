@@ -90,7 +90,7 @@ public class DefineOfferTests
     private static Fixture NewVm(params (string Label, string Content)[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var (label, content) in snippets)
             store.Add(new Snippet { Label = label, Content = content });
 
@@ -231,7 +231,7 @@ public class DefineOfferTests
     {
         using var checkout = new Checkout();
         var vm = new MainViewModel(
-            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}.json"),
+            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}"),
                 seedIfEmpty: false),
             ClipHistoryStore.InMemory(), new AppSettings());
         vm.ShowHistory();
@@ -295,7 +295,7 @@ public class DefineOfferTests
         // of the line that invokes it: the item keeps Enter, and the values stand above it.
         using var checkout = new Checkout();
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}"), seedIfEmpty: false);
         store.Add(new Snippet { Label = "Open in Rider", Content = "%r% %P:file%", QuickCode = "klippy" });
         var vm = new MainViewModel(store, settings: new AppSettings());
 
@@ -386,7 +386,7 @@ public class DefineOfferTests
     {
         using var checkout = new Checkout();
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-define-{Guid.NewGuid():N}"), seedIfEmpty: false);
         store.Add(new Snippet { Label = "Klippy solution", Content = checkout.Solution, IsExecutable = true });
 
         var ran = new List<ExecutionPlan>();

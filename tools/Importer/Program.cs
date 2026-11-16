@@ -20,12 +20,12 @@ if (parsed is null)
 }
 
 // The app honours the configured file locations before it opens anything; so must this,
-// or a re-import would quietly land in the folder — or the file — the user moved away from.
+// or a re-import would quietly land in the folder the user moved away from.
 if (!StorageLocations.TryApply(AppSettings.Current, out var problem))
     Console.Error.WriteLine($"Ignoring \"DataDirectory\": {problem}.");
 
 var store = new SnippetStore();
-Console.WriteLine($"store    : {store.FilePath}");
+Console.WriteLine($"store    : {store.FolderPath}");
 Console.WriteLine($"before   : {store.Count} snippets");
 
 var (added, updated) = store.Merge(parsed);

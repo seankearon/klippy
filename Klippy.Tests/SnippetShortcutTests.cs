@@ -262,7 +262,7 @@ public class SnippetShortcutTests
     [Fact]
     public void ShortcutAndHotkey_RoundTripThroughTheStore_AndOlderFilesReadAsNone()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"klippy-keys-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(Path.GetTempPath(), $"klippy-keys-{Guid.NewGuid():N}");
         var store = new SnippetStore(path, seedIfEmpty: false);
         store.Add(WithKeys("Keyed", "Ctrl+K, Ctrl+L", "Ctrl+Alt+1"));
         store.Add(new Snippet { Label = "Plain", Content = "plain" });
@@ -278,7 +278,7 @@ public class SnippetShortcutTests
     [Fact]
     public void AnImport_CarryingNullKeys_ReadsAsNone()
     {
-        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-keys-{Guid.NewGuid():N}.json"),
+        var store = new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-keys-{Guid.NewGuid():N}"),
             seedIfEmpty: false);
 
         store.Merge([new Snippet { Label = "Imported", Content = "x", Shortcut = null!, Hotkey = null! }]);

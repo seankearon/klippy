@@ -361,7 +361,7 @@ public class VariablesTests
     {
         var scope = new VariablesFileScope(varsText);
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-vars-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-vars-{Guid.NewGuid():N}"), seedIfEmpty: false);
         store.Add(snippet);
 
         string? copied = null;
@@ -1043,7 +1043,7 @@ public class VariablesTests
     {
         using var drive = new ProtonDrive();
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-vars-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-vars-{Guid.NewGuid():N}"), seedIfEmpty: false);
         store.Add(new Snippet { Label = "graphics", Content = drive.Snippet, IsExecutable = true });
 
         var ran = new List<ExecutionPlan>();

@@ -159,20 +159,20 @@ A **FILES** block at the bottom is where
 [the paths live](data-and-backup.md#choosing-where-the-files-go-desktop), so they are a
 thing you set here rather than a hand-edit. `settings.json` cannot move, since it is the
 file that says where the others went, so it is shown and nothing more. Under it come three
-boxes: the data folder, the snippets, and the [variables file](variables.md).
+boxes: the data folder, the snippets folder, and the [variables file](variables.md).
 
 | Box | Empty means | Point it elsewhere to |
 |---|---|---|
 | **Data folder** | the platform's app-data folder | keep the snippets and defines on another drive |
-| **Snippets** | `snippets.json` in the data folder | share one set between two machines through a synced folder |
+| **Snippets** | `snippets` in the data folder — one file per snippet | [share one set between machines](data-and-backup.md#sharing-snippets-between-machines) through a synced folder |
 | **Variables file** | `variables.txt` in the data folder | keep this machine's `%ws%` local while the snippets are shared |
 
 Those last two are the reason the boxes exist at all: a snippet is the same text on every
 machine and a path is not, so the store can be shared exactly because the file that
 translates it is not.
 
-The **clipboard history**, the **recent commands** and the clip images have no box, and
-do not follow the data folder either. They stay in the platform's own app-data folder
+The **clipboard history**, the **recent commands**, when each snippet was last used and the
+clip images have no box, and do not follow the data folder either. They stay in the platform's own app-data folder
 beside `settings.json`, wherever you point the other three. They are the record of what
 happened on this machine, and the data folder is a thing people aim at a synced drive: a
 log of everything you have copied should not end up there as a side effect of moving your
@@ -183,24 +183,29 @@ to when you [show it in its folder or copy its path](clipboard-history.md#text-f
 Empty means `Pictures/Klippy`; **Open** opens it, creating it first if nothing has been
 saved there yet. It is read at each save, so a change needs no restart.
 
-For the two files that are settable, a bare name is another file in the data folder — a
+For the two that are settable, a bare name is another folder or file in the data folder — a
 work set beside a personal one. An absolute path is taken as given, and environment
-variables and a leading `~` are expanded in both.
+variables and a leading `~` are expanded in both. A settings.json from before the snippets were
+a folder names them with `SnippetsFile`; the box shows the folder that stands for — the same path
+without its `.json` — and changing it replaces the old setting with the new one. See
+[Where data lives](data-and-backup.md#choosing-where-the-files-go-desktop).
 
-Under each box is what is there — `in use`, `no file yet`, `3 variables`, or
+Under each box is what is there — `in use`, `no folder yet`, `no file yet`, `3 variables`, or
 `takes effect on restart` for a path that will not be picked up until the next launch —
 with the resolved path in front of it whenever that is not simply what you typed. A bare
 name is worth resolving on screen; an absolute one is already the answer, so repeating it
 would read like a second setting.
 
-The data folder and the snippets are read once at startup and held from then on, and
-**nothing is moved for you** — copy the file across first, and the old one is left
-exactly as it was. The variables file is the exception, re-read whenever it changes.
+Which data folder and snippets folder are in use is settled once at startup, and **nothing is
+moved for you** — copy the folder across first, and the old one is left exactly as it was. What is
+*in* the snippets folder is followed as it changes, so an edit synced from another machine shows
+up without a restart. The variables file is re-read whenever it changes too.
 
-**Open** opens a file the way double-clicking it would. Only the variables file also
-offers **Create**, because it is the only one Klippy knows what to put in — a commented
-example — so it has a button whether or not the file is there. The snippets box shows
-**Open** once `snippets.json` exists, which it normally does, and no button at all while
-it does not: only the store knows what belongs in an empty one. **Folder** is always
-there. The whole block is hidden on mobile, where app storage is private and unreachable
+**Open** opens a file the way double-clicking it would, and the snippets folder in Explorer or
+Finder. Only the variables file also offers **Create**, because it is the only one Klippy knows
+what to put in — a commented example — so it has a button whether or not the file is there. The
+snippets box shows **Open** once the folder exists, which it normally does, and no button at all
+while it does not: only the store knows what belongs in an empty one. **Folder**, which opens the
+folder a file is in, is there for the variables file; the snippets box's own **Open** already is
+that. The whole block is hidden on mobile, where app storage is private and unreachable
 — and where the buttons would have no launcher to open anything with.

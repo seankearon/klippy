@@ -54,7 +54,7 @@ public class SnippetShortcutUiTests
     private static Fixture NewVm(params Snippet[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-keys-ui-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-keys-ui-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var snippet in snippets) store.Add(snippet);
         return new Fixture { Vm = new MainViewModel(store), Store = store }.Attach();
     }
@@ -129,7 +129,7 @@ public class SnippetShortcutUiTests
     public async Task Triggering_IgnoresWhatIsTyped_AndRecordsNothing()
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-keys-ui-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-keys-ui-{Guid.NewGuid():N}"), seedIfEmpty: false);
         store.Add(Log);
         var commands = new CommandHistory(Path.Combine(Path.GetTempPath(), $"klippy-mru-{Guid.NewGuid():N}.json"));
         var f = new Fixture { Vm = new MainViewModel(store, commands: commands), Store = store }.Attach();

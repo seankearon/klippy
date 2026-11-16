@@ -11,8 +11,8 @@ Two ways, both designed for speed:
   Type the code in the search box and it jumps straight to the top; press Enter to copy.
 - **Search** — every space-separated term must prefix-match a word anywhere in the
   label, content, or tag. `log fil` finds "…send us the **log** **fil**es…".
-  Matching is case-insensitive; label hits rank above content hits, and recently used
-  snippets rank first among ties.
+  Matching is case-insensitive; label hits rank above content hits, and snippets recently
+  used on this machine rank first among ties.
 
 The index is precomputed, lowercased words per snippet
 ([`SnippetSearch`](https://github.com/seankearon/klippy/blob/main/Klippy/Services/SnippetSearch.cs)), so a keystroke costs a linear

@@ -72,7 +72,7 @@ public class RevealTests : IDisposable
     private static Fixture NewVm(params Snippet[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-reveal-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-reveal-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var snippet in snippets)
             store.Add(snippet);
 

@@ -42,7 +42,7 @@ public class ImageActionsTests : IDisposable
     private Fixture NewVm(byte[] image, string format = "PNG")
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-images-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-images-{Guid.NewGuid():N}"), seedIfEmpty: false);
         var history = ClipHistoryStore.InMemory();
         history.AddImage(image, format, 4, 3, "snippingtool");
 

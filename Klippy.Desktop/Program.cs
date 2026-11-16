@@ -17,7 +17,7 @@ sealed class Program
     public static int Main(string[] args)
     {
         // A global hotkey only makes sense with exactly one listener, and a second copy
-        // would fight the first for the key and for snippets.json. Bail out early if one
+        // would fight the first for the key and for the snippet files. Bail out early if one
         // is already resident — the running instance still answers the hotkey.
         using var single = new Mutex(initiallyOwned: true, "Klippy.SingleInstance.v1", out bool isFirst);
         if (!isFirst)
@@ -31,8 +31,9 @@ sealed class Program
         var settings = AppSettings.Current;
 
         // Before anything opens a file: the history service, the snippet store, the
-        // command MRU and the variables file all resolve their paths against
-        // StorageLocations, and each of them can be named separately.
+        // command MRU, the snippet usage and the variables file all resolve their paths
+        // against StorageLocations, and the snippets and the variables can be named
+        // separately.
         if (!StorageLocations.TryApply(settings, out var problem))
             Console.Error.WriteLine(
                 $"Ignoring \"DataDirectory\" in {AppSettings.FilePath}: {problem}. " +

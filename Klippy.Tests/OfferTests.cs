@@ -27,7 +27,7 @@ public class OfferTests
     private static SnippetStore NewStore(params (string Label, string Content)[] snippets)
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-offer-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-offer-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreach (var (label, content) in snippets)
             store.Add(new Snippet { Label = label, Content = content });
         return store;

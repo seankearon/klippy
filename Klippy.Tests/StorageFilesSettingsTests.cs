@@ -9,8 +9,8 @@ using Xunit;
 namespace Klippy.Tests;
 
 /// <summary>
-/// Klippy's files as the Settings screen offers them: a box for the snippets, a box for
-/// the variables file, and the folder everything else lives in.
+/// Klippy's files as the Settings screen offers them: a box for the snippets folder, a box
+/// for the variables file, and the folder everything else lives in.
 ///
 /// Those two and no others, for a single reason — a snippet store is worth sharing
 /// between a Mac and a Windows box, and the variables file that says where <c>%ws%</c>
@@ -55,8 +55,10 @@ public class StorageFilesSettingsTests : IDisposable
 
         Assert.Equal(new[] { vm.Snippets, vm.Variables }, vm.Files);
         Assert.Equal(
-            new[] { "snippets.json", "variables.txt" },
+            new[] { "snippets", "variables.txt" },
             new[] { vm.Snippets.Watermark, vm.Variables.Watermark });
+        Assert.True(vm.Snippets.IsFolder);
+        Assert.False(vm.Variables.IsFolder);
     }
 
     [Fact]
@@ -73,16 +75,40 @@ public class StorageFilesSettingsTests : IDisposable
     [Fact]
     public void TypingAPath_WritesThroughAndSaves()
     {
-        var shared = Path.Combine(_root, "OneDrive", "snippets.json");
+        var shared = Path.Combine(_root, "OneDrive", "snippets");
 
         var vm = Vm();
         vm.Snippets.File = shared;
 
         // It has to reach the instance the app reads...
-        Assert.Equal(shared, _settings.SnippetsFile);
+        Assert.Equal(shared, _settings.SnippetsFolder);
         // ...and disk, or it would not survive the restart it is asking for.
-        Assert.Equal(shared, AppSettings.Load(_settings.SourcePath).SnippetsFile);
+        Assert.Equal(shared, AppSettings.Load(_settings.SourcePath).SnippetsFolder);
         Assert.Equal(shared, vm.Snippets.Path);
+    }
+
+    [Fact]
+    public void AnOlderSnippetsFileSetting_ShowsAsTheFolderItNowMeans()
+    {
+        // An upgrade must not look as though it forgot where the snippets were: the box shows the
+        // folder the old file name stands for, spelled the way it was written.
+        _settings.SnippetsFile = "%OneDrive%/Klippy/snippets.json";
+
+        Assert.Equal("%OneDrive%/Klippy/snippets", Vm().Snippets.File);
+    }
+
+    [Fact]
+    public void ChangingTheBox_RetiresTheOlderFileSetting()
+    {
+        // The folder now says everything the old name did.
+        _settings.SnippetsFile = "work-snippets.json";
+        var vm = Vm();
+
+        vm.Snippets.File = "team";
+
+        Assert.Equal("team", _settings.SnippetsFolder);
+        Assert.Null(_settings.SnippetsFile);
+        Assert.Null(AppSettings.Load(_settings.SourcePath).SnippetsFile);
     }
 
     [Fact]
@@ -90,7 +116,7 @@ public class StorageFilesSettingsTests : IDisposable
     {
         // The whole point: shared snippets, local everything else.
         var vm = Vm();
-        vm.Snippets.File = Path.Combine(_root, "OneDrive", "snippets.json");
+        vm.Snippets.File = Path.Combine(_root, "OneDrive", "snippets");
 
         Assert.Equal("", _settings.VariablesFile);
         Assert.Equal("", _settings.DataDirectory);
@@ -106,34 +132,34 @@ public class StorageFilesSettingsTests : IDisposable
     public void ABareName_LandsInTheDataFolder_AndTheLineUnderItSaysWhere()
     {
         var vm = Vm();
-        vm.Snippets.File = "work-snippets.json";
+        vm.Snippets.File = "work-snippets";
 
-        var resolved = Path.Combine(StorageLocations.Directory, "work-snippets.json");
+        var resolved = Path.Combine(StorageLocations.Directory, "work-snippets");
         Assert.Equal(resolved, vm.Snippets.Path);
-        Assert.Equal($"{resolved}  —  no file yet", vm.Snippets.StatusText);
+        Assert.Equal($"{resolved}  —  no folder yet", vm.Snippets.StatusText);
     }
 
     [Fact]
     public void ClearingABox_PutsTheFileBackWhereItStarted()
     {
         var vm = Vm();
-        vm.Snippets.File = Path.Combine(_root, "elsewhere.json");
+        vm.Snippets.File = Path.Combine(_root, "elsewhere");
         vm.Snippets.File = "   ";
 
-        Assert.Equal("", _settings.SnippetsFile);
+        Assert.Equal("", _settings.SnippetsFolder);
         Assert.Equal(
-            Path.Combine(StorageLocations.Directory, StorageLocations.FileName),
+            Path.Combine(StorageLocations.Directory, StorageLocations.SnippetsFolderName),
             vm.Snippets.Path);
     }
 
     // ---- what the line under the box says ----
 
     [Fact]
-    public void AFileTheRunningAppHasOpen_SaysSo()
+    public void AFolderTheRunningAppHasOpen_SaysSo()
     {
-        var open = Path.Combine(_root, "snippets.json");
-        File.WriteAllText(open, "[]");
-        _settings.SnippetsFile = open;
+        var open = Path.Combine(_root, "snippets");
+        Directory.CreateDirectory(open);
+        _settings.SnippetsFolder = open;
 
         var vm = Vm(snippetsInUse: open);
 
@@ -147,11 +173,11 @@ public class StorageFilesSettingsTests : IDisposable
         // Every file but the variables one is read at startup and held from then on, so a
         // path typed here is a promise about the next launch. Saying nothing would look
         // like a setting that did not take.
-        var open = Path.Combine(_root, "snippets.json");
-        File.WriteAllText(open, "[]");
+        var open = Path.Combine(_root, "snippets");
+        Directory.CreateDirectory(open);
 
         var vm = Vm(snippetsInUse: open);
-        vm.Snippets.File = Path.Combine(_root, "somewhere-else.json");
+        vm.Snippets.File = Path.Combine(_root, "somewhere-else");
 
         Assert.True(vm.Snippets.NeedsRestart);
         Assert.Contains("takes effect on restart", vm.Snippets.StatusText);
@@ -162,8 +188,8 @@ public class StorageFilesSettingsTests : IDisposable
     {
         // A Windows user who retypes their own path in another case has not asked for
         // anything to change, and a restart notice would say they had.
-        var open = Path.Combine(_root, "snippets.json");
-        _settings.SnippetsFile = open.ToUpperInvariant();
+        var open = Path.Combine(_root, "snippets");
+        _settings.SnippetsFolder = open.ToUpperInvariant();
 
         Assert.False(Vm(snippetsInUse: open).Snippets.NeedsRestart);
     }
@@ -174,10 +200,10 @@ public class StorageFilesSettingsTests : IDisposable
         // A screen told nothing about what is running promises nothing — better than one
         // claiming a restart it cannot know is needed.
         var vm = Vm();
-        vm.Snippets.File = Path.Combine(_root, "snippets.json");
+        vm.Snippets.File = Path.Combine(_root, "snippets");
 
         Assert.False(vm.Snippets.NeedsRestart);
-        Assert.Equal("no file yet", vm.Snippets.Summary);
+        Assert.Equal("no folder yet", vm.Snippets.Summary);
     }
 
     [Fact]
@@ -185,7 +211,7 @@ public class StorageFilesSettingsTests : IDisposable
     {
         // It is re-read whenever it changes, so an edit applies to the next copy. Only
         // the count is worth reporting, and that is what it reports.
-        var vm = Vm(snippetsInUse: Path.Combine(_root, "snippets.json"));
+        var vm = Vm(snippetsInUse: Path.Combine(_root, "snippets"));
         var elsewhere = Path.Combine(_root, "work.vars");
         File.WriteAllText(elsewhere, "ws=/usr/bin/webstorm");
 
@@ -267,27 +293,53 @@ public class StorageFilesSettingsTests : IDisposable
     // ---- the backup choice, where there is one ----
 
     [Fact]
-    public void NamingTheSnippetsFile_RetiresTheBackupChoice()
+    public void NamingTheSnippetsFolder_RetiresTheBackupChoice()
     {
         // The toggle moves the store between a backed-up folder and a backup-exempt one.
         // A named path has already answered that, and the toggle would have nowhere to
-        // move it to that the setting would not immediately name back.
+        // move it to that the setting would not immediately name back. An older file
+        // setting names one just as well.
         var exempt = StorageLocations.BackupExemptDirectory;
-        var snippets = StorageLocations.SnippetsFile;
+        var snippets = StorageLocations.SnippetsFolder;
+        var legacy = StorageLocations.LegacySnippetsFile;
         try
         {
             StorageLocations.BackupExemptDirectory = Path.Combine(_root, "no_backup");
-            StorageLocations.SnippetsFile = "";
+            StorageLocations.SnippetsFolder = "";
+            StorageLocations.LegacySnippetsFile = "";
             Assert.True(StorageLocations.SupportsBackupOptOut);
 
-            StorageLocations.SnippetsFile = Path.Combine(_root, "OneDrive", "snippets.json");
+            StorageLocations.SnippetsFolder = Path.Combine(_root, "OneDrive", "snippets");
             Assert.False(StorageLocations.SupportsBackupOptOut);
-            Assert.Null(StorageLocations.BackupExemptPath);
+            Assert.Null(StorageLocations.BackupExemptFolder);
+
+            StorageLocations.SnippetsFolder = "";
+            StorageLocations.LegacySnippetsFile = Path.Combine(_root, "OneDrive", "snippets.json");
+            Assert.False(StorageLocations.SupportsBackupOptOut);
         }
         finally
         {
             StorageLocations.BackupExemptDirectory = exempt;
-            StorageLocations.SnippetsFile = snippets;
+            StorageLocations.SnippetsFolder = snippets;
+            StorageLocations.LegacySnippetsFile = legacy;
         }
+    }
+
+    [Fact]
+    public async Task TheSnippetsFolderOpensItself()
+    {
+        // A folder's own Open is the folder, so it needs no second button for the one it is in.
+        var open = Path.Combine(_root, "snippets");
+        Directory.CreateDirectory(open);
+        _settings.SnippetsFolder = open;
+        var vm = Vm(snippetsInUse: open);
+
+        Assert.True(vm.Snippets.CanOpen);
+        Assert.False(vm.Snippets.CanOpenFolder);
+        await vm.Snippets.OpenCommand.ExecuteAsync(null);
+
+        var plan = Assert.Single(_opened);
+        Assert.Equal(ExecutionKind.Folder, plan.Kind);
+        Assert.Equal(open, plan.Target);
     }
 }

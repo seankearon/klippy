@@ -33,7 +33,7 @@ public class UiTests
     }
 
     private static MainViewModel NewVm() =>
-        new(new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json")));
+        new(new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}")));
 
     /// <summary>The tag chips the open editor is showing, in the order they are laid out.</summary>
     private static List<Button> TagChips(Window window, MainViewModel vm) =>
@@ -436,7 +436,7 @@ public class UiTests
 
         using var file = new System.IO.MemoryStream();
         var foreign = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}"), seedIfEmpty: false);
         foreign.Add(new Klippy.Models.Snippet { Label = "Imported one", Content = "zzz", Tag = "imported" });
         foreign.Export(file);
         file.Position = 0;
@@ -516,7 +516,7 @@ public class UiTests
         history.Add(new ClipEntry { Text = "some clip", SourceApp = "chrome" });
 
         var vm = new MainViewModel(
-            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json")),
+            new SnippetStore(Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}")),
             history);
         var window = new MainWindow { DataContext = vm };
         window.Show();
@@ -604,7 +604,7 @@ public class UiTests
     public void EditorOverlay_HidesTheTagRow_WhenNothingIsTaggedYet()
     {
         var store = new SnippetStore(
-            Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}.json"), seedIfEmpty: false);
+            Path.Combine(Path.GetTempPath(), $"klippy-ui-{Guid.NewGuid():N}"), seedIfEmpty: false);
         var vm = new MainViewModel(store);
         var window = new MainWindow { DataContext = vm };
         window.Show();

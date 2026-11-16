@@ -469,6 +469,11 @@ internal sealed class LauncherHost : IDisposable
         var summoning = !(window.IsVisible && window.IsActive)
                         || window.WindowState == WindowState.Minimized;
 
+        // A summons is also when to look at the snippets folder again: a sync client that raised no event
+        // for an edit made on another machine — a virtual drive may raise none — still cannot keep it from
+        // the list for longer than it takes to press the hotkey. Cheap when nothing changed.
+        if (summoning) (window.DataContext as MainViewModel)?.SyncSnippets();
+
         // macOS can hide Klippy as an application — Hide Others (⌥⌘H) in another app, for
         // one — which is not the same as the window being hidden: Avalonia still reports
         // it visible, and nothing below would bring it back. On an app that is not hidden
