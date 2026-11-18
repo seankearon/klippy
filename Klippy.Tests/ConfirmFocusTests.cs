@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Klippy.Services;
@@ -139,7 +140,7 @@ public class ConfirmFocusTests
 
         var frame = f.Window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, $"screenshot-confirm-{dialog.ToString().ToLowerInvariant()}.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, $"screenshot-confirm-{dialog.ToString().ToLowerInvariant()}.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaTheory]
@@ -234,7 +235,7 @@ public class ConfirmFocusTests
         {
             Width = 390,
             Height = 780,
-            SystemDecorations = SystemDecorations.None,
+            WindowDecorations = WindowDecorations.None,
             Content = new MainView { DataContext = vm },
         };
         window.Show();

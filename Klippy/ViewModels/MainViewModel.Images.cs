@@ -178,7 +178,7 @@ public partial class MainViewModel
             using var bitmap = Decode(bytes);
             if (bitmap is null) return null;
             using var stream = new MemoryStream();
-            bitmap.Save(stream);
+            bitmap.Save(stream, PngBitmapEncoderOptions.Default);
             return stream.ToArray();
         }
         catch (Exception)

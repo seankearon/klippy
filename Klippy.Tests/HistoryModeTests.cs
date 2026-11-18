@@ -50,7 +50,7 @@ public class HistoryModeTests
         }
 
         using var stream = new MemoryStream();
-        bitmap.Save(stream);
+        bitmap.Save(stream, PngBitmapEncoderOptions.Default);
         return stream.ToArray();
     }
 
@@ -89,7 +89,7 @@ public class HistoryModeTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(dir, "screenshot-history.png"));
+        frame!.Save(Path.Combine(dir, "screenshot-history.png"), PngBitmapEncoderOptions.Default);
     }
 
     // ---- the chip ----

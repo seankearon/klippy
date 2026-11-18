@@ -67,7 +67,7 @@ public class ImageActionsTests : IDisposable
         using var bitmap = new WriteableBitmap(new PixelSize(4, 3), new Vector(96, 96), PixelFormat.Bgra8888,
             AlphaFormat.Premul);
         using var stream = new MemoryStream();
-        bitmap.Save(stream);
+        bitmap.Save(stream, PngBitmapEncoderOptions.Default);
         return stream.ToArray();
     }
 

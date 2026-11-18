@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -151,7 +152,7 @@ public class QuitTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-quit.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-quit.png"), PngBitmapEncoderOptions.Default);
 
         // It opens on Cancel: Tab reaches Quit Klippy, and Enter takes it.
         Press(window, Key.Tab);

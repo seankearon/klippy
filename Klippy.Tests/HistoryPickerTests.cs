@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Klippy.Models;
@@ -277,6 +278,6 @@ public class HistoryPickerTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(dir, "screenshot-history-picker.png"));
+        frame!.Save(Path.Combine(dir, "screenshot-history-picker.png"), PngBitmapEncoderOptions.Default);
     }
 }

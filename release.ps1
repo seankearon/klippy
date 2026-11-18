@@ -86,7 +86,7 @@ function Write-Warn([string] $Message) { Write-Host "    $Message" -ForegroundCo
 Write-Step 'Checking prerequisites'
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    throw 'The .NET SDK is not on PATH. Install .NET 10 from https://dotnet.microsoft.com/download'
+    throw 'The .NET SDK is not on PATH. Install .NET 11 from https://dotnet.microsoft.com/download'
 }
 Write-Ok "dotnet SDK $(& dotnet --version)"
 
