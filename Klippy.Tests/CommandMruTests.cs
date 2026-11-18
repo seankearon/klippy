@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -498,7 +499,7 @@ public class CommandMruTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-commands.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-commands.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]

@@ -4,7 +4,7 @@ A small, cross-platform snippet, actions, and clipbpard manager. Store pieces of
 find them instantly, and put them on the clipboard with one click, tap, or keystroke — or give a
 snippet keys of its own, VS Code-style chords included, or a hotkey that works from any application. 
 Store and access your clipboard history.  Run actions such as opening files or URLs.
-Built with .NET 10 and [Avalonia UI](https://avaloniaui.net/) for Windows, macOS, Android, and iOS.
+Built with .NET 11 and [Avalonia UI](https://avaloniaui.net/) for Windows, macOS, Android, and iOS.
 
 **📖 [Full documentation](https://seankearon.github.io/klippy/)**
 

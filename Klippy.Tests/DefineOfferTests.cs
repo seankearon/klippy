@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Klippy.Models;
@@ -531,7 +532,7 @@ public class DefineOfferTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-define-offers.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-define-offers.png"), PngBitmapEncoderOptions.Default);
     }
 
     // ---- a console in each place ----

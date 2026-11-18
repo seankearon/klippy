@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -67,7 +68,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-desktop.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-desktop.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]
@@ -77,7 +78,7 @@ public class UiTests
         {
             Width = 390,
             Height = 780,
-            SystemDecorations = SystemDecorations.None,
+            WindowDecorations = WindowDecorations.None,
             Content = new MainView { DataContext = NewVm() },
         };
         window.Show();
@@ -85,7 +86,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-mobile.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-mobile.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]
@@ -151,7 +152,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-preview.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-preview.png"), PngBitmapEncoderOptions.Default);
 
         window.KeyPress(Key.P, cmdMod, PhysicalKey.P, "p");
         Dispatcher.UIThread.RunJobs();
@@ -245,7 +246,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-transfer.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-transfer.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]
@@ -259,7 +260,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-settings.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-settings.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]
@@ -311,7 +312,7 @@ public class UiTests
         {
             Width = 390,
             Height = 780,
-            SystemDecorations = SystemDecorations.None,
+            WindowDecorations = WindowDecorations.None,
             Content = new MainView { DataContext = vm },
         };
         window.Show();
@@ -327,7 +328,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-mobile-settings.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-mobile-settings.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]
@@ -398,7 +399,7 @@ public class UiTests
         {
             Width = 390,
             Height = 780,
-            SystemDecorations = SystemDecorations.None,
+            WindowDecorations = WindowDecorations.None,
             Content = new MainView { DataContext = vm },
         };
         window.Show();
@@ -425,7 +426,7 @@ public class UiTests
         Assert.True(vm.Editor!.IsMarkdown); // seeded prose snippet is Markdown
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor.png"), PngBitmapEncoderOptions.Default);
     }
 
     [AvaloniaFact]
@@ -591,7 +592,7 @@ public class UiTests
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
-        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor-tags.png"));
+        frame!.Save(Path.Combine(ArtifactsDir, "screenshot-editor-tags.png"), PngBitmapEncoderOptions.Default);
 
         var work = chips.Single(c => (string?)c.Content == "work");
         ClickCentre(window, work);

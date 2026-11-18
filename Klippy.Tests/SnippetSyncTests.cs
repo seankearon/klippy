@@ -152,7 +152,7 @@ public class SnippetSyncTests : IDisposable
         var path = Path.Combine(Folder, $"{Guid.NewGuid():D}.json");
         for (var i = 0; i < 5; i++) File.WriteAllText(path, $"{{ \"n\": {i} }}");
 
-        Assert.True(settled.Wait(TimeSpan.FromSeconds(10)));
+        Assert.True(settled.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         Thread.Sleep(400);
         Assert.Equal(1, calls);
     }
